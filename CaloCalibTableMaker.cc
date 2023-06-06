@@ -3,7 +3,7 @@
 
 
 // inputTable : reads an input archive table
-Table inputTable(const char *ArchiveFile, const char *tag){
+ArchiveTable inputTable(const char *ArchiveFile, const char *tag){
   std::vector<int> roids;
   std::vector<double> peaks;
   std::vector<double> widths;
@@ -28,17 +28,13 @@ Table inputTable(const char *ArchiveFile, const char *tag){
 		chisqs.push_back(chisq);
 	}
 	fclose(fC);
-	Table input(roids, peaks, errpeaks, widths, errwidths, chisqs, tag);
+	ArchiveTable input(roids, peaks, errpeaks, widths, errwidths, chisqs, tag);
   return input;
-}
-// outputTable : returns final table in .txt form
-void outputTable(Table table){
-
 }
 
 // combineAlg : called by main function, this funciton does the hard work
-Table combineAlg(std::vector<Table> tables){
-  Table output;
+RecoTable combineAlg(std::vector<ArchiveTable> tables){
+  ArchiveTable output;
   std::vector<int> roids;
   std::vector<double> peaks;
   std::vector<double> widths;
@@ -50,28 +46,43 @@ Table combineAlg(std::vector<Table> tables){
   double w_av = 0;
   double errw_av = 0;
   double chisq_av = 0; //TODO - how to deal with this?
-  
-  for(unsigned int i = 0; i < tables.size() ; i++){
-    std::cout<<"looking at table "<<tables[i].algtag_<<std::endl;
-    roids.push_back(tables[i].roid_);
-    
-    
+  // Fill ROID:
+  for(unsigned int i = 0; i < 1348*2; i++){ // FIXME - needs to use CaloID class and also no hardcoding
+    roids.push_back(i);
   }
-  Table output(roids, peaks, errpeaks, widths, errwidths, chisqs, "reco combined");
+  // Loop over ROID, for each table find ID value and average, fill new table
+  for(auto const& id: roids){
+    double average_peak = 0;
+    for(unsigned int i = 0; i < tables.size() ; i++){
+      std::cout<<"looking at table "<<tables[i].algtag_<<std::endl;
+      average_peak += tables[i].peak_[id];
+    }
+    peaks.push_back(average_peak/tables.size());
+    errpeaks.push_back(0);//TODO
+  }
+   
+  RecoTable outputs(roids, peaks, errpeaks, 1);
+  return outputs;
+}
+
+
+void WriteOutput(RecoTable table) {//TODO 
 }
 
 int main(){
-  std::vector<Table> tables;
+  std::vector<ArchiveTable> tables;
   // get source table
-  Table sourceInput = inputTable("testdata.csv", "source");
+  ArchiveTable sourceInput = inputTable("sourcedata_test.csv", "source");
   tables.push_back(sourceInput);
   // get MIP table
-  Table mipInput = inputTable("testdata.csv", "mip");
+  ArchiveTable mipInput = inputTable("cosmicdata_test.csv", "mip");
   tables.push_back(mipInput);
   // get laser table
-  Table laserInput = inputTable("testdata.csv", "laser");
+  ArchiveTable laserInput = inputTable("laserdata_test.csv", "laser");
   tables.push_back(laserInput);
   // pass to combination:
-  combineAlg(tables);
+  RecoTable output = combineAlg(tables);
+  //write out CSV:
+  WriteOutput(output);
   return 0;
 }
