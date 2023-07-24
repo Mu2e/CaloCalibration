@@ -1,10 +1,4 @@
-/*
-Macro takes output from calo crystal readout after source irradiation and does combined fit for main peak (6.13 MeV and 1st and 2nd escape peaks plus some continuum to account for electronics noise
-
-written by: S Middleton (2022)
-
-to run:  root .x FitMarco.C
-*/
+//to run:  root .L MyFitv2.C
 #include <fstream>
 #include <iostream>
 #include "TSystem.h"
@@ -48,6 +42,7 @@ using namespace TMath;
 using namespace RooFit;
 
 
+
 int FitMacro()
 {
   gROOT -> Reset();
@@ -62,21 +57,38 @@ int FitMacro()
   gStyle -> SetTitleOffset(1.75, "y");
 
   TFile *ouptFile = new TFile("paraFile.root", "RECREATE");
-  Float_t fsigma, dsigma, fpeak, dpeak,chiSq, resolution;
+  Float_t fsigma, dsigma, fpeak, dpeak, chiSq, fullresolution, vfrFull, vfrFirst, vfrSecond;
+  Float_t firstsigma, firstdsigma, firstpeak, firstdpeak, firstresolution;
+  Float_t secondsigma, seconddsigma, secondpeak, seconddpeak, secondresolution;
   TTree *newTree = new TTree("newTree","newTree");
-  newTree->Branch("Peak", &fpeak,"fpeak/F");
-  newTree->Branch("Width", &fsigma,"fsigma/F");
-  newTree->Branch("DPeak", &dpeak,"dpeak/F");
-  newTree->Branch("DSigma", &dsigma,"dsigma/F");
-  newTree->Branch("resolution", &resolution,"resolution/F");
+  newTree->Branch("FullPeak", &fpeak,"fpeak/F");
+  newTree->Branch("FullWidth", &fsigma,"fsigma/F");
+  newTree->Branch("FullDPeak", &dpeak,"dpeak/F");
+  newTree->Branch("FullDSigma", &dsigma,"dsigma/F");
+  newTree->Branch("Fullresolution", &fullresolution,"fullresolution/F");
   newTree->Branch("ChiSquared", &chiSq,"chiSq/F");
+  newTree->Branch("vfrFull", &vfrFull,"vfrFull/F");
+  newTree->Branch("vfrFirst", &vfrFirst,"vfrFirst/F");
+  newTree->Branch("vfrSecond", &vfrSecond,"vfrSecond/F");
+
+  newTree->Branch("FirstPeak", &firstpeak,"firstpeak/F");
+  newTree->Branch("FirstWidth", &firstsigma,"firstsigma/F");
+  newTree->Branch("FirstDPeak", &firstdpeak,"firstdpeak/F");
+  newTree->Branch("FirstDSigma", &firstdsigma,"firstdsigma/F");
+  newTree->Branch("Firstresolution", &firstresolution,"firstresolution/F");
+
+  newTree->Branch("SecondPeak", &secondpeak,"secondpeak/F");
+  newTree->Branch("SecondWidth", &secondsigma,"secondsigma/F");
+  newTree->Branch("SecondDPeak", &seconddpeak,"seconddpeak/F");
+  newTree->Branch("SecondDSigma", &seconddsigma,"seconddsigma/F");
+  newTree->Branch("Secondresolution", &secondresolution,"secondresolution/F");
 
   for(unsigned int crystalNo = 674; crystalNo < 1348; crystalNo++){
     std::cout<<"================================="<<crystalNo<<"================================="<<std::endl;
     TCanvas *can = new TCanvas("can", "", 100, 100, 600, 600);
     can -> Draw();
     TString cryNum = to_string(crystalNo);
-    TString fName = "caloSims/mu2e_caloSimu_crySpec" + cryNum + ".root"; //FIXME need to point to correct location
+    TString fName = "caloSims/mu2e_caloSimu_crySpec" + cryNum + ".root";
     TString oName = "mu2e_simu_fitSpec" + cryNum + ".eps";
     TString tName = "mu2e_simu_ergTrth" + cryNum + ".eps";
     TString title = "Energy Spectrum of Crystal " + cryNum;
@@ -110,19 +122,20 @@ int FitMacro()
     RooCBShape firsErg("firsErg", "first escape peak", crySpec, fstEsPeak, fstWidth, fcbalpha, fcbndeg);
     RooCBShape secdErg("secdErg", "second escape peak", crySpec, scdEsPeak, scdWidth, fcbalpha, fcbndeg);
 
-    // crystal ball background
+    // logistic background
     RooRealVar comCnst("comCnst", "comCnst", par1, 10, 320.);
     RooRealVar combeta("combeta", "combeta", par2, 0.25, 30);
-    RooGenericPdf comPdf("comPdf", "compton plateau", "1.0/(1.0+exp((crySpec-comCnst)/combeta))",
+    RooGenericPdf comPdf("comPdf", "logistic", "1.0/(1.0+exp((crySpec-comCnst)/combeta))",
                          RooArgSet(crySpec, comCnst, combeta));
 
+    // Fraction of events in eack peak
     RooRealVar frFull("frFull", "Fraction of full peak", 0.8, 0.25, 1.0);
     RooRealVar frFrst("frFrst", "Fraction of first escape peak", 0.3, 0.1, 0.7);
     RooRealVar frScnd("frScnd", "Fraction of second escape peak", 0.8, 0.25, 1.0);
 
     RooAddPdf fitFun("fitFun", "firsErg + (secdErg + (fullErg + comPdf))", RooArgList(firsErg, secdErg, fullErg, comPdf), RooArgList(frFrst, frScnd, frFull), kTRUE);
 
-    RooFitResult *fitRes = fitFun.chi2FitTo(chSpec, Range(4.0, 7.2), Strategy(3), PrintLevel(1), Hesse(kTRUE), Save());
+    RooFitResult *fitRes = fitFun.chi2FitTo(chSpec, Range(3.0, 7.2), Strategy(3), PrintLevel(1), Hesse(kTRUE), Save());
 
     RooPlot *chFrame = crySpec.frame(Title(title));
     chSpec.plotOn(chFrame, MarkerColor(kBlack), LineColor(kBlack), MarkerSize(0.5), Name("chSpec"));
@@ -141,7 +154,23 @@ int FitMacro()
     dpeak = fullPeak.getError();
     fsigma = fullWidth.getVal();
     dsigma = fullWidth.getError();
-    resolution = 100*(fsigma/fpeak);
+    vfrFull = frFull.getVal();
+    vfrFirst = frFrst.getVal();
+    vfrSecond = frScnd.getVal();
+    fullresolution = 100*(fsigma/fpeak);
+
+    firstpeak = fstEsPeak.getVal();
+    //firstdpeak = fstEsPeak.getError();
+    firstsigma = fstWidth.getVal();
+    firstdsigma = fstWidth.getError();
+    firstresolution = 100*(firstsigma/firstpeak);
+
+    secondpeak = scdEsPeak.getVal();
+    //seconddpeak = scdEsPeak.getError();
+    secondsigma = scdWidth.getVal();
+    seconddsigma = scdWidth.getError();
+    secondresolution = 100*(secondsigma/secondpeak);
+
     TPaveLabel *pchi2 = new TPaveLabel(0.20, 0.70, 0.35, 0.80, Form("#chi^{2}/ndf = %4.2f", chiSq), "brNDC");
     pchi2 -> SetFillStyle(0);
     pchi2 -> SetBorderSize(0);
