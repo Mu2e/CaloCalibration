@@ -4,6 +4,7 @@
 #include <iostream>
 #include <utility>
 #include <tuple>
+#include <fstream>
 using namespace std;
 
 struct ArchiveTable{

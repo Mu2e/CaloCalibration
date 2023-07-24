@@ -18,15 +18,17 @@ ArchiveTable inputTable(const char *ArchiveFile, const char *tag){
 	}
 	int roid;
 	float peak, errpeak, width, errwidth, chisq;
-	while(fscanf(fC, "%i,%f,%f,%f,%f,%f\n", &roid, &peak, &errpeak, &width, &errwidth, &chisq)!=EOF){
-		roids.push_back(roid);
-		peaks.push_back(peak);
-		errpeaks.push_back(errpeak);
-		widths.push_back(width);
-		errwidths.push_back(errwidth);
-		peaks.push_back(peak);
-		chisqs.push_back(chisq);
-	}
+	
+  while(fscanf(fC, "%i,%f,%f,%f,%f,%f\n", &roid, &peak, &errpeak, &width, &errwidth, &chisq)!=EOF){
+    roids.push_back(roid);
+	  peaks.push_back(peak);
+	  errpeaks.push_back(errpeak);
+	  widths.push_back(width);
+	  errwidths.push_back(errwidth);
+	  peaks.push_back(peak);
+	  chisqs.push_back(chisq);
+  }
+  
 	fclose(fC);
 	ArchiveTable input(roids, peaks, errpeaks, widths, errwidths, chisqs, tag);
   return input;
@@ -34,6 +36,7 @@ ArchiveTable inputTable(const char *ArchiveFile, const char *tag){
 
 // combineAlg : called by main function, this funciton does the hard work
 RecoTable combineAlg(std::vector<ArchiveTable> tables){
+  std::cout<<" combining tables "<<std::endl;
   ArchiveTable output;
   std::vector<int> roids;
   std::vector<double> peaks;
@@ -54,7 +57,7 @@ RecoTable combineAlg(std::vector<ArchiveTable> tables){
   for(auto const& id: roids){
     double average_peak = 0;
     for(unsigned int i = 0; i < tables.size() ; i++){
-      std::cout<<"looking at table "<<tables[i].algtag_<<std::endl;
+      //std::cout<<"looking at table "<<tables[i].algtag_<<std::endl;
       average_peak += tables[i].peak_[id];
     }
     peaks.push_back(average_peak/tables.size());
@@ -66,20 +69,37 @@ RecoTable combineAlg(std::vector<ArchiveTable> tables){
 }
 
 
-void WriteOutput(RecoTable table) {//TODO 
+void WriteOutput(RecoTable table) {
+  ofstream fw("RecoTable.txt", std::ofstream::out);
+  if (fw.is_open())
+  {
+    for(unsigned int i = 0; i< table.roid_.size(); i++){
+      fw << table.roid_[i]<<","<<table.peak_[i]<<","<<table.errpeak_[i]<<"\n";
+    }
+  }
+  fw.close();
 }
 
-int main(){
+int main(int argc, char ** argv){
+  bool source = argv[1];
+  bool MIP = argv[2];
+  bool laser = argv[3];
   std::vector<ArchiveTable> tables;
   // get source table
-  ArchiveTable sourceInput = inputTable("sourcedata_test.csv", "source");
-  tables.push_back(sourceInput);
+  if(source){
+    ArchiveTable sourceInput = inputTable("sourcedata_test.csv", "source");
+    tables.push_back(sourceInput);
+  }
   // get MIP table
-  ArchiveTable mipInput = inputTable("cosmicdata_test.csv", "mip");
-  tables.push_back(mipInput);
+  if(MIP){
+    ArchiveTable mipInput = inputTable("cosmicdata_test.csv", "mip");
+    tables.push_back(mipInput);
+  }
   // get laser table
-  ArchiveTable laserInput = inputTable("laserdata_test.csv", "laser");
-  tables.push_back(laserInput);
+  if(laser){
+    ArchiveTable laserInput = inputTable("laserdata_test.csv", "laser");
+    tables.push_back(laserInput);
+  }
   // pass to combination:
   RecoTable output = combineAlg(tables);
   //write out CSV:
