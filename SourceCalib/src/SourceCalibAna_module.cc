@@ -73,14 +73,16 @@ namespace mu2e {
         int                   nProcess_;
 
         TTree* Ntup_;
-        int _evt,_run;
+        unsigned int _evt,_run;
 
-        int nHits_, nCrystals_;
+        unsigned int ncalhitHit_, nCrystals_;
         float truetotalEnergyDep_;
         int cryId_[ntupLen],crySectionId_[ntupLen],crycalhitMCIdx_[ntupLen],crySimLen_[ntupLen];
         float cryEtot_,calhitRecoTime_[ntupLen],calhitRecoEdep_[ntupLen],calhitRecoEdepErr_[ntupLen],calhitRecoPosX_[ntupLen],calhitRecoPosY_[ntupLen],calhitRecoPosZ_[ntupLen],_cryLeak[ntupLen];
 
-        int ncalhitMCHit_,crycalhitMCId_[ntupLen],crycalhitMCPdgId_[ntupLen],crycalhitMCCrCode_[ntupLen],crycalhitMCGenIdx_[ntupLen],calhitConv_[ntupLen];
+        unsigned int ncalhitMCHit_,crycalhitMCId_[ntupLen];
+        
+        int crycalhitMCPdgId_[ntupLen],crycalhitMCCrCode_[ntupLen],crycalhitMCGenIdx_[ntupLen],calhitConv_[ntupLen];
         float crycalhitMCMom_[ntupLen],crycalhitMCX_[ntupLen],crycalhitMCY_[ntupLen],crycalhitMCZ_[ntupLen],crycalhitMCStartT_[ntupLen];
         float crycalhitMCEndX_[ntupLen],crycalhitMCEndY_[ntupLen],crycalhitMCEndZ_[ntupLen],crycalhitMCEndT_[ntupLen];
         float crycalhitTime_[ntupLen],crycalhitMCEdep_[ntupLen],calhitRecoTimeErr_[ntupLen],calhitRecoT1_[ntupLen],calhitRecoT2_[ntupLen],calhitRecoT1Err_[ntupLen],calhitRecoT2Err_[ntupLen];
@@ -108,25 +110,25 @@ namespace mu2e {
 
       // Reconstructed carystal hit info (from CaloHitCollection):
       Ntup_->Branch("calhitRecoEtot",      &cryEtot_ ,     "calhitRecoEtot/F");
-      Ntup_->Branch("nCry",         &nHits_ ,       "nCry/I");
-      Ntup_->Branch("cryId",        &cryId_ ,       "cryId[nCry]/I");
-      Ntup_->Branch("crySectionId", &crySectionId_, "crySectionId[nCry]/I");
-      Ntup_->Branch("calhitRecoPosX",      &calhitRecoPosX_ ,     "calhitRecoPosX[nCry]/F");
-      Ntup_->Branch("calhitRecoPosY",      &calhitRecoPosY_ ,     "calhitRecoPosY[nCry]/F");
-      Ntup_->Branch("calhitRecoPosZ",      &calhitRecoPosZ_ ,     "calhitRecoPosZ[nCry]/F");
-      Ntup_->Branch("calhitRecoEdep",      &calhitRecoEdep_ ,     "calhitRecoEdep[nCry]/F");
-      Ntup_->Branch("calhitRecoEdepErr",   &calhitRecoEdepErr_ ,  "calhitRecoEdepErr[nCry]/F");
-      Ntup_->Branch("calhitRecoTime",      &calhitRecoTime_ ,     "calhitRecoTime[nCry]/F");
-      Ntup_->Branch("calhitRecoTimeErr",   &calhitRecoTimeErr_ ,  "calhitRecoTimeErr[nCry]/F");
-      Ntup_->Branch("calhitRecoT1",        &calhitRecoT1_ ,       "calhitRecoT1[nCry]/F");
-      Ntup_->Branch("calhitRecoT2",        &calhitRecoT2_ ,       "calhitRecoT2[nCry]/F");
-      Ntup_->Branch("calhitRecoT1Err",     &calhitRecoT1Err_ ,    "calhitRecoT1Err[nCry]/F");
-      Ntup_->Branch("calhitRecoT2Err",     &calhitRecoT2Err_ ,    "calhitRecoT2Err[nCry]/F");
-      Ntup_->Branch("calhitConv",      &calhitConv_ ,     "calhitConv[nCry]/I");
+      Ntup_->Branch("ncalhitHit",         &ncalhitHit_ ,       "ncalhitHit/I");
+      Ntup_->Branch("cryId",        &cryId_ ,       "cryId[ncalhitHit]/I");
+      Ntup_->Branch("crySectionId", &crySectionId_, "crySectionId[ncalhitHit]/I");
+      Ntup_->Branch("calhitRecoPosX",      &calhitRecoPosX_ ,     "calhitRecoPosX[ncalhitHit]/F");
+      Ntup_->Branch("calhitRecoPosY",      &calhitRecoPosY_ ,     "calhitRecoPosY[ncalhitHit]/F");
+      Ntup_->Branch("calhitRecoPosZ",      &calhitRecoPosZ_ ,     "calhitRecoPosZ[ncalhitHit]/F");
+      Ntup_->Branch("calhitRecoEdep",      &calhitRecoEdep_ ,     "calhitRecoEdep[ncalhitHit]/F");
+      Ntup_->Branch("calhitRecoEdepErr",   &calhitRecoEdepErr_ ,  "calhitRecoEdepErr[ncalhitHit]/F");
+      Ntup_->Branch("calhitRecoTime",      &calhitRecoTime_ ,     "calhitRecoTime[ncalhitHit]/F");
+      Ntup_->Branch("calhitRecoTimeErr",   &calhitRecoTimeErr_ ,  "calhitRecoTimeErr[ncalhitHit]/F");
+      Ntup_->Branch("calhitRecoT1",        &calhitRecoT1_ ,       "calhitRecoT1[ncalhitHit]/F");
+      Ntup_->Branch("calhitRecoT2",        &calhitRecoT2_ ,       "calhitRecoT2[ncalhitHit]/F");
+      Ntup_->Branch("calhitRecoT1Err",     &calhitRecoT1Err_ ,    "calhitRecoT1Err[ncalhitHit]/F");
+      Ntup_->Branch("calhitRecoT2Err",     &calhitRecoT2Err_ ,    "calhitRecoT2Err[ncalhitHit]/F");
+      Ntup_->Branch("calhitConv",      &calhitConv_ ,     "calhitConv[ncalhitHit]/I");
 
       // Truth crystal hit info (from CaloHitMCCollection):
       Ntup_->Branch("calhitMCEtot",      &truetotalEnergyDep_ ,     "calhitMCEtot/F");
-      Ntup_->Branch("crycalhitMCIdx",    &crycalhitMCIdx_ ,   "crycalhitMCIdx[nCry]/I");
+      Ntup_->Branch("crycalhitMCIdx",    &crycalhitMCIdx_ ,   "crycalhitMCIdx[ncalhitMC]/I");
       Ntup_->Branch("crySimLen",    &crySimLen_ ,   "crySimLen[nCry]/I");
       Ntup_->Branch("ncalhitMC",         &ncalhitMCHit_ ,     "ncalhitMC/I");
       Ntup_->Branch("calhitMCId",        &crycalhitMCId_ ,    "calhitMCId[ncalhitMC]/I");
@@ -171,7 +173,7 @@ namespace mu2e {
         if (diagLevel_ == 3){std::cout << "processing event in calo_example " << nProcess_ << " run and event  = " << _run << " " << _evt << std::endl;}
 
         //--------------------------  Do calorimeter hits --------------------------------
-        nHits_ = ncalhitMCHit_ = 0;
+        ncalhitHit_ = ncalhitMCHit_ = 0;
         cryEtot_ = 0.0;
         truetotalEnergyDep_ = 0.0;
 
@@ -198,28 +200,28 @@ namespace mu2e {
             calhitRecoT2Err = hit.recoCaloDigis().at(idx1)->timeErr();
           }
 
-          cryId_[nHits_]        = hit.crystalID();
+          cryId_[ncalhitHit_]        = hit.crystalID();
           if(ic == 0) crystalsHit.push_back(hit.crystalID());
           else if(Contains(crystalsHit, hit.crystalID()) == 0) crystalsHit.push_back(hit.crystalID());
-          crySectionId_[nHits_] = diskId;
-          calhitRecoEdep_[nHits_]      = hit.energyDep();
-          calhitRecoEdepErr_[nHits_]   = hit.energyDepErr();
-          calhitRecoTime_[nHits_]      = hit.time();
-          calhitRecoTimeErr_[nHits_]   = hit.timeErr();
-          calhitRecoT1_[nHits_]        = calhitRecoT1;
-          calhitRecoT2_[nHits_]        = calhitRecoT2;
-          calhitRecoT1Err_[nHits_]     = calhitRecoT1Err;
-          calhitRecoT2Err_[nHits_]     = calhitRecoT2Err;
+          crySectionId_[ncalhitHit_] = diskId;
+          calhitRecoEdep_[ncalhitHit_]      = hit.energyDep();
+          calhitRecoEdepErr_[ncalhitHit_]   = hit.energyDepErr();
+          calhitRecoTime_[ncalhitHit_]      = hit.time();
+          calhitRecoTimeErr_[ncalhitHit_]   = hit.timeErr();
+          calhitRecoT1_[ncalhitHit_]        = calhitRecoT1;
+          calhitRecoT2_[ncalhitHit_]        = calhitRecoT2;
+          calhitRecoT1Err_[ncalhitHit_]     = calhitRecoT1Err;
+          calhitRecoT2Err_[ncalhitHit_]     = calhitRecoT2Err;
           GeomHandle<DetectorSystem> det;
           CLHEP::Hep3Vector Mu2ePos = det->toMu2e(crystalPos); // in mu2e coordinates for comparison
-          calhitRecoPosX_[nHits_]      = Mu2ePos.x();
-          calhitRecoPosY_[nHits_]      = Mu2ePos.y();
-          calhitRecoPosZ_[nHits_]      = Mu2ePos.z();
+          calhitRecoPosX_[ncalhitHit_]      = Mu2ePos.x();
+          calhitRecoPosY_[ncalhitHit_]      = Mu2ePos.y();
+          calhitRecoPosZ_[ncalhitHit_]      = Mu2ePos.z();
 
           cryEtot_             += hit.energyDep();
 
-          crycalhitMCIdx_[nHits_]    = ncalhitMCHit_;
-          crySimLen_[nHits_]    = eDepMCs.size();
+          crycalhitMCIdx_[ncalhitHit_]    = ncalhitMCHit_;
+          crySimLen_[ncalhitHit_]    = eDepMCs.size();
 
           double sumEdepMC(0),edepTime(0);
           for (unsigned i=0;i< eDepMCs.size();++i)
@@ -255,7 +257,7 @@ namespace mu2e {
             truetotalEnergyDep_ += sumEdepMC;
             if (edepTime<1) edepTime = eDepMC.time();
           }
-          ++nHits_;
+          ++ncalhitHit_;
 
         }
               nCrystals_ = crystalsHit.size();

@@ -1,5 +1,5 @@
-#ifndef _MakeTree_hh
-#define _MakeTree_hh
+#ifndef _MakeAnalysisTree_hh
+#define _MakeAnalysisTree_hh
 
 #include <fstream>
 #include <iostream>
@@ -19,16 +19,16 @@ using namespace TMath;
 using namespace RooFit;
 
 namespace CaloSourceCalib{
-  class MakeTree  {
+  class MakeAnalysisTree  {
       public:
-        explicit MakeTree(){};
-        explicit MakeTree(const MakeTree &){};
-        MakeTree& operator = (const MakeTree &);
-        virtual ~MakeTree() = default;
+        explicit MakeAnalysisTree(){};
+        explicit MakeAnalysisTree(const MakeAnalysisTree &){};
+        MakeAnalysisTree& operator = (const MakeAnalysisTree &);
+        virtual ~MakeAnalysisTree() = default;
         #ifndef __CINT__
-        void MakeTreeOutputs();
+        void MakeAnalysisTreeOutputs();
         #endif
-        ClassDef (MakeTree,1);
+        ClassDef (MakeAnalysisTree,1);
     };
 }
-#endif /* MakeTree.hh */
+#endif /* MakeAnalysisTree.hh */
