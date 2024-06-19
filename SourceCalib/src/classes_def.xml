@@ -1,3 +1,4 @@
 <lcgdict>
-  <class name="CaloSourceCalib::MakeTree" />
+  <class name="CaloSourceCalib::MakeAnalysisTree" />
+  <class name="CaloSourceCalib::TableMaker" />
 </lcgdict>

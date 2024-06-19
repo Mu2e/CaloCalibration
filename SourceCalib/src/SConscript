@@ -80,7 +80,7 @@ helper.make_dict_and_map( [
     ] )
 helper.classDef(True)
 
-helper.make_bin(target = 'MakeTree', userlibs = [mainlib,
+helper.make_bin(target = 'MakeAnalysisTree', userlibs = [mainlib,
                                                   rootlibs,
                                                   extrarootlibs])
 

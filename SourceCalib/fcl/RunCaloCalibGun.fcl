@@ -9,7 +9,7 @@
 #include "Offline/EventGenerator/fcl/prolog.fcl"
 #include "Production/JobConfig/digitize/prolog.fcl"
 
-process_name: CaloSourceCalibSim
+process_name: SourceCalibSimAna
 
 source: {
    module_type: EmptyEvent
@@ -17,7 +17,7 @@ source: {
 
 
 services : @local::Services.SimAndReco
-services.TFileService : { fileName : "nts.owner.CaloSourceCalib.version.sequencer.root"}
+services.TFileService : { fileName : "nts.owner.SourceCalibSimAna.version.sequencer.root"}
 services.SeedService.baseSeed : 99
 services.SeedService.maxUniqueEngines : 20
 
@@ -69,7 +69,7 @@ physics: {
           @sequence::CaloCluster.Reco,
           @sequence::CaloMC.TruthMatch]
 
-    e1: [CaloExample]
+    e1: [CaloSourceCalibAna]
 
     trigger_paths: [p1]
     end_paths:     [e1]
