@@ -1,4 +1,5 @@
 #include "CaloCalibration/SourceCalib/inc/MakeAnalysisTree.hh"
+#include "CaloCalibration/SourceCalib/inc/SourceFitter.hh"
 #include <chrono>
 using namespace std::chrono;
 
@@ -20,18 +21,15 @@ void AnalyzeCrystal(int crystalNo){
     cryNum = to_string(crystalNo);
 
     // create the output file.
-    TString ouptName = "mu2e_caloSimu_crycrysEdep_" + cryNum + ".root";
+    TString ouptName = "mu2e_caloSimu_crysEdep_" + cryNum + ".root";
     TFile *ouptFile = new TFile(ouptName, "RECREATE");
     //create output tree
-    Float_t crysEdep, ratio, ntrig, stim, time, tErg;
-    TTree *outTree = new TTree("outTree","outTree");
+    Float_t crysEdep;//, ratio, ntrig, stim, time, tErg;
+    TTree *outTree = new TTree("crysTree","crysTree");
     outTree->Branch("crysEdep", &crysEdep, "crysEdep/F"); //Energy Deposited
-    outTree->Branch("ratio", &ratio, "ratio/F"); //Ratio of Energy Deposited
-    outTree->Branch("ntrig", &ntrig,"ntrig/F");//Number of Hits on Target Crystal
-    outTree->Branch("stim", &stim, "stim/F");//Time Difference from Same Crystal
-    outTree->Branch("time", &time, "time/F");//Maxium Time Difference for All Hits
-    outTree->Branch("tErg", &tErg, "tErg/F");//Energy crysEdeptrum with crysEdepial Time Difference
 
+    // make histogram
+    TH1F *h_spec = new TH1F("h_spec", "h_spec", 300, 0.0, 7.5);
     // input tree
     TTree *inTree = get_data_tree();
     // extract branches - these are arrays as there will be multiple crystal hits per event
@@ -72,12 +70,9 @@ void AnalyzeCrystal(int crystalNo){
 
       if(idExist == 0) continue;
       sort(sameCryTime.begin(), sameCryTime.end());
-      float sameCryDeltaT = sameCryTime.back() - sameCryTime.front();
-      stim = sameCryDeltaT;
-
       float edepTarget = 0.0;
       float edepOthers   = 0.0;
-      int nTarget = 0;
+
       std::vector<float> deltaTime;
 
       for(int icry=0; icry<nCry; icry++)
@@ -86,7 +81,7 @@ void AnalyzeCrystal(int crystalNo){
         {
           edepTarget = cryEdep[icry];
           deltaTime.push_back(cryTime[icry]);
-          nTarget += 1;
+
         }
         else
         {
@@ -96,22 +91,13 @@ void AnalyzeCrystal(int crystalNo){
       }
       sort(deltaTime.begin(), deltaTime.end());
       float difTime = deltaTime.back() - deltaTime.front();
-      unsigned int numHit = sameCryEdep.size();
-      if(difTime > 20)
-      {
-        for(unsigned int iHit = 0; iHit < numHit; iHit++)
-        {
-          tErg = sameCryEdep[iHit];
-        }
-      }
+      
       if((edepTarget / (edepTarget + edepOthers)) >= 0.8 && difTime < 4)
       {
         crysEdep =edepTarget;
+        h_spec->Fill(edepTarget);
         nEvtCrys+=1;
       }
-      ratio= (edepTarget / (edepTarget + edepOthers));
-      ntrig = (nTarget);
-      time  = (difTime);
       outTree->Fill();
       
     }
@@ -122,19 +108,25 @@ void AnalyzeCrystal(int crystalNo){
 }
 
 /*function calls RooFit and fits a given crystal file*/
-void RunRooFit(int crystalNo) {}
+void RunRooFit(int crystalNo) {
+  SourceFitter *fit = new SourceFitter();
+  fit->FitCrystal(crystalNo,"nll");
+}
 
 
 /* function to loop over ntuple from SourceCalibAna and bin by crystal*/
 void MakeCrystalBinsOutputs( int start,  int end){
   for(int crystalNo = start; crystalNo < end; crystalNo++){
     std::cout<<" Finding Hits in Crystal # "<<crystalNo<<std::endl;
-    auto start = high_resolution_clock::now();
+    auto start_bin = high_resolution_clock::now();
     AnalyzeCrystal(crystalNo);
-    auto end = high_resolution_clock::now();
-    std::cout<<" Time take no filter crystal "<<duration_cast<seconds>(end - start)<<std::endl;
+    auto end_bin = high_resolution_clock::now();
+    std::cout<<" Time take to filter crystal "<<duration_cast<seconds>(end_bin - start_bin)<<std::endl;
     std::cout<<" Fitting Crystal # "<<crystalNo<<std::endl;
+    auto start_fit = high_resolution_clock::now();
     RunRooFit(crystalNo);
+    auto end_fit = high_resolution_clock::now();
+    std::cout<<" Time take to fit crystal "<<duration_cast<seconds>(end_fit - start_fit)<<std::endl;
  }
 }
 
@@ -148,9 +140,8 @@ int main(int argc, char* argv[]){
     cin>>anacrys_start;
     anacrys_end = anacrys_start+1;
   }
-  std::cout<<"Running pre-processing ....."<<std::endl;
+  std::cout<<"Running crystal binning ....."<<std::endl;
   MakeCrystalBinsOutputs(anacrys_start,anacrys_end); //TODO should we fit each crystal as we get it?
-  std::cout<<"Finished pre-processing ..."<<std::endl;
-  //RunRooFit();
+  std::cout<<"Finished processing ..."<<std::endl;
   return 0;
 }

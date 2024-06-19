@@ -1,0 +1,177 @@
+/*//
+// Simplied analyzer for source calibration analysis - will work with digi ADC waveforms
+// Author: Sophie Middleton 2022, 2024
+#include "art/Framework/Core/EDAnalyzer.h"
+#include "art/Framework/Principal/Event.h"
+#include "art/Framework/Principal/Run.h"
+#include "art_root_io/TFileService.h"
+#include "art/Framework/Principal/Handle.h"
+#include "art/Framework/Principal/Selector.h"
+#include "art/Framework/Principal/Provenance.h"
+#include "cetlib_except/exception.h"
+#include "fhiclcpp/types/Atom.h"
+#include "fhiclcpp/types/Sequence.h"
+#include "messagefacility/MessageLogger/MessageLogger.h"
+#include "canvas/Utilities/InputTag.h"
+
+#include "Offline/GlobalConstantsService/inc/GlobalConstantsHandle.hh"
+#include "Offline/ConditionsService/inc/ConditionsHandle.hh"
+
+#include "Offline/CalorimeterGeom/inc/Calorimeter.hh"
+#include "Offline/CalorimeterGeom/inc/DiskCalorimeter.hh"
+#include "Offline/DataProducts/inc/CaloSiPMId.hh"
+#include "Offline/GeometryService/inc/GeomHandle.hh"
+#include "Offline/GeometryService/inc/GeometryService.hh"
+#include "Offline/GeometryService/inc/VirtualDetector.hh"
+
+#include "Offline/RecoDataProducts/inc/CaloDigi.hh"
+#include "Offline/GeometryService/inc/DetectorSystem.hh"
+
+#include "TTree.h"
+namespace
+{
+  constexpr int ntupLen = 16384;
+}
+
+int Contains(std::vector<int> v, int x)
+{
+  return std::count(v.begin(), v.end(), x);
+}
+namespace mu2e {
+
+    class SourceCalibDigiAna : public art::EDAnalyzer {
+
+      public:
+      struct Config
+      {
+        using Name    = fhicl::Name;
+        using Comment = fhicl::Comment;
+
+        fhicl::Atom<art::InputTag> caloDigiCollection{Name("CaloDigiCollection"),Comment("Calo Digi collection name")};
+        fhicl::Atom<int> diagLevel{Name("diagLevel"),Comment("Diag Level"),0};
+      };
+      explicit SourceCalibDigiAna(const art::EDAnalyzer::Table<Config>& config);
+      virtual ~SourceCalibDigiAna() {}
+
+      virtual void beginJob();
+      virtual void endJob() {};
+      virtual void analyze(const art::Event& e);
+
+
+      private:
+
+        art::InputTag         caloDigiTag_;
+
+
+        int                   diagLevel_;
+        int                   nProcess_;
+
+        TTree* Ntup_;
+        unsigned int _evt,_run;
+
+        unsigned int ncalhitHit_, nCrystals_;
+        unsigned int cryId_[ntupLen],crySectionId_[ntupLen];
+        float cryEtot_,calhitRecoTime_[ntupLen], calhitRecoEdep_[ntupLen],calhitRecoEdepErr_[ntupLen], calhitRecoPosX_[ntupLen],calhitRecoPosY_[ntupLen],calhitRecoPosZ_[ntupLen],_cryLeak[ntupLen];
+        std::unique_ptr<CaloWaveformProcessor> waveformProcessor_;
+        };
+
+
+    SourceCalibDigiAna::SourceCalibDigiAna(const art::EDAnalyzer::Table<Config>& config):
+      EDAnalyzer{config},
+      caloDigiTag_    (config().caloDigiCollection()),
+      diagLevel_          (config().diagLevel()),
+      nProcess_(0),
+      Ntup_(0)
+      {}
+
+    void SourceCalibDigiAna::beginJob(){
+
+      art::ServiceHandle<art::TFileService> tfs;
+
+      Ntup_  = tfs->make<TTree>("SourceCalibDigiAna","SourceCalibDigiAna");
+
+      Ntup_->Branch("evt",          &_evt ,         "evt/I");
+      Ntup_->Branch("run",          &_run ,         "run/I");
+
+      // Reconstructed carystal hit info (from CaloDigiCollection):
+      Ntup_->Branch("calhitRecoEtot",      &cryEtot_ ,     "calhitRecoEtot/F");
+      Ntup_->Branch("ncalhitHit",         &ncalhitHit_ ,       "ncalhitHit/I");
+      Ntup_->Branch("cryId",        &cryId_ ,       "cryId[ncalhitHit]/I");
+      Ntup_->Branch("crySectionId", &crySectionId_, "crySectionId[ncalhitHit]/I");
+      Ntup_->Branch("calhitRecoEdep",      &calhitRecoEdep_ ,     "calhitRecoEdep[ncalhitHit]/F");
+      Ntup_->Branch("calhitRecoEdepErr",   &calhitRecoEdepErr_ ,  "calhitRecoEdepErr[ncalhitHit]/F");
+      Ntup_->Branch("calhitRecoTime",      &calhitRecoTime_ ,     "calhitRecoTime[ncalhitHit]/F");
+      Ntup_->Branch("calhitRecoTimeErr",   &calhitRecoTimeErr_ ,  "calhitRecoTimeErr[ncalhitHit]/F");
+    }
+
+    void SourceCalibDigiAna::analyze(const art::Event& event){
+        ++nProcess_;
+        if (nProcess_%10==0 && diagLevel_ > 0) std::cout<<"Processing event from SourceCalibDigiAna =  "<<nProcess_ <<std::endl;
+
+        //Handle to the calorimeter
+        art::ServiceHandle<GeometryService> geom;
+        if (!geom->hasElement<Calorimeter>() ) return;
+        const Calorimeter& cal = *(GeomHandle<Calorimeter>());
+
+        //Calorimeter crystal hits (average from readouts)
+        art::Handle<CaloDigiCollection> caloDigisHandle;
+        event.getByLabel(caloHitTag_, CaloDigisHandle);
+        const CaloDigiCollection& CaloDigis(*CaloDigisHandle);
+
+        _evt = event.id().event();
+        _run = event.run();
+
+        //--------------------------  Do calorimeter hits --------------------------------
+        ncalhitHit_ = ncalhitMCHit_ = 0;
+        cryEtot_ = 0.0;
+        truetotalEnergyDep_ = 0.0;
+
+        const auto& caloDigis = *caloDigisHandle;
+
+          double totEnergyReco(0);
+          std::vector<double> x{},y{};
+          for (const auto& caloDigi : caloDigis)
+        {
+          int    SiPMID   = caloDigi.SiPMID();
+          double t0       = caloDigi.t0();
+          const std::vector<int>& waveform = caloDigi.waveform();
+
+          size_t index = &caloDigi - &caloDigis.front();
+          art::Ptr<CaloDigi> caloDigiPtr(caloDigisHandle, index);
+
+          x.clear();y.clear();
+          for (unsigned int i=0;i<waveform.size();++i)
+          {
+              x.push_back(t0 + (i+0.5)*digiSampling_); // add 0.5 to be in middle of bin
+              y.push_back(waveform.at(i));
+          }
+
+          waveformProcessor_->reset();
+          waveformProcessor_->extract(x,y);
+          
+
+          for (int i=0;i<waveformProcessor_->nPeaks();++i)
+          {
+              double eDep      = waveformProcessor_->amplitude(i);
+
+
+          /*cryId_[ncalhitHit_]        = hit.crystalID();
+          if(ic == 0) crystalsHit.push_back(hit.crystalID());
+          else if(Contains(crystalsHit, hit.crystalID()) == 0) crystalsHit.push_back(hit.crystalID());
+          crySectionId_[ncalhitHit_] = diskId;
+          calhitRecoEdep_[ncalhitHit_]      = hit.energyDep();
+          calhitRecoEdepErr_[ncalhitHit_]   = hit.energyDepErr();
+          calhitRecoTime_[ncalhitHit_]      = hit.time();
+          calhitRecoTimeErr_[ncalhitHit_]   = hit.timeErr();
+
+          cryEtot_             += hit.energyDep();*
+
+          ++ncalhitHit_;
+
+        }
+        nCrystals_ = crystalsHit.size();
+
+        Ntup_->Fill();
+  }
+}
+DEFINE_ART_MODULE(mu2e::SourceCalibDigiAna)*/
