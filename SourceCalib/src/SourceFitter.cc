@@ -27,12 +27,10 @@ void SourceFitter::FitCrystal(int crystalNo, TString opt){
     TString oName = "mu2e_simu_fitSpec_"+ opt+"_" + cryNum + ".root";
     TString title = "Energy Spectrum of Crystal " + cryNum;
     TFile *inFile = TFile::Open(fName);
-    TTree *inTree = (TTree*)inFile->Get("crysTree");
-    
+
     TFile *ouptFile = new TFile("mu2e_caloSourceFit_" + cryNum + ".root", "RECREATE");
 
-    float crysEdepV;
-    inTree -> SetBranchAddress("crysEdep", &crysEdepV);//ncalhitHit
+    
     // obtain the two initial values for the parameters
     double par1 = 100.;
     double par2 = 10.;
@@ -71,10 +69,13 @@ void SourceFitter::FitCrystal(int crystalNo, TString opt){
     RooRealVar frFrst("frFrst", "Fraction of first escape peak", 0.3, 0.1, 0.7);
     RooRealVar frScnd("frScnd", "Fraction of second escape peak", 0.8, 0.25, 1.0);
 
+    // the parameter is 11 after setting width of escape peaks opened
+    Float_t fsigma, dsigma, fpeak, dpeak;
+    Float_t chiSq = 0;
     //preparing RooPlot
     RooPlot *chFrame = crysEdep.frame(Title(title));
 
-   /* if(opt == "chi2"){ //binned chi2 fit
+   if(opt == "chi2"){ //binned chi2 fit
       TH1F *h_spec = (TH1F*)inFile->Get("h_spec");
       RooDataHist chSpec("chSpec", "chSpec", crysEdep, h_spec);
       // combined fit function
@@ -86,13 +87,18 @@ void SourceFitter::FitCrystal(int crystalNo, TString opt){
       // plot components
       chSpec.plotOn(chFrame, MarkerColor(kBlack), LineColor(kBlack), MarkerSize(0.5), Name("chSpec"));
       fitFun.plotOn(chFrame, LineColor(kRed), LineStyle(1), Name("fullFit"));
+      chiSq = chFrame->chiSquare(11);
       fitFun.plotOn(chFrame, Components(fullErg), LineColor(kOrange), LineStyle(5));
       fitFun.plotOn(chFrame, Components(firsErg), LineColor(kViolet), LineStyle(5));
       fitFun.plotOn(chFrame, Components(secdErg), LineColor(kCyan), LineStyle(5));
       fitFun.plotOn(chFrame, Components(comPdf), LineColor(kBlue), LineStyle(5));
 
       std::cout<<"Result "<< fitRes <<std::endl;
-    } if(opt == "nll"){ //unbinned nll fit*/
+    } if(opt == "nll"){ //unbinned nll fit
+      TTree *inTree = (TTree*)inFile->Get("crysTree");
+      float crysEdepV;
+      inTree -> SetBranchAddress("crysEdep", &crysEdepV);//ncalhitHit
+    
       RooDataSet chSpec("chSpec", "chSpec", RooArgSet(crysEdep),  Import(*inTree));
 
       // combined fit function
@@ -107,6 +113,7 @@ void SourceFitter::FitCrystal(int crystalNo, TString opt){
       // plot components
       chSpec.plotOn(chFrame, MarkerColor(kBlack), LineColor(kBlack), MarkerSize(0.5), Name("chSpec"));
       fitFun.plotOn(chFrame, LineColor(kRed), LineStyle(1), Name("fullFit"));
+      chiSq = chFrame->chiSquare(11);
       fitFun.plotOn(chFrame, Components(fullErg), LineColor(kOrange), LineStyle(5));
       fitFun.plotOn(chFrame, Components(firsErg), LineColor(kViolet), LineStyle(5));
       fitFun.plotOn(chFrame, Components(secdErg), LineColor(kCyan), LineStyle(5));
@@ -114,12 +121,11 @@ void SourceFitter::FitCrystal(int crystalNo, TString opt){
 
       RooFitResult *fitRes = m.save();
       std::cout<<"Result "<< fitRes <<std::endl;
-   // }
+    }
 
 
-    // the parameter is 11 after setting width of escape peaks opened
-    Float_t fsigma, dsigma, fpeak, dpeak, chiSq;
-    chiSq = chFrame->chiSquare(11);
+    
+    
     //get fit parameters
     fpeak = fullPeak.getVal();
     dpeak = fullPeak.getError();
