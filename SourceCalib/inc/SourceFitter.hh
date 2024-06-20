@@ -42,6 +42,7 @@
 #include "RooMinimizer.h"
 #include "RooAbsReal.h"
 #include "RooFormulaVar.h"
+#include "RooAddition.h"
 using namespace std;
 using namespace TMath;
 using namespace RooFit;

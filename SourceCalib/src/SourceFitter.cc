@@ -65,9 +65,12 @@ void SourceFitter::FitCrystal(int crystalNo, TString opt){
                RooArgSet(crysEdep, comCnst, combeta));
 
     // Fraction of events in each peak
-    RooRealVar frFull("frFull", "Fraction of full peak", 0.8, 0.25, 1.0);
-    RooRealVar frFrst("frFrst", "Fraction of first escape peak", 0.3, 0.1, 0.7);
-    RooRealVar frScnd("frScnd", "Fraction of second escape peak", 0.8, 0.25, 1.0);
+    RooRealVar frFull("frFull", "Fraction of full peak", 0.5, 0.25, 0.7);
+    RooRealVar frFrst("frFrst", "Fraction of first escape peak", 0.3, 0.1, 0.5);
+    RooRealVar frScnd("frScnd", "Fraction of second escape peak", 0.2, 0.1, 0.5);
+    RooAddition constrSum("add","add", RooArgList(frFull,frFrst,frScnd));
+    
+    //RooRealVar frBKG("frBKG", "Fraction of BKG peak", 0.05, 0.1, 0.0);
 
     // the parameter is 11 after setting width of escape peaks opened
     Float_t fsigma, dsigma, fpeak, dpeak;
@@ -105,10 +108,11 @@ void SourceFitter::FitCrystal(int crystalNo, TString opt){
       RooAddPdf fitFun("fitFun", "firsErg + (secdErg + (fullErg + comPdf))", RooArgList(firsErg, secdErg, fullErg, comPdf), RooArgList(frFrst, frScnd, frFull), kTRUE);
 
       //NLL minimizer
-      RooAbsReal* nll = fitFun.createNLL(chSpec, Range(3.0, 7.2));
+      /*RooAbsReal* nll = fitFun.createNLL(chSpec, Range(3.0, 7.2));
       RooMinimizer m(*nll);
       m.migrad();
-      m.hesse();
+      m.hesse();*/
+      RooFitResult *fitRes = fitFun.fitTo(chSpec,Extended(kTRUE)) ;
 
       // plot components
       chSpec.plotOn(chFrame, MarkerColor(kBlack), LineColor(kBlack), MarkerSize(0.5), Name("chSpec"));
@@ -119,12 +123,9 @@ void SourceFitter::FitCrystal(int crystalNo, TString opt){
       fitFun.plotOn(chFrame, Components(secdErg), LineColor(kCyan), LineStyle(5));
       fitFun.plotOn(chFrame, Components(comPdf), LineColor(kBlue), LineStyle(5));
 
-      RooFitResult *fitRes = m.save();
+      //RooFitResult *fitRes = m.save();
       std::cout<<"Result "<< fitRes <<std::endl;
     }
-
-
-    
     
     //get fit parameters
     fpeak = fullPeak.getVal();
