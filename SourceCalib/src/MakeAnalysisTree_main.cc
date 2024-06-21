@@ -5,7 +5,7 @@ using namespace std::chrono;
 
 using namespace CaloSourceCalib;
 
-TString filepath = "/exp/mu2e/app/users/sophie/CaloCalib/nts.owner.CaloSourceCalib.version.sequencer.root";//"/pnfs/mu2e/tape/phy-nts/nts/mu2e/SourceCalibAna/MDC2020t/root/26/3a/nts.mu2e.SourceCalibAna.MDC2020t.0.root";//"/pnfs/mu2e/tape/usr-nts/nts/hjafree/SourceCalibAna/MDC2020ae/root/0a/1f/nts.hjafree.SourceCalibAna.MDC2020ae.0.root"
+TString filepath = "/pnfs/mu2e/tape/phy-nts/nts/mu2e/SourceCalibAna/MDC2020t/root/26/3a/nts.mu2e.SourceCalibAna.MDC2020t.0.root";//"/pnfs/mu2e/tape/usr-nts/nts/hjafree/SourceCalibAna/MDC2020ae/root/0a/1f/nts.hjafree.SourceCalibAna.MDC2020ae.0.root"
 
 /*function to extract the TTree from the SourceCalibAna output*/
 TTree* get_data_tree(){
@@ -108,89 +108,6 @@ void AnalyzeCrystal(int crystalNo){
 
 }
 
-/* bin for list of histograms */
-void AnalyzeCrystal_HistList(std::vector<TH1F*> list_of_hists, TFile *ouptFile, int start, int end){
-  // make histogram
-  // input tree
-  TTree *inTree = get_data_tree();
-  // extract branches - these are arrays as there will be multiple crystal hits per event
-  int  nCry;//number of crystal hits in event
-  int cryId[10];
-  float cryTime[10];
-  float cryPosX[10], cryPosY[10], cryPosZ[10];
-  float cryEdep[10];
-  inTree -> SetBranchAddress("nCry", &nCry);//ncalhitHit
-  inTree -> SetBranchAddress("cryId", &cryId);//same
-  inTree -> SetBranchAddress("cryEdep", &cryEdep);//calhitRecoEdep
-  inTree -> SetBranchAddress("cryTime", &cryTime);//calhitRecoTime
-  inTree -> SetBranchAddress("cryPosX", &cryPosX);//calhitRecoPosX
-  inTree -> SetBranchAddress("cryPosY", &cryPosY);//calhitRecoPosY
-  inTree -> SetBranchAddress("cryPosZ", &cryPosZ);//calhitRecoPosZ
-    
-  for(int crystalNo = start; crystalNo < end; crystalNo++){
-    TString cryNum;
-    cryNum = to_string(crystalNo);
-    std::cout<<"looking at "<<cryNum<<std::endl;
-    unsigned int nEvt = (int)inTree -> GetEntries();
-    unsigned int nEvtCrys = 0; //events in this crystal
-    for(unsigned int iEvt=0; iEvt<nEvt; iEvt++)
-    {
-      // extract single entry in the Tree
-      inTree -> GetEntry(iEvt);
-
-      int idExist = 0;
-      std::vector<float> sameCryTime;
-      std::vector<float> sameCryEdep;
-      
-      for(int icry=0; icry<nCry; icry++)
-      {
-        
-        if(cryId[icry] == crystalNo)
-        {
-          idExist += 1;
-          sameCryTime.push_back(cryTime[icry]);
-          sameCryEdep.push_back(cryEdep[icry]);
-        }
-      }
-
-      if(idExist == 0) continue;
-      sort(sameCryTime.begin(), sameCryTime.end());
-      float edepTarget = 0.0;
-      float edepOthers   = 0.0;
-
-      std::vector<float> deltaTime;
-
-      for(int icry=0; icry<nCry; icry++)
-      {
-        if(cryId[icry] == crystalNo)
-        {
-          edepTarget = cryEdep[icry];
-          deltaTime.push_back(cryTime[icry]);
-
-        }
-        else
-        {
-          edepOthers += cryEdep[icry];
-          deltaTime.push_back(cryTime[icry]);
-        }
-      }
-      sort(deltaTime.begin(), deltaTime.end());
-      float difTime = deltaTime.back() - deltaTime.front();
-      
-      if((edepTarget / (edepTarget + edepOthers)) >= 0.8 && difTime < 4)
-      {
-        //crysEdep =edepTarget;
-        list_of_hists[crystalNo-start]->Fill(edepTarget);
-        nEvtCrys+=1;
-      }
-      //outTree[crystalNo]->Fill();
-      
-    }
-    std::cout<<" Events analyzed in this crystal : "<<nEvtCrys<<std::endl;
-  }
-}
-
-
 /*function calls RooFit and fits a given crystal file*/
 void RunRooFit(int crystalNo) {
   SourceFitter *fit = new SourceFitter();
@@ -214,24 +131,6 @@ void MakeCrystalBinsOutputs( int start,  int end){
  }
 }
 
-/* function to loop over pre made histograms - saves a few seconds, not that useful...*/
-void MakeCrystalListOutputs( int start,  int end){
- std::vector<TH1F*> list_of_hists;
- TString ouptName = "mu2e_caloSimu_crysEdep.root";
- TFile *ouptFile = new TFile(ouptName, "RECREATE");
- for(int crystalNo = start; crystalNo < end; crystalNo++){
-    TString cryNum;
-    cryNum = to_string(crystalNo);
-    TH1F *h_spec = new TH1F("crysEdep_"+cryNum, "crysEdep_"+cryNum, 300, 0.0, 7.5);
-    list_of_hists.push_back(h_spec);
-  }
-  auto start_bin = high_resolution_clock::now();
-  AnalyzeCrystal_HistList(list_of_hists, ouptFile, start, end);
-  auto end_bin = high_resolution_clock::now();
-  std::cout<<" Time take to bin crystal (average) "<<duration_cast<seconds>(end_bin - start_bin)/(end-start)<<std::endl;
-  ouptFile -> Write();
-  ouptFile -> Close();
-}
 
 /*main function allows a loop over all crystals or a choice of a single crystal*/
 int main(int argc, char* argv[]){

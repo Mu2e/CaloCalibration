@@ -50,27 +50,32 @@ physics: {
       @table::Digitize.filters
     }
 
-    //analyzers: {
+    analyzers: {
 
-    //  CaloSourceCalibDigiAna: {
-     //   module_type           : SourceCalibDigiAna
-    //    CalodigiCollection     : CaloDigiMaker
-     //   digiSampling : 5
-     //   TemplateProcessor   : { @table::CaloReco.TemplateProcessor }
-     // }
-
+      CaloSourceCalibDigiAna :
+      {
+          module_type         : SourceCalibDigiAna
+          caloDigiCollection  : CaloDigiMaker
+          RawProcessor        : { @table::RawProcessor }
+          TemplateProcessor   : { @table::TemplateProcessor }
+          processorStrategy   : "TemplateFit"
+          digiSampling        : @local::HitMakerDigiSampling
+          ProtonBunchTimeTag  : "EWMProducer"
+          maxChi2Cut          : 2.0
+          diagLevel           : 0
+      }
     }
 
     p1: [ generate, g4run,  EWMProducer,
           @sequence::CaloMC.StepSim,
           @sequence::CommonMC.DigiSim,
-          @sequence::CaloMC.DigiSim,
-          @sequence::CaloReco.Reco]
+          @sequence::CaloMC.DigiSim]
+          //@sequence::CaloReco.CaloRecoDigiMaker]
 
-    //e1: [CaloSourceCalibAna]
+    e1: [CaloSourceCalibDigiAna]
 
     trigger_paths: [p1]
-    end_paths:     []//e1
+    end_paths:     [e1]
 }
 
 physics.producers.CaloHitTruthMatch.primaryParticle : "generate"
