@@ -5,7 +5,7 @@ using namespace std::chrono;
 
 using namespace CaloSourceCalib;
 
-TString filepath = "/pnfs/mu2e/tape/phy-nts/nts/mu2e/SourceCalibAna/MDC2020t/root/26/3a/nts.mu2e.SourceCalibAna.MDC2020t.0.root";//"/pnfs/mu2e/tape/usr-nts/nts/hjafree/SourceCalibAna/MDC2020ae/root/0a/1f/nts.hjafree.SourceCalibAna.MDC2020ae.0.root"
+TString filepath = "/exp/mu2e/app/users/hjafree/SourceFitDir/10M.root";//"/pnfs/mu2e/tape/usr-nts/nts/hjafree/SourceCalibAna/MDC2020ae/root/0a/1f/nts.hjafree.SourceCalibAna.MDC2020ae.0.root"
 
 /*function to extract the TTree from the SourceCalibAna output*/
 TTree* get_data_tree(){
