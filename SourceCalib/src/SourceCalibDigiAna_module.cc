@@ -195,7 +195,6 @@ namespace mu2e {
           if(id == id2) edepTarget += total_energy_in_crystal[id];
           else edepOthers += total_energy_in_crystal[id];
         }
-        std::cout<<difTime<<std::endl;
         if(difTime > timeCut_){
           passes_time = false;
         }
