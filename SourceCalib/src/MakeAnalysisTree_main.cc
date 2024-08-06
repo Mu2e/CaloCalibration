@@ -70,7 +70,7 @@ void AnalyzeCrystal(int crystalNo){
           sameCryEdep.push_back(cryEdep[icry]);
         }
       }
-std::cout<<" inside analysis function 4"<<std::endl;
+
       if(idExist == 0) continue;
       sort(sameCryTime.begin(), sameCryTime.end());
       float edepTarget = 0.0;
@@ -127,7 +127,7 @@ void MakeCrystalBinsOutputs( int start,  int end){
     std::cout<<" Time take to filter crystal "<<duration_cast<seconds>(end_bin - start_bin)<<std::endl;
     std::cout<<" Fitting Crystal # "<<crystalNo<<std::endl;
     auto start_fit = high_resolution_clock::now();
-    //RunRooFit(crystalNo);
+    RunRooFit(crystalNo);
     auto end_fit = high_resolution_clock::now();
     std::cout<<" Time take to fit crystal "<<duration_cast<seconds>(end_fit - start_fit)<<std::endl;
  }
