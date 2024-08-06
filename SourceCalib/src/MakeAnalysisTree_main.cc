@@ -10,14 +10,14 @@ TString filepath = "/exp/mu2e/app/users/hjafree/SourceFitDir/10M.root";//"/pnfs/
 /*function to extract the TTree from the SourceCalibAna output*/
 TTree* get_data_tree(){
     TFile *f =  new TFile(filepath);
-    //TTree *t = (TTree*)f->Get("CaloExample/Calo");
-    TTree *t = (TTree*)f->Get("CaloRecoDigiMaker/SourceCalibDigiAna");
+    TTree *t = (TTree*)f->Get("CaloExample/Calo");
+    //TTree *t = (TTree*)f->Get("CaloRecoDigiMaker/SourceCalibDigiAna"); -->FOR ADC
     return t;
 }
 
 /* bin for a given crystal */
 void AnalyzeCrystal(int crystalNo){
-
+    
     TString cryNum;
     cryNum = to_string(crystalNo);
 
@@ -28,25 +28,27 @@ void AnalyzeCrystal(int crystalNo){
     Float_t crysEdep;//, ratio, ntrig, stim, time, tErg;
     TTree *outTree = new TTree("crysTree","crysTree");
     outTree->Branch("crysEdep", &crysEdep, "crysEdep/F"); //Energy Deposited
-
+    
     // make histogram
     TH1F *h_spec = new TH1F("h_spec", "h_spec", 300, 0.0, 7.5);
     // input tree
     TTree *inTree = get_data_tree();
+
     // extract branches - these are arrays as there will be multiple crystal hits per event
     int  nCry;//number of crystal hits in event
     int cryId[10];
     float cryTime[10];
     float cryPosX[10], cryPosY[10], cryPosZ[10];
     float cryEdep[10];
-    inTree -> SetBranchAddress("nCry", &nCry);//ncalhitHit
+    
+    inTree -> SetBranchAddress("nCrystals", &nCry);//ncalhitHit
     inTree -> SetBranchAddress("cryId", &cryId);//same
     inTree -> SetBranchAddress("cryEdep", &cryEdep);//calhitRecoEdep
     inTree -> SetBranchAddress("cryTime", &cryTime);//calhitRecoTime
     inTree -> SetBranchAddress("cryPosX", &cryPosX);//calhitRecoPosX
     inTree -> SetBranchAddress("cryPosY", &cryPosY);//calhitRecoPosY
     inTree -> SetBranchAddress("cryPosZ", &cryPosZ);//calhitRecoPosZ
-    
+
     unsigned int nEvt = (int)inTree -> GetEntries();
     unsigned int nEvtCrys = 0; //events in this crystal
     for(unsigned int iEvt=0; iEvt<nEvt; iEvt++)
@@ -68,7 +70,7 @@ void AnalyzeCrystal(int crystalNo){
           sameCryEdep.push_back(cryEdep[icry]);
         }
       }
-
+std::cout<<" inside analysis function 4"<<std::endl;
       if(idExist == 0) continue;
       sort(sameCryTime.begin(), sameCryTime.end());
       float edepTarget = 0.0;
@@ -125,7 +127,7 @@ void MakeCrystalBinsOutputs( int start,  int end){
     std::cout<<" Time take to filter crystal "<<duration_cast<seconds>(end_bin - start_bin)<<std::endl;
     std::cout<<" Fitting Crystal # "<<crystalNo<<std::endl;
     auto start_fit = high_resolution_clock::now();
-    RunRooFit(crystalNo);
+    //RunRooFit(crystalNo);
     auto end_fit = high_resolution_clock::now();
     std::cout<<" Time take to fit crystal "<<duration_cast<seconds>(end_fit - start_fit)<<std::endl;
  }
@@ -135,13 +137,14 @@ void MakeCrystalBinsOutputs( int start,  int end){
 /*main function allows a loop over all crystals or a choice of a single crystal*/
 int main(int argc, char* argv[]){
   std::cout<<"========== Welcome to the Mu2e Source Calibration Analysis =========="<<std::endl;
-  int anacrys_start = 674; //starting crystal
+  int anacrys_start = 675; //starting crystal
   int anacrys_end = 680; //final crystal
+  std::cout<<"choosing crystal "<<std::endl;
   if(strcmp( argv[1], "chooseCrystal") == 0 ){
     cout<<"crystal to be analyzed (int) : "<<endl;
     cin>>anacrys_start;
     anacrys_end = anacrys_start+1;
-  } 
+  }
   std::cout<<"Running crystal binning ....."<<std::endl;
   //MakeCrystalListOutputs(anacrys_start,anacrys_end);
   MakeCrystalBinsOutputs(anacrys_start,anacrys_end);
