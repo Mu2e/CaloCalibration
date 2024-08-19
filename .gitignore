@@ -8,3 +8,4 @@
 .vscode/
 CosmicsCalib/**/Results/
 CosmicsCalib/vst/Data/
+!splines4_run39.root
