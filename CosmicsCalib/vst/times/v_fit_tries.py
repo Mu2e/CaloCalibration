@@ -71,7 +71,7 @@ def get_sigma(interval : np.array) -> tuple[np.double, np.double]:
         anadriver_obj = R.AnaDriver2(tmp.name)
         sigma = anadriver_obj.Loop(out_name_ana, 0, 12, 10)
         with R.TFile.Open(out_name_ana) as file:
-            n_data = file.h_sig.GetEntries()
+            n_data = file["h_sig"].GetEntries()
     return sigma, n_data
 
 with concurrent.futures.ProcessPoolExecutor() as executor:
@@ -93,6 +93,7 @@ plot.GetZaxis().SetTitle("sigma")
 plot.GetXaxis().SetTitle("t_start")
 plot.GetYaxis().SetTitle("t_end")
 plot.Draw()
+canvas.Draw()
 canvas.SaveAs(result_direcory + "sigma_delta.root")
 
 #Save result to a CSV file
