@@ -220,15 +220,18 @@ void AnaDriver2::BookHistos()
   }
 }
 
-TF1 *Gauss_fit (TH1F * histo, float start = 9999.99, float end = 9999.99){
+TF1 *Gauss_fit (TH1F * histo){
   //Just a simple funciton that does a Gauss fit over all the histogram (or over the provided range)
   // The parameters of gaus are constant, mean and sigma
-  if (start == 9999.99){
-    start = histo -> GetXaxis() -> GetXmax();
-  }
-  if (end == 9999.99){
-    end = histo -> GetXaxis() -> GetXmin();
-  }
+  float start = histo -> GetXaxis() -> GetXmax();
+  float end = histo -> GetXaxis() -> GetXmin();
+  TF1 *gauss = Gauss_fit (histo, start, end);
+  return gauss;
+}
+
+TF1 *Gauss_fit (TH1F * histo, float start, float end){
+  //Just a simple funciton that does a Gauss fit over all the histogram (or over the provided range)
+  // The parameters of gaus are constant, mean and sigma
   TF1 *gauss = new TF1("Gauss", "gaus", start, end);
   histo -> Fit(gauss, "Q");
   return gauss;
