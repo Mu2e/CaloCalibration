@@ -4,3 +4,7 @@
 *.exe
 *.app
 *~
+**/__pycache__/
+.vscode/
+CosmicsCalib/**/Results/
+CosmicsCalib/vst/Data/
