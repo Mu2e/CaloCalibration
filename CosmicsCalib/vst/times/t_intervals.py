@@ -1,7 +1,7 @@
 import numpy as np
 
-values_start = range(-70, -40, 10)
-values_end = range(-30, 50, 10)
+values_start = range(-70, -40, 5)
+values_end = range(-30, 50, 5)
 #If a special value has to be included, append it to this temporary list
 
 t_inters = []
