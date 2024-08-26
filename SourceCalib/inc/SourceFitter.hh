@@ -55,7 +55,7 @@ namespace CaloSourceCalib{
         SourceFitter& operator = (const SourceFitter &);
         virtual ~SourceFitter() = default;
         #ifndef __CINT__
-        void FitCrystal(TH1F* histogram, TString opt, int cryNum, TTree* covar, Float_t &fpeak);// add extra arg as ttree
+        void FitCrystal(TH1F* histogram, TString opt, int cryNum, TTree* covar, Float_t &fpeak, Float_t &fsigma, Float_t &chiSq);// add extra arg as ttree
         #endif
         ClassDef (SourceFitter,1);
     };
