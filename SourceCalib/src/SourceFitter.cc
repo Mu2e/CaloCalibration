@@ -83,7 +83,7 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
     //Float_t chiSq = 0;
     //preparing RooPlot
     RooPlot *chFrame = crysADC.frame(Title(title));
-   if(opt == "nll"){ //binned chi2 fit
+   if(opt == "chi2"){ //binned chi2 fit
       //TH1F *h_spec = (TH1F*)inFile->Get("h_spec");
       RooDataHist chSpec("crysADC","crysADC", crysADC, h_spec);
       // combined fit function
