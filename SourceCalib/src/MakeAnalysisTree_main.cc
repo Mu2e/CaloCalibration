@@ -44,7 +44,7 @@ int main(int argc, char* argv[]){
   //MakeCrystalListOutputs(anacrys_start,anacrys_end);
   //MakeCrystalBinsOutputs(anacrys_start,anacrys_end);
   SourceFitter *fit = new SourceFitter();
-  fit->FitCrystal(h,"nll", cryNum, covar, fpeak,fsigma, chiSq);
+  fit->FitCrystal(h,"chi2", cryNum, covar, fpeak,fsigma, chiSq);
  };
  	ouptFile -> Write();
   ouptFile -> Close();
