@@ -100,6 +100,7 @@ class Event:
     def event_prepare_hist(self) -> None:
         #This method prepares an histogram with the crystal q values
         self.crys_hist = R.TH2Poly()
+        self.crys_hist.GetZaxis().SetTitle("Q")
         for crystal in self.crys_arr:
             boud_x, boud_y = crystal.angles()
             bin = self.crys_hist.AddBin(boud_x[0], boud_y[0], boud_x[1], boud_y[1])
@@ -142,7 +143,7 @@ class Event:
         if hasattr(self, 'crys_hist'):
             self.crys_hist.SetStats(0)
             self.crys_hist.SetTitle(ev_name)
-            self.crys_hist.Draw('apl')  #'apl'
+            self.crys_hist.Draw('apl')
             self.crys_hist.Draw('zcol Cont0 same')
         else:
             print ("The event you are trying to draw has no crystal histogram! Try event_prepare_hist() before.")
@@ -212,7 +213,6 @@ class Event:
             #This method produces a TCanvas with the detector activation and the current fit (the one Event.Event_fit object on wich you call the method), if you are looking at a TCanvas with all the fits onverlayed over the calorimeter activation, or if you don't want to draw fits at all look at Event.event_draw()
             fit_name = "Event " + str(self.event.ev_num)
             self.canvas = R.TCanvas(fit_name, fit_name, 1000, 1000)
-            #R.gPad.SetGrid(1, 1)
             self.event._Event__histo_draw(fit_name)
             self.__fit_draw(fit_name)
             
@@ -278,4 +278,4 @@ if __name__ == '__main__':
             event.event_prepare_hist()
             fit.draw()
             prompt = "Minimum number of hits = [" + str(n_min) + "]"
-            n_min = int(input(prompt)) or n_min
+            n_min = int(input(prompt) or n_min)
