@@ -24,7 +24,7 @@ class Crystal:
     #Each crystal Should contain 2 hits
 
     def __init__(self, number : int, x : float, y : float) -> None:
-        self.hit_arr = []
+        self.hit_arr : list[Hit] = []
         self.q_arr = np.array([], dtype = np.double)
         self.t_arr = np.array([], dtype = np.double)
         self.n = number
@@ -53,9 +53,13 @@ class Crystal:
         return np.mean(self.q_arr)
     
     def get_t_diff(self) ->np.double:
-        if self.t_arr.size > 1:
+        #If more than two events, returns the mean of (|t1-t2|, |t3-t4|, |t5-t6|, ...)
+        if self.t_arr.size == 2:
             t_diff = abs(self.t_arr[1] - self.t_arr[0])
             return t_diff
+        elif self.t_arr.size > 2:
+            diff_arr = np.abs(np.diff(t_diff)[ : :2])
+            return np.mean(diff_arr)
         else:
             return np.nan
 
@@ -71,6 +75,50 @@ class Crystal:
             return True
         else:
             return False
+        
+    def empty(self) -> None:
+        #Keeps crystal position and remove all hits and values
+        self.hit_arr : list[Hit] = []
+        self.q_arr = np.array([], dtype = np.double)
+        self.t_arr = np.array([], dtype = np.double)
+        
+class Disk:
+    n_crystals = 674
+       
+    def __init__(self, id :int = 0) -> None:
+        #cry_pos is a matrix where each row is the [x,y] position of a crystal
+        if id == 0:
+            self.cry_pos = np.column_stack((crystalpos.crys_x, crystalpos.crys_y))[ : self.n_crystals-1]
+        elif id == 1:
+            self.cry_pos = np.column_stack((crystalpos.crys_x, crystalpos.crys_y))[self.n_crystals-1 : ]
+        else:
+            print("Invalid Disk id!")
+            
+        self.cry_arr : list[Crystal] = []
+        for i in range(self.cry_pos.shape[0]):
+            self.cry_arr.append(Crystal(i, self.cry_pos[i, 0], self.cry_pos[i, 1]))
+        
+    def load_event(self, event_number : int, slice) -> int:
+        #slice is a root TTree slice, returns the number of loaded hits
+        self.ev_num = event_number
+        n_hits = slice.nHits
+        x_arr = np.frombuffer(slice.Xval)
+        y_arr = np.frombuffer(slice.Yval)
+        t_arr = np.frombuffer(slice.Tval)
+        q_arr = np.frombuffer(slice.Qval)
+        
+        for i in range(n_hits):
+                #Loop over hits
+                curr_hit = Hit(i, x_arr[i], y_arr[i], t_arr[i], q_arr[i])
+                curr_xy = np.array([x_arr[i], y_arr[i]])
+                #Find closest crystal to the hit
+                cry_hit_distances = np.linalg.norm(self.cry_pos - curr_xy, axis = 1)
+                cry_index = np.argmin(cry_hit_distances)
+                if not self.cry_arr[cry_index].test_new_hit(curr_hit):
+                    print("Error! Hit doesn't correspond to crystal!")
+        return n_hits
+    
+    def 
     
 class Event:
     def __init__(self, event_number, tree_slice) -> None:
