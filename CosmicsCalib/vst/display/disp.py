@@ -25,11 +25,14 @@ class Crystal:
 
     def __init__(self, number : int, x : float, y : float) -> None:
         self.hit_arr = []
+        self.q_arr = np.array([], dtype = np.double)
+        self.t_arr = np.array([], dtype = np.double)
         self.n = number
         self.x = x
         self.y = y
 
-    def angles(self):
+    def angles(self) -> tuple[np.array, np.array]:
+        #Returs the angles of the crystal as [x_max, x_min], [y_max, y_min]
         x = np.zeros(2)
         y = np.zeros(2)
         x[0] = self.x + self.side / 2
@@ -41,13 +44,18 @@ class Crystal:
     def force_new_hit(self, new_hit : Hit) -> int:
         #Returns the index where the hit is stored
         self.hit_arr.append(new_hit)
+        self.q_arr = np.append(self.q_arr, new_hit.q)
+        self.t_arr = np.append(self.t_arr, new_hit.t)
         return len(self.hit_arr) - 1
   
     def get_q(self) -> np.double:
         #If the crystal has multiple hits, an average is retunred
-        if len(self.hit_arr):
-            q_average = np.mean([hit.q for hit in self.hit_arr])
-            return q_average
+        return np.mean(self.q_arr)
+    
+    def get_t_diff(self) ->np.double:
+        if self.t_arr.size > 1:
+            t_diff = abs(self.t_arr[1] - self.t_arr[0])
+            return t_diff
         else:
             return np.nan
 
@@ -253,7 +261,7 @@ def tree_loader(tree, n_max = 0):
 
 if __name__ == '__main__':
     TRESHOLD = 4000
-    N_MIN = 6
+    n_min = 6
 
     #Open tree
     file_name = input("File to open:")
@@ -266,7 +274,8 @@ if __name__ == '__main__':
         n_events += 1
         fit = event.event_fit()
         n_points = fit.linear_fit(TRESHOLD)
-        if n_points >= N_MIN:
+        if n_points >= n_min:
             event.event_prepare_hist()
             fit.draw()
-            input("Press any key for the next")
+            prompt = "Minimum number of hits = [" + str(n_min) + "]"
+            n_min = int(input(prompt)) or n_min
