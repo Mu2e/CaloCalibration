@@ -1,7 +1,7 @@
 """ Mu2E Calorimeter Calibration
     Tester for different time intervals in fitting SiPM data
     By Giacinto Boccia
-    Version 1.1 | 2024-08-15
+    2024-08-29
     """
 
 import ROOT as R
