@@ -1,6 +1,6 @@
-""" Mu2E Calorimeter Track event display version 1.4
+""" Mu2E Calorimeter Track event display version 2.0
     by Giacinto Boccia
-    2024-08-20
+    2024-08-30
     """
 
 import ROOT as R
@@ -140,19 +140,18 @@ class Disk:
         self.fit_arr.append(new_fit)
         if type == 'linear':
             n_sel = new_fit.linear_fit(threshold)
-            chi_squared = np.nan
-            if hasattr(new_fit, 'fit'):
-                if hasattr(new_fit.fit, 'GetChiSquared'):
-                    chi_squared = new_fit.fit.GetChiSquared()
+            chi_squared = new_fit.chi_sqare
             return n_sel, chi_squared
         
     def draw_q(self, fits : bool = True) -> None:
         #Use this method to draw the Q values of an event, if "fits" it will (hopefully) display all the applied fits
-        self.__draw_q(self)
+        ev_name : str = "Event " + str(self.ev_num)
+        self.canvas = R.TCanvas(ev_name, ev_name, 1000, 1000)
+        self.__draw_q(ev_name)
         
         if fits:
             for fit in self.fit_arr:
-                fit.__fit_draw("Event " + str(self.ev_num))
+                fit._Fit__fit_draw(ev_name)
         
         #Circes
         inner_c = R.TEllipse(0, 0, 374)
@@ -167,8 +166,20 @@ class Disk:
         outer_c.Draw('pl same')
         self.canvas.Draw()
     
-    def __draw_q(self) -> None:
-        pass
+    def __draw_q(self, ev_name : str) -> None:
+        #Create an histogram for the crystals
+        self.crys_hist = R.TH2Poly()
+        for crystal in self.cry_arr:
+            boud_x, boud_y = crystal.angles()
+            bin = self.crys_hist.AddBin(boud_x[0], boud_y[0], boud_x[1], boud_y[1])
+            mean_q = crystal.get_q()
+            if not np.isnan(mean_q):
+                self.crys_hist.SetBinContent(bin, crystal.get_q())
+        self.crys_hist.SetStats(0)
+        self.crys_hist.SetTitle(ev_name)
+        self.crys_hist.GetZaxis().SetTitle("Q")
+        self.crys_hist.Draw('apl')
+        self.crys_hist.Draw('zcol Cont0 same')
     
     def draw_tdif(self) -> None:
         #Use this method to draw the mean time difference of the resposnses of each crystal (over multiple events)
@@ -179,14 +190,16 @@ class Disk:
         self.fit_arr : list[Disk.Fit] =[]
         self.ev_num : int = 0
         self.centroid : np.array[np.double, np.double] = np.zeros(shape = 2, dtype = np.double)
+        self.hits_for_crystal : np.array[int] = np.zeros(shape = self.cry_pos.shape[0], dtype = int)
         for crystal in self.cry_arr:
             crystal.empty()
         
     class Fit:
         #Once you decide to fit an event, you instantiate this nested class, if new fit methods are developed, they should be placed in this class. To use them, call event_fit() on the Event, it returns an Event_fit object, if you vant to fit the same event vith different parametrs call event_fit() more than once
         def __init__(self, disk : 'Disk') -> None:
-            self.disk = disk
-            self.vertical = False
+            self.disk : 'Disk' = disk
+            self.vertical : bool = False
+            self.chi_sqare : np.double = np.nan
 
         def linear_fit(self, threshold : float) -> int:
             #The treshold applies on Qvals (mean value if crystal has 2 hits) and all hits over it get fitted linearly, returns the number of crystals considered
@@ -195,7 +208,7 @@ class Disk:
             y_arr = array('f')
 
             #Apply treshold
-            for crystal in self.disk.crys_arr:
+            for crystal in self.disk.cry_arr:
                 if crystal.get_q() > threshold:
                     x_arr.append(crystal.x)
                     y_arr.append(crystal.y)
@@ -211,11 +224,13 @@ class Disk:
                 if not(self.__is_vertical(x_arr, y_arr)):
                     self.fit = R.TF1("Linear", "pol1")
                     self.graph.Fit("Linear")
+                    if hasattr(self.fit, "GetChiSquared"):
+                        self.chi_sqare = self.fit.GetChiSquared()
                     #Set the color here, so that different fits (differnet methods) can have different colors
                     self.fit.SetLineColor(4)
                     self.fit.SetLineWidth(2)
                 else:
-                    center = self.disk.centroid()
+                    center = self.disk.centroid
                     self.fit = R.TLine(center[0], 660, center[0], -660)
                     self.fit.SetLineColor(4)
                     self.fit.SetLineWidth(2)
@@ -264,130 +279,27 @@ class Disk:
                 if hasattr(self, 'fit'):
                     self.fit.Draw('same')
             else:
-                print("You are drawing a fit that does not exist! Try linear_fit() [or other] before.")
-    
-class Event:
-    def __init__(self, event_number, tree_slice) -> None:
-        self.crys_arr = []        
-        self.fit_arr = []
-        self.ev_num = event_number
-        n_hits = tree_slice.nHits
-
-        #prepare Crystals
-        for i in range(CRYSTALS):
-            self.crys_arr.append(Crystal(i, crystalpos.crys_x[i], crystalpos.crys_y[i]))
-
-        #Load Hits
-        x_arr = np.frombuffer(tree_slice.Xval)
-        y_arr = np.frombuffer(tree_slice.Yval)
-        t_arr = np.frombuffer(tree_slice.Tval)
-        q_arr = np.frombuffer(tree_slice.Qval)
-        for i in range(n_hits):
-            #Loop over hits
-            curr_hit = Hit(i, x_arr[i], y_arr[i], t_arr[i], q_arr[i])
-            for crystal in self.crys_arr:
-                #Loop over crystals
-                if crystal.test_new_hit(curr_hit):
-                    #When one of the crystals accepts the hit, go to next hit
-                    break
-
-    def event_prepare_hist(self) -> None:
-        #This method prepares an histogram with the crystal q values
-        self.crys_hist = R.TH2Poly()
-        self.crys_hist.GetZaxis().SetTitle("Q")
-        for crystal in self.crys_arr:
-            boud_x, boud_y = crystal.angles()
-            bin = self.crys_hist.AddBin(boud_x[0], boud_y[0], boud_x[1], boud_y[1])
-            mean_q = crystal.get_q()
-            if not np.isnan(mean_q):
-                self.crys_hist.SetBinContent(bin, crystal.get_q())
-    
-    def event_fit(self) -> 'Event.Event_fit':
-        #All stuff related to fitting events should be in the nested class Event_fit, this meas that you can fit the same event more than once (maybe with different parameters) without duplicating the event, just call this method mutiple times. All the fits created are available in a list at Event.fit_arr
-        new_fit = Event.Event_fit(self)
-        self.fit_arr.append(new_fit)
-        return new_fit
-    
-    def event_draw(self, fits : bool = True ) -> None:
-        #This method creates a new TCanvas for the whole event, and draws eveithing (hit, hinstogram, fits...)over it, if you want a TCanvas for a single fit, look for Event.Event_Fit.draw()
-        ev_name = "Event " + str(self.ev_num)
-        self.canvas = R.TCanvas(ev_name, ev_name, 1000, 1000)
-        #R.gPad.SetGrid(1, 1)
-        self.__histo_draw(ev_name)
-        #This method can be invoked with no fits done, then it will draw just the detector activation, or with multiple fits, and it will overlay them
-        if len(self.fit_arr) > 0 and fits:
-            for fit in self.fit_arr:
-                fit._Event_fit__fit_draw(ev_name)
-        
-        #Circes
-        inner_c = R.TEllipse(0, 0, 374)
-        inner_c.SetLineColor(2)
-        inner_c.SetLineWidth(3)
-        inner_c.SetFillStyle(0)
-        inner_c.Draw('pl same')
-        outer_c = R.TEllipse(0, 0, 660)
-        outer_c.SetLineColor(2)
-        outer_c.SetLineWidth(3)
-        outer_c.SetFillStyle(0)
-        outer_c.Draw('pl same')
-        self.canvas.Draw()        
-
-    def __histo_draw(self, ev_name : str) -> None:
-        #Please use event_draw!
-        if hasattr(self, 'crys_hist'):
-            self.crys_hist.SetStats(0)
-            self.crys_hist.SetTitle(ev_name)
-            self.crys_hist.Draw('apl')
-            self.crys_hist.Draw('zcol Cont0 same')
-        else:
-            print ("The event you are trying to draw has no crystal histogram! Try event_prepare_hist() before.")
-
-    def centroid(self) -> tuple[np.double, np.double]:
-        #Returns the event centroid
-        x_arr = np.zeros(CRYSTALS)
-        y_arr = np.zeros(CRYSTALS)
-        q_arr = np.zeros(CRYSTALS)
-        for i in range(CRYSTALS):
-            x_arr[i] = self.crys_arr[i].x
-            y_arr[i] = self.crys_arr[i].y
-            q = self.crys_arr[i].get_q()
-            if not np.isnan(q):
-                q_arr[i] = q
-        return np.average(x_arr, weights = q_arr), np.average(y_arr, weights = q_arr)
-
-    
-            
-def tree_loader(tree, n_max = 0):
-    #Loads a tree (up to n_max, if set) in an list of Event objects
-    ev_arr = []
-    n_events = 0
-    for slice in tree:
-        event = Event(n_events, slice)
-        ev_arr.append(event)
-        n_events += 1
-        #Just a break if you want to run on a fraction of the tree
-        if n_max != 0 and  n_events >= n_max:
-            break
-    return ev_arr
-
+                print("You are drawing a fit that does not exist! Try linear_fit() [or other] before.")     
 
 if __name__ == '__main__':
     TRESHOLD = 4000
     n_min = 6
+    #chi_max = 20
 
     #Open tree
     file_name = input("File to open:")
     file = R.TFile.Open(file_name)
     tree = file.sidet
-
-    n_events = 0
-    for slice in tree:
-        event = Event(n_events, slice)
-        n_events += 1
-        fit = event.event_fit()
-        n_points = fit.linear_fit(TRESHOLD)
-        if n_points >= n_min:
-            event.event_prepare_hist()
-            fit.draw()
-            prompt = "Minimum number of hits = [" + str(n_min) + "]"
-            n_min = int(input(prompt) or n_min)
+    calo = Disk()
+    n :int = 0
+    while n < tree.GetEntries():
+        tree.GetEntry(n)
+        calo.load_event(n, tree)
+        hits, chi = calo.event_fit()
+        if hits > n_min:
+            calo.draw_q()
+            n = int(input("Event to jump= [enter for next]") or n+1)
+            calo.empty()
+        else:
+            n += 1
+            calo.empty()
