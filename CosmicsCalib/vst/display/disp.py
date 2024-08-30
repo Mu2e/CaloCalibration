@@ -57,8 +57,8 @@ class Crystal:
         if self.t_arr.size == 2:
             t_diff = abs(self.t_arr[1] - self.t_arr[0])
             return t_diff
-        elif self.t_arr.size > 2:
-            diff_arr = np.abs(np.diff(t_diff)[ : :2])
+        elif self.t_arr.size > 2 and self.t_arr.size % 2 == 0:
+            diff_arr = np.abs(np.diff(self.t_arr)[ : :2])
             return np.mean(diff_arr)
         else:
             return np.nan
@@ -100,11 +100,11 @@ class Disk:
             print("Invalid Disk id!")   
         for i in range(self.cry_pos.shape[0]):
             self.cry_arr.append(Crystal(i, self.cry_pos[i, 0], self.cry_pos[i, 1]))
-        self.hits_for_crystal : np.array[int] = np.zeros(shape = self.cry_pos.shape[0], dtype = int)
         
     def load_event(self, event_number : int, slice) -> int:
         #slice is a root TTree slice, returns the number of loaded hits
         self.ev_num : int = event_number
+        hits_for_crystal : np.array[int] = np.zeros(shape = self.cry_pos.shape[0], dtype = int)
         n_hits = slice.nHits
         x_arr = np.frombuffer(slice.Xval)
         y_arr = np.frombuffer(slice.Yval)
@@ -112,7 +112,8 @@ class Disk:
         q_arr = np.frombuffer(slice.Qval)
         
         #The centroid of the event is defined as the weighted average of the hit positions
-        self.centroid = np.array([np.average(x_arr, weights= q_arr), np.average(y_arr, weights= q_arr)], dtype= np.double)
+        if n_hits > 0:
+            self.centroid = np.array([np.average(x_arr, weights= q_arr), np.average(y_arr, weights= q_arr)], dtype= np.double)
         
         #Place hits in crystals
         for i in range(n_hits):
@@ -125,12 +126,14 @@ class Disk:
             if not self.cry_arr[cry_index].test_new_hit(curr_hit):
                 print("Error! Hit doesn't correspond to a crystal!")
             else:
-                self.hits_for_crystal[cry_index] += 1
+                hits_for_crystal[cry_index] += 1
                 
         #Check that each crystal has an even number of hits
-        for i, n in enumerate(self.hits_for_crystal):
+        for i, n in enumerate(hits_for_crystal):
             if n % 2 != 0:
-                print("Error! On event ", self.ev_num, " crystal ", i, " has ", n, " hits.")
+                print("Warning! On event ", self.ev_num, " crystal ", i, " has ", n, " hits.")
+                #If one of the crystals doesn't have an even number of hits, a 0 time is added
+                self.cry_arr[i].t_arr = np.append(self.cry_arr[i].t_arr, 0)
                     
         return n_hits
     
@@ -167,7 +170,7 @@ class Disk:
         self.canvas.Draw()
     
     def __draw_q(self, ev_name : str) -> None:
-        #Create an histogram for the crystals
+        #Create an histogram for the crystals and write the Q value of each crystal as Z
         self.crys_hist = R.TH2Poly()
         for crystal in self.cry_arr:
             boud_x, boud_y = crystal.angles()
@@ -175,15 +178,48 @@ class Disk:
             mean_q = crystal.get_q()
             if not np.isnan(mean_q):
                 self.crys_hist.SetBinContent(bin, crystal.get_q())
+        #Draw the histogram as colored/empty boxes
         self.crys_hist.SetStats(0)
         self.crys_hist.SetTitle(ev_name)
         self.crys_hist.GetZaxis().SetTitle("Q")
         self.crys_hist.Draw('apl')
         self.crys_hist.Draw('zcol Cont0 same')
     
-    def draw_tdif(self) -> None:
-        #Use this method to draw the mean time difference of the resposnses of each crystal (over multiple events)
-        pass
+    def draw_tdif(self, plot_name : str = False) -> None:
+        #Use this method to draw the mean time difference of the resposnses of each crystal ( also over multiple events)
+        name : str = plot_name or "Event " + str(self.ev_num) + " time differences"
+        self.canvas = R.TCanvas(name, name, 1000, 1000)
+        self.crys_hist = R.TH2Poly()
+        for crystal in self.cry_arr:
+            boud_x, boud_y = crystal.angles()
+            bin = self.crys_hist.AddBin(boud_x[0], boud_y[0], boud_x[1], boud_y[1])
+            t_diff = crystal.get_t_diff()
+            if not np.isnan(t_diff):
+                self.crys_hist.SetBinContent(bin, crystal.get_q())
+        #Draw the histogram as colored/empty boxes
+        self.crys_hist.SetStats(0)
+        self.crys_hist.SetTitle(name)
+        self.crys_hist.GetZaxis().SetTitle("T Difference")
+        self.crys_hist.Draw('apl')
+        self.crys_hist.Draw('zcol Cont0 same')
+        
+    def draw_hitcount(self) -> None:
+        #use this method to draw a plot where each box represents the number of hits collected by each crystal (typically afther loading mutiple events)
+        name : str = "Hitcount"
+        self.canvas = R.TCanvas(name, name, 1000, 1000)
+        self.crys_hist = R.TH2Poly()
+        for crystal in self.cry_arr:
+            boud_x, boud_y = crystal.angles()
+            bin = self.crys_hist.AddBin(boud_x[0], boud_y[0], boud_x[1], boud_y[1])
+            t_diff = crystal.get_t_diff()
+            if not np.isnan(t_diff):
+                self.crys_hist.SetBinContent(bin, len(crystal.hit_arr))
+        #Draw the histogram as colored/empty boxes
+        self.crys_hist.SetStats(0)
+        self.crys_hist.SetTitle(name)
+        self.crys_hist.GetZaxis().SetTitle("# Hits")
+        self.crys_hist.Draw('apl')
+        self.crys_hist.Draw('zcol Cont0 same')
         
     def empty(self) -> None:
         #Use this metod to empty the disk, deleting all the loaded hits, fits, etc. while keeping the crystals
@@ -224,8 +260,7 @@ class Disk:
                 if not(self.__is_vertical(x_arr, y_arr)):
                     self.fit = R.TF1("Linear", "pol1")
                     self.graph.Fit("Linear")
-                    if hasattr(self.fit, "GetChiSquared"):
-                        self.chi_sqare = self.fit.GetChiSquared()
+                    self.chi_sqare = self.fit.GetChisquare()
                     #Set the color here, so that different fits (differnet methods) can have different colors
                     self.fit.SetLineColor(4)
                     self.fit.SetLineWidth(2)
@@ -284,22 +319,36 @@ class Disk:
 if __name__ == '__main__':
     TRESHOLD = 4000
     n_min = 6
-    #chi_max = 20
+    chi_max = 20
 
     #Open tree
     file_name = input("File to open:")
     file = R.TFile.Open(file_name)
     tree = file.sidet
     calo = Disk()
-    n :int = 0
-    while n < tree.GetEntries():
-        tree.GetEntry(n)
-        calo.load_event(n, tree)
-        hits, chi = calo.event_fit()
-        if hits > n_min:
-            calo.draw_q()
-            n = int(input("Event to jump= [enter for next]") or n+1)
-            calo.empty()
-        else:
-            n += 1
-            calo.empty()
+    average_mode = input ("Display the average time diffeneces? y/[n]")
+    hitcount_mode = input ("Display the total hit count? y/[n]")
+    if average_mode == "y":
+        for ev_num, slice in enumerate(tree):
+            calo.load_event(ev_num, slice)
+        calo.draw_tdif("Average Time Differences")
+    elif hitcount_mode == "y":
+        for ev_num, slice in enumerate(tree):
+            calo.load_event(ev_num, slice)
+        calo.draw_hitcount()
+    else:
+        ev_num :int = 0
+        while ev_num < tree.GetEntries():
+            tree.GetEntry(ev_num)
+            calo.load_event(ev_num, tree)
+            hits, chi = calo.event_fit()
+            if hits > n_min and (chi < chi_max or calo.fit_arr[0].vertical):
+                calo.draw_q()
+                #input("Press any key for time difernces")
+                #calo.draw_tdif()
+                ev_num = int(input("Event to jump= [enter for next]") or ev_num+1)
+                calo.empty()
+            else:
+                ev_num += 1
+                calo.empty()
+    input("Press any key to exit")
