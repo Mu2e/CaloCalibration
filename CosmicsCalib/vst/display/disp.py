@@ -151,23 +151,23 @@ class Disk:
         ev_name : str = "Event " + str(self.ev_num)
         self.canvas = R.TCanvas(ev_name, ev_name, 1000, 1000)
         self.__draw_q(ev_name)
-        
+        self.__draw_circles()
         if fits:
             for fit in self.fit_arr:
                 fit._Fit__fit_draw(ev_name)
         
+    def __draw_circles(self) -> None:
         #Circes
-        inner_c = R.TEllipse(0, 0, 374)
-        inner_c.SetLineColor(2)
-        inner_c.SetLineWidth(3)
-        inner_c.SetFillStyle(0)
-        inner_c.Draw('pl same')
-        outer_c = R.TEllipse(0, 0, 660)
-        outer_c.SetLineColor(2)
-        outer_c.SetLineWidth(3)
-        outer_c.SetFillStyle(0)
-        outer_c.Draw('pl same')
-        self.canvas.Draw()
+        self.inner_c = R.TEllipse(0, 0, 374)
+        self.inner_c.SetLineColor(2)
+        self.inner_c.SetLineWidth(3)
+        self.inner_c.SetFillStyle(0)
+        self.inner_c.Draw()
+        self.outer_c = R.TEllipse(0, 0, 660)
+        self.outer_c.SetLineColor(2)
+        self.outer_c.SetLineWidth(3)
+        self.outer_c.SetFillStyle(0)
+        self.outer_c.Draw()
     
     def __draw_q(self, ev_name : str) -> None:
         #Create an histogram for the crystals and write the Q value of each crystal as Z
@@ -202,19 +202,7 @@ class Disk:
         self.crys_hist.GetZaxis().SetTitle("T Difference")
         self.crys_hist.Draw('apl')
         self.crys_hist.Draw('zcol Cont0 same')
-        
-        #Circes
-        inner_c = R.TEllipse(0, 0, 374)
-        inner_c.SetLineColor(2)
-        inner_c.SetLineWidth(3)
-        inner_c.SetFillStyle(0)
-        inner_c.Draw('pl same')
-        outer_c = R.TEllipse(0, 0, 660)
-        outer_c.SetLineColor(2)
-        outer_c.SetLineWidth(3)
-        outer_c.SetFillStyle(0)
-        outer_c.Draw('pl same')
-        self.canvas.Draw()
+        self.__draw_circles()
         
     def draw_hitcount(self) -> None:
         #use this method to draw a plot where each box represents the number of hits collected by each crystal (typically afther loading mutiple events)
@@ -233,19 +221,7 @@ class Disk:
         self.crys_hist.GetZaxis().SetTitle("# Hits")
         self.crys_hist.Draw('apl')
         self.crys_hist.Draw('zcol Cont0 same')
-        
-        #Circes
-        inner_c = R.TEllipse(0, 0, 374)
-        inner_c.SetLineColor(2)
-        inner_c.SetLineWidth(3)
-        inner_c.SetFillStyle(0)
-        inner_c.Draw('pl same')
-        outer_c = R.TEllipse(0, 0, 660)
-        outer_c.SetLineColor(2)
-        outer_c.SetLineWidth(3)
-        outer_c.SetFillStyle(0)
-        outer_c.Draw('pl same')
-        self.canvas.Draw()
+        self.__draw_circles()
         
     def empty(self) -> None:
         #Use this metod to empty the disk, deleting all the loaded hits, fits, etc. while keeping the crystals
@@ -312,19 +288,7 @@ class Disk:
             self.canvas = R.TCanvas(fit_name, fit_name, 1000, 1000)
             self.disk.__draw_q(fit_name)
             self.__fit_draw(fit_name)
-            
-            #Circes
-            inner_c = R.TEllipse(0, 0, 374)
-            inner_c.SetLineColor(2)
-            inner_c.SetLineWidth(3)
-            inner_c.SetFillStyle(0)
-            inner_c.Draw('pl same')
-            outer_c = R.TEllipse(0, 0, 660)
-            outer_c.SetLineColor(2)
-            outer_c.SetLineWidth(3)
-            outer_c.SetFillStyle(0)
-            outer_c.Draw('pl same')
-            self.canvas.Draw()
+            self.disk.__draw_circles
                       
         def __fit_draw(self, name: str) -> None:
             #Please use draw() instead!
