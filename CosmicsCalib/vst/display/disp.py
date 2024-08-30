@@ -203,6 +203,19 @@ class Disk:
         self.crys_hist.Draw('apl')
         self.crys_hist.Draw('zcol Cont0 same')
         
+        #Circes
+        inner_c = R.TEllipse(0, 0, 374)
+        inner_c.SetLineColor(2)
+        inner_c.SetLineWidth(3)
+        inner_c.SetFillStyle(0)
+        inner_c.Draw('pl same')
+        outer_c = R.TEllipse(0, 0, 660)
+        outer_c.SetLineColor(2)
+        outer_c.SetLineWidth(3)
+        outer_c.SetFillStyle(0)
+        outer_c.Draw('pl same')
+        self.canvas.Draw()
+        
     def draw_hitcount(self) -> None:
         #use this method to draw a plot where each box represents the number of hits collected by each crystal (typically afther loading mutiple events)
         name : str = "Hitcount"
@@ -220,6 +233,19 @@ class Disk:
         self.crys_hist.GetZaxis().SetTitle("# Hits")
         self.crys_hist.Draw('apl')
         self.crys_hist.Draw('zcol Cont0 same')
+        
+        #Circes
+        inner_c = R.TEllipse(0, 0, 374)
+        inner_c.SetLineColor(2)
+        inner_c.SetLineWidth(3)
+        inner_c.SetFillStyle(0)
+        inner_c.Draw('pl same')
+        outer_c = R.TEllipse(0, 0, 660)
+        outer_c.SetLineColor(2)
+        outer_c.SetLineWidth(3)
+        outer_c.SetFillStyle(0)
+        outer_c.Draw('pl same')
+        self.canvas.Draw()
         
     def empty(self) -> None:
         #Use this metod to empty the disk, deleting all the loaded hits, fits, etc. while keeping the crystals
