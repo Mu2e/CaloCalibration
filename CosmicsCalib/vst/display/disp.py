@@ -88,7 +88,7 @@ class Disk:
     def __init__(self, id :int = 0) -> None:
         #cry_pos is a matrix where each row is the [x,y] position of a crystal
         self.fit_arr : list[Disk.Fit] =[]
-        self.centroid = np.zeros(shape = 2, dtype = np.double)
+        self.centroid : np.array[np.double, np.double] = np.zeros(shape = 2, dtype = np.double)
         
         #prepare the crystals
         self.cry_arr : list[Crystal] = []
@@ -100,6 +100,7 @@ class Disk:
             print("Invalid Disk id!")   
         for i in range(self.cry_pos.shape[0]):
             self.cry_arr.append(Crystal(i, self.cry_pos[i, 0], self.cry_pos[i, 1]))
+        self.hits_for_crystal : np.array[int] = np.zeros(shape = self.cry_pos.shape[0], dtype = int)
         
     def load_event(self, event_number : int, slice) -> int:
         #slice is a root TTree slice, returns the number of loaded hits
@@ -110,17 +111,27 @@ class Disk:
         t_arr = np.frombuffer(slice.Tval)
         q_arr = np.frombuffer(slice.Qval)
         
-        #CENTROID
+        #The centroid of the event is defined as the weighted average of the hit positions
+        self.centroid = np.array([np.average(x_arr, weights= q_arr), np.average(y_arr, weights= q_arr)], dtype= np.double)
         
+        #Place hits in crystals
         for i in range(n_hits):
-                #Loop over hits
-                curr_hit = Hit(i, x_arr[i], y_arr[i], t_arr[i], q_arr[i])
-                curr_xy = np.array([x_arr[i], y_arr[i]])
-                #Find closest crystal to the hit
-                cry_hit_distances = np.linalg.norm(self.cry_pos - curr_xy, axis = 1)
-                cry_index = np.argmin(cry_hit_distances)
-                if not self.cry_arr[cry_index].test_new_hit(curr_hit):
-                    print("Error! Hit doesn't correspond to a crystal!")
+            #Loop over hits
+            curr_hit = Hit(i, x_arr[i], y_arr[i], t_arr[i], q_arr[i])
+            curr_xy = np.array([x_arr[i], y_arr[i]])
+            #Find closest crystal to the hit
+            cry_hit_distances = np.linalg.norm(self.cry_pos - curr_xy, axis = 1)
+            cry_index = np.argmin(cry_hit_distances)
+            if not self.cry_arr[cry_index].test_new_hit(curr_hit):
+                print("Error! Hit doesn't correspond to a crystal!")
+            else:
+                self.hits_for_crystal[cry_index] += 1
+                
+        #Check that each crystal has an even number of hits
+        for i, n in enumerate(self.hits_for_crystal):
+            if n % 2 != 0:
+                print("Error! On event ", self.ev_num, " crystal ", i, " has ", n, " hits.")
+                    
         return n_hits
     
     def event_fit(self, threshold : np.double = 4000 , type : str = 'linear') -> tuple[int, np.double]:
@@ -137,6 +148,26 @@ class Disk:
         
     def draw_q(self, fits : bool = True) -> None:
         #Use this method to draw the Q values of an event, if "fits" it will (hopefully) display all the applied fits
+        self.__draw_q(self)
+        
+        if fits:
+            for fit in self.fit_arr:
+                fit.__fit_draw("Event " + str(self.ev_num))
+        
+        #Circes
+        inner_c = R.TEllipse(0, 0, 374)
+        inner_c.SetLineColor(2)
+        inner_c.SetLineWidth(3)
+        inner_c.SetFillStyle(0)
+        inner_c.Draw('pl same')
+        outer_c = R.TEllipse(0, 0, 660)
+        outer_c.SetLineColor(2)
+        outer_c.SetLineWidth(3)
+        outer_c.SetFillStyle(0)
+        outer_c.Draw('pl same')
+        self.canvas.Draw()
+    
+    def __draw_q(self) -> None:
         pass
     
     def draw_tdif(self) -> None:
@@ -147,13 +178,14 @@ class Disk:
         #Use this metod to empty the disk, deleting all the loaded hits, fits, etc. while keeping the crystals
         self.fit_arr : list[Disk.Fit] =[]
         self.ev_num : int = 0
+        self.centroid : np.array[np.double, np.double] = np.zeros(shape = 2, dtype = np.double)
         for crystal in self.cry_arr:
             crystal.empty()
         
     class Fit:
         #Once you decide to fit an event, you instantiate this nested class, if new fit methods are developed, they should be placed in this class. To use them, call event_fit() on the Event, it returns an Event_fit object, if you vant to fit the same event vith different parametrs call event_fit() more than once
-        def __init__(self, event : 'Event') -> None:
-            self.event = event
+        def __init__(self, disk : 'Disk') -> None:
+            self.disk = disk
             self.vertical = False
 
         def linear_fit(self, threshold : float) -> int:
@@ -163,7 +195,7 @@ class Disk:
             y_arr = array('f')
 
             #Apply treshold
-            for crystal in self.event.crys_arr:
+            for crystal in self.disk.crys_arr:
                 if crystal.get_q() > threshold:
                     x_arr.append(crystal.x)
                     y_arr.append(crystal.y)
@@ -183,7 +215,7 @@ class Disk:
                     self.fit.SetLineColor(4)
                     self.fit.SetLineWidth(2)
                 else:
-                    center = self.event.centroid()
+                    center = self.disk.centroid()
                     self.fit = R.TLine(center[0], 660, center[0], -660)
                     self.fit.SetLineColor(4)
                     self.fit.SetLineWidth(2)
@@ -200,9 +232,9 @@ class Disk:
 
         def draw(self) -> None:
             #This method produces a TCanvas with the detector activation and the current fit (the one Event.Event_fit object on wich you call the method), if you are looking at a TCanvas with all the fits onverlayed over the calorimeter activation, or if you don't want to draw fits at all look at Event.event_draw()
-            fit_name = "Event " + str(self.event.ev_num)
+            fit_name = "Event " + str(self.disk.ev_num)
             self.canvas = R.TCanvas(fit_name, fit_name, 1000, 1000)
-            self.event._Event__histo_draw(fit_name)
+            self.disk.__draw_q(fit_name)
             self.__fit_draw(fit_name)
             
             #Circes
