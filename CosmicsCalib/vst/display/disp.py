@@ -87,25 +87,30 @@ class Disk:
        
     def __init__(self, id :int = 0) -> None:
         #cry_pos is a matrix where each row is the [x,y] position of a crystal
+        self.fit_arr : list[Disk.Fit] =[]
+        self.centroid = np.zeros(shape = 2, dtype = np.double)
+        
+        #prepare the crystals
+        self.cry_arr : list[Crystal] = []
         if id == 0:
             self.cry_pos = np.column_stack((crystalpos.crys_x, crystalpos.crys_y))[ : self.n_crystals-1]
         elif id == 1:
             self.cry_pos = np.column_stack((crystalpos.crys_x, crystalpos.crys_y))[self.n_crystals-1 : ]
         else:
-            print("Invalid Disk id!")
-            
-        self.cry_arr : list[Crystal] = []
+            print("Invalid Disk id!")   
         for i in range(self.cry_pos.shape[0]):
             self.cry_arr.append(Crystal(i, self.cry_pos[i, 0], self.cry_pos[i, 1]))
         
     def load_event(self, event_number : int, slice) -> int:
         #slice is a root TTree slice, returns the number of loaded hits
-        self.ev_num = event_number
+        self.ev_num : int = event_number
         n_hits = slice.nHits
         x_arr = np.frombuffer(slice.Xval)
         y_arr = np.frombuffer(slice.Yval)
         t_arr = np.frombuffer(slice.Tval)
         q_arr = np.frombuffer(slice.Qval)
+        
+        #CENTROID
         
         for i in range(n_hits):
                 #Loop over hits
@@ -115,10 +120,119 @@ class Disk:
                 cry_hit_distances = np.linalg.norm(self.cry_pos - curr_xy, axis = 1)
                 cry_index = np.argmin(cry_hit_distances)
                 if not self.cry_arr[cry_index].test_new_hit(curr_hit):
-                    print("Error! Hit doesn't correspond to crystal!")
+                    print("Error! Hit doesn't correspond to a crystal!")
         return n_hits
     
-    def 
+    def event_fit(self, threshold : np.double = 4000 , type : str = 'linear') -> tuple[int, np.double]:
+        #type indicates the kind of fit to perform, this function might be called more than once if more than one fit is needed, all performed fits are stored in a fit_arr
+        new_fit = self.Fit(self)
+        self.fit_arr.append(new_fit)
+        if type == 'linear':
+            n_sel = new_fit.linear_fit(threshold)
+            chi_squared = np.nan
+            if hasattr(new_fit, 'fit'):
+                if hasattr(new_fit.fit, 'GetChiSquared'):
+                    chi_squared = new_fit.fit.GetChiSquared()
+            return n_sel, chi_squared
+        
+    def draw_q(self, fits : bool = True) -> None:
+        #Use this method to draw the Q values of an event, if "fits" it will (hopefully) display all the applied fits
+        pass
+    
+    def draw_tdif(self) -> None:
+        #Use this method to draw the mean time difference of the resposnses of each crystal (over multiple events)
+        pass
+        
+    def empty(self) -> None:
+        #Use this metod to empty the disk, deleting all the loaded hits, fits, etc. while keeping the crystals
+        self.fit_arr : list[Disk.Fit] =[]
+        self.ev_num : int = 0
+        for crystal in self.cry_arr:
+            crystal.empty()
+        
+    class Fit:
+        #Once you decide to fit an event, you instantiate this nested class, if new fit methods are developed, they should be placed in this class. To use them, call event_fit() on the Event, it returns an Event_fit object, if you vant to fit the same event vith different parametrs call event_fit() more than once
+        def __init__(self, event : 'Event') -> None:
+            self.event = event
+            self.vertical = False
+
+        def linear_fit(self, threshold : float) -> int:
+            #The treshold applies on Qvals (mean value if crystal has 2 hits) and all hits over it get fitted linearly, returns the number of crystals considered
+            n_sel = 0
+            x_arr = array('f')
+            y_arr = array('f')
+
+            #Apply treshold
+            for crystal in self.event.crys_arr:
+                if crystal.get_q() > threshold:
+                    x_arr.append(crystal.x)
+                    y_arr.append(crystal.y)
+                    n_sel +=1
+
+            if n_sel > 1:
+                #Put points in a TGraph
+                self.n_sel = n_sel
+                err_arr = array ('f', np.full(n_sel, crystalpos.crys_side / 2))               
+                self.graph = R.TGraphErrors(n_sel, x_arr, y_arr, err_arr, err_arr)
+                
+                #Check if the points are on a verticl line
+                if not(self.__is_vertical(x_arr, y_arr)):
+                    self.fit = R.TF1("Linear", "pol1")
+                    self.graph.Fit("Linear")
+                    #Set the color here, so that different fits (differnet methods) can have different colors
+                    self.fit.SetLineColor(4)
+                    self.fit.SetLineWidth(2)
+                else:
+                    center = self.event.centroid()
+                    self.fit = R.TLine(center[0], 660, center[0], -660)
+                    self.fit.SetLineColor(4)
+                    self.fit.SetLineWidth(2)
+            return n_sel
+
+        def __is_vertical(self, x_arr : array, y_arr : array) -> bool:
+            #This method is called when fitting (it is suposed to be shared between differnet fit tecniques), if you want to access its result just read Event.Evnet_fit.vertical
+            min_x = np.min(x_arr)
+            max_x = np.max(x_arr)
+            dx = max_x - min_x
+            #If all xs are within a crystal side of the oters, the track is considerend vertical
+            self.vertical = dx < crystalpos.crys_side
+            return self.vertical
+
+        def draw(self) -> None:
+            #This method produces a TCanvas with the detector activation and the current fit (the one Event.Event_fit object on wich you call the method), if you are looking at a TCanvas with all the fits onverlayed over the calorimeter activation, or if you don't want to draw fits at all look at Event.event_draw()
+            fit_name = "Event " + str(self.event.ev_num)
+            self.canvas = R.TCanvas(fit_name, fit_name, 1000, 1000)
+            self.event._Event__histo_draw(fit_name)
+            self.__fit_draw(fit_name)
+            
+            #Circes
+            inner_c = R.TEllipse(0, 0, 374)
+            inner_c.SetLineColor(2)
+            inner_c.SetLineWidth(3)
+            inner_c.SetFillStyle(0)
+            inner_c.Draw('pl same')
+            outer_c = R.TEllipse(0, 0, 660)
+            outer_c.SetLineColor(2)
+            outer_c.SetLineWidth(3)
+            outer_c.SetFillStyle(0)
+            outer_c.Draw('pl same')
+            self.canvas.Draw()
+                      
+        def __fit_draw(self, name: str) -> None:
+            #Please use draw() instead!
+            if hasattr(self, 'graph'):
+                #Style
+                self.graph.SetMarkerColor(1)
+                self.graph.SetMarkerSize(2)
+                self.graph.GetXaxis().SetTitle('X (mm)')
+                self.graph.GetYaxis().SetTitle('Y (mm)')
+                self.graph.GetXaxis().SetLimits(-660, 660)
+                self.graph.GetYaxis().SetRangeUser(-650, 650)
+                self.graph.Draw('* same')
+                if hasattr(self, 'fit'):
+                    self.fit.Draw('same')
+            else:
+                print("You are drawing a fit that does not exist! Try linear_fit() [or other] before.")
     
 class Event:
     def __init__(self, event_number, tree_slice) -> None:
@@ -209,89 +323,7 @@ class Event:
                 q_arr[i] = q
         return np.average(x_arr, weights = q_arr), np.average(y_arr, weights = q_arr)
 
-    class Event_fit:
-        #Once you decide to fit an event, you instantiate this nested class, if new fit methods are developed, they should be placed in this class. To use them, call event_fit() on the Event, it returns an Event_fit object, if you vant to fit the same event vith different parametrs call event_fit() more than once
-        def __init__(self, event : 'Event') -> None:
-            self.event = event
-            self.vertical = False
-
-        def linear_fit(self, treshold : float) -> int:
-            #The treshold applies on Qvals (mean value if crystal has 2 hits) and all hits over it get fitted linearly, returns the number of crystals considered
-            n_sel = 0
-            x_arr = array('f')
-            y_arr = array('f')
-
-            #Apply treshold
-            for crystal in self.event.crys_arr:
-                if crystal.get_q() > treshold:
-                    x_arr.append(crystal.x)
-                    y_arr.append(crystal.y)
-                    n_sel +=1
-
-            if n_sel > 1:
-                #Put points in a TGraph
-                self.n_sel = n_sel
-                err_arr = array ('f', np.full(n_sel, crystalpos.crys_side / 2))               
-                self.graph = R.TGraphErrors(n_sel, x_arr, y_arr, err_arr, err_arr)
-                
-                #Check if the points are on a verticl line
-                if not(self.__is_vertical(x_arr, y_arr)):
-                    self.fit = R.TF1("Linear", "pol1")
-                    self.graph.Fit("Linear")
-                    #Set the color here, so that different fits (differnet methods) can have different colors
-                    self.fit.SetLineColor(4)
-                    self.fit.SetLineWidth(2)
-                else:
-                    center = self.event.centroid()
-                    self.fit = R.TLine(center[0], 660, center[0], -660)
-                    self.fit.SetLineColor(4)
-                    self.fit.SetLineWidth(2)
-            return n_sel
-
-        def __is_vertical(self, x_arr : array, y_arr : array) -> bool:
-            #This method is called when fitting (it is suposed to be shared between differnet fit tecniques), if you want to access its result just read Event.Evnet_fit.vertical
-            min_x = np.min(x_arr)
-            max_x = np.max(x_arr)
-            dx = max_x - min_x
-            #If all xs are within a crystal side of the oters, the track is considerend vertical
-            self.vertical = dx < crystalpos.crys_side
-            return self.vertical
-
-        def draw(self) -> None:
-            #This method produces a TCanvas with the detector activation and the current fit (the one Event.Event_fit object on wich you call the method), if you are looking at a TCanvas with all the fits onverlayed over the calorimeter activation, or if you don't want to draw fits at all look at Event.event_draw()
-            fit_name = "Event " + str(self.event.ev_num)
-            self.canvas = R.TCanvas(fit_name, fit_name, 1000, 1000)
-            self.event._Event__histo_draw(fit_name)
-            self.__fit_draw(fit_name)
-            
-            #Circes
-            inner_c = R.TEllipse(0, 0, 374)
-            inner_c.SetLineColor(2)
-            inner_c.SetLineWidth(3)
-            inner_c.SetFillStyle(0)
-            inner_c.Draw('pl same')
-            outer_c = R.TEllipse(0, 0, 660)
-            outer_c.SetLineColor(2)
-            outer_c.SetLineWidth(3)
-            outer_c.SetFillStyle(0)
-            outer_c.Draw('pl same')
-            self.canvas.Draw()
-                      
-        def __fit_draw(self, name: str) -> None:
-            #Please use draw() instead!
-            if hasattr(self, 'graph'):
-                #Style
-                self.graph.SetMarkerColor(1)
-                self.graph.SetMarkerSize(2)
-                self.graph.GetXaxis().SetTitle('X (mm)')
-                self.graph.GetYaxis().SetTitle('Y (mm)')
-                self.graph.GetXaxis().SetLimits(-660, 660)
-                self.graph.GetYaxis().SetRangeUser(-650, 650)
-                self.graph.Draw('* same')
-                if hasattr(self, 'fit'):
-                    self.fit.Draw('same')
-            else:
-                print("You are drawing a fit that does not exist! Try linear_fit() [or other] before.")
+    
             
 def tree_loader(tree, n_max = 0):
     #Loads a tree (up to n_max, if set) in an list of Event objects
