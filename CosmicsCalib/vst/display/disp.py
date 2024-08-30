@@ -131,9 +131,9 @@ class Disk:
         #Check that each crystal has an even number of hits
         for i, n in enumerate(hits_for_crystal):
             if n % 2 != 0:
-                print("Warning! On event ", self.ev_num, " crystal ", i, " has ", n, " hits.")
-                #If one of the crystals doesn't have an even number of hits, a 0 time is added
-                self.cry_arr[i].t_arr = np.append(self.cry_arr[i].t_arr, 0)
+                #print("Warning! On event ", self.ev_num, " crystal ", i, " has ", n, " hits.")
+                #If one of the crystals doesn't have an even number of hits, the last timing is deleted (this only affects the time difference disply)
+                self.cry_arr[i].t_arr = self.cry_arr[i].t_arr[ :-1]
                     
         return n_hits
     
@@ -344,8 +344,8 @@ if __name__ == '__main__':
             hits, chi = calo.event_fit()
             if hits > n_min and (chi < chi_max or calo.fit_arr[0].vertical):
                 calo.draw_q()
-                #input("Press any key for time difernces")
-                #calo.draw_tdif()
+                input("Press any key for time difernces")
+                calo.draw_tdif()
                 ev_num = int(input("Event to jump= [enter for next]") or ev_num+1)
                 calo.empty()
             else:
