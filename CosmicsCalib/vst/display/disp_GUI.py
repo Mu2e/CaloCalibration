@@ -1,7 +1,7 @@
 """ Mu2E Calorimeter Calibration
     Track event display GUI version 1.0
     by Giacinto Boccia
-    2024-08-31
+    2024-00-01
     """
 
 import tkinter as tk
@@ -9,19 +9,19 @@ from tkinter import filedialog
 import ROOT as R
 import disp
 
-def control_panel() -> None:
-    window = tk.Tk()
-    window.title("Event Display")
-    par_fields_arr = []
-    parameters : dict = dict([('Event number', 0), 
+parameters = dict([('Event Number', 0), 
                               ('Q threshold', 4000), 
                               ('Minimum hits', 6), 
                               ('Maximum ChiSq', 10)])
-    
+
+def control_panel() -> None:
+    window = tk.Tk()
+    window.title("Event Display")
+    par_fields_arr = []   
     
     #Ask for the file to open
     file_path = filedialog.askopenfilename()
-    file = R.TFile.Open(file_name)
+    file = R.TFile.Open(file_path)
     tree = file.sidet
     calo = disp.calo
 
@@ -35,11 +35,17 @@ def control_panel() -> None:
     def go_action() -> None:
         #Collect parameters
         for field, p_name in zip(par_fields_arr, parameters):
-            parameters[p_name] = field.get()
+            if p_name == 'Event Number' or p_name == 'Minimum hits':
+                parameters[p_name] = int(field.get())
+            else:
+                parameters[p_name] = float(field.get())
             
         while parameters['Event Number'] < tree.GetEntries():
             calo.empty()
             if disp.single_event_q(calo, tree, parameters["Event Number"], parameters['Q threshold'], parameters['Minimum hits'], parameters['Maximum ChiSq']):
+                parameters["Event Number"] += 1
+                par_fields_arr[0].delete(0, tk.END)
+                par_fields_arr[0].insert(0, parameters["Event Number"])
                 break
             else:
                 parameters["Event Number"] += 1        
