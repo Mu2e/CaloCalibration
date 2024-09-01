@@ -310,8 +310,9 @@ class Disk:
 def single_event_q(calo : Disk, tree : R.TTree, ev_num : int, threshold : float = 4000, min_hits : int = 6, max_chi : float = 20) -> bool:
     #If the event matches the conditions is is shown and True is returned
     tree.GetEntry(ev_num)
-    calo.load_event(ev_num, tree)
-    hits, chi = calo.event_fit()
+    #Afther GerEntry, the tree objects gains all the attributes of a slice
+    calo.load_event(event_number = ev_num, slice = tree)
+    hits, chi = calo.event_fit(threshold = threshold, type = 'linear')
     if hits > min_hits and (chi < max_chi or calo.fit_arr[0].vertical):
         calo.draw_q()
         return True
