@@ -183,6 +183,7 @@ class Disk:
         self.crys_hist.SetStats(0)
         self.crys_hist.SetTitle(ev_name)
         self.crys_hist.GetZaxis().SetTitle("Q")
+        self.crys_hist.GetZaxis().SetTitleOffset(2.1)
         self.crys_hist.Draw('apl')
         self.crys_hist.Draw('zcol Cont0 same')
     
@@ -201,6 +202,7 @@ class Disk:
         self.crys_hist.SetStats(0)
         self.crys_hist.SetTitle(name)
         self.crys_hist.GetZaxis().SetTitle("T Difference")
+        self.crys_hist.GetZaxis().SetTitleOffset(2.1)
         self.crys_hist.Draw('apl')
         self.crys_hist.Draw('zcol Cont0 same')
         self.__draw_circles()
@@ -220,6 +222,7 @@ class Disk:
         self.crys_hist.SetStats(0)
         self.crys_hist.SetTitle(name)
         self.crys_hist.GetZaxis().SetTitle("# Hits")
+        self.crys_hist.GetZaxis().SetTitleOffset(2.1)
         self.crys_hist.Draw('apl')
         self.crys_hist.Draw('zcol Cont0 same')
         self.__draw_circles()
