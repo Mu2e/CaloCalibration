@@ -1,6 +1,7 @@
-""" Mu2E Calorimeter Track event display version 2.0
+""" Mu2E Calorimeter Calibration
+    Track event display version 2.1
     by Giacinto Boccia
-    2024-08-30
+    2024-08-31
     """
 
 import ROOT as R
@@ -305,6 +306,19 @@ class Disk:
                     self.fit.Draw('same')
             else:
                 print("You are drawing a fit that does not exist! Try linear_fit() [or other] before.")     
+
+def single_event_q(calo : Disk, tree : R.TTree, ev_num : int, threshold : float = 4000, min_hits : int = 6, max_chi : float = 20) -> bool:
+    #If the event metches the conditions is is shown and True is returned
+    tree.GetEntry(ev_num)
+    calo.load_event(ev_num, tree)
+    hits, chi = calo.event_fit()
+    if hits > min_hits and (chi < max_chi or calo.fit_arr[0].vertical):
+        calo.draw_q()
+        return True
+    else:
+        return False
+    
+calo = Disk(id = 0)
 
 if __name__ == '__main__':
     TRESHOLD = 4000
