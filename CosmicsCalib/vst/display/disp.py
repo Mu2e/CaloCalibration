@@ -308,7 +308,7 @@ class Disk:
                 print("You are drawing a fit that does not exist! Try linear_fit() [or other] before.")     
 
 def single_event_q(calo : Disk, tree : R.TTree, ev_num : int, threshold : float = 4000, min_hits : int = 6, max_chi : float = 20) -> bool:
-    #If the event metches the conditions is is shown and True is returned
+    #If the event matches the conditions is is shown and True is returned
     tree.GetEntry(ev_num)
     calo.load_event(ev_num, tree)
     hits, chi = calo.event_fit()
@@ -318,7 +318,18 @@ def single_event_q(calo : Disk, tree : R.TTree, ev_num : int, threshold : float 
     else:
         return False
     
-calo = Disk(id = 0)
+def signle_event_td(calo : Disk, tree : R.TTree, ev_num : int) -> None:
+    #Display the reconstructed time difference for the channels of each crystal for a single event
+    tree.GetEntry(ev_num)
+    calo.load_event(ev_num, tree)
+    calo.draw_tdif()
+    
+def load_tree(calo : Disk, tree : R.TTree) -> None:
+    #Load the entire tree for average/cumulative drawings
+    for ev_num, slice in enumerate(tree):
+        calo.load_event(ev_num, slice)
+        if ev_num % 1000 == 0:
+            print("Loading event:", ev_num)
 
 if __name__ == '__main__':
     TRESHOLD = 4000
