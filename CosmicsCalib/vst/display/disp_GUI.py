@@ -1,5 +1,5 @@
 """ Mu2E Calorimeter Calibration
-    Track event display GUI version 1.0
+    Track event display GUI version 1.1
     by Giacinto Boccia
     2024-00-01
     """
