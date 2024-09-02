@@ -9,15 +9,14 @@ from tkinter import filedialog
 import ROOT as R
 import disp
 
-parameters = dict([ ('Event Number', 0), 
-                    ('Q threshold', 4000), 
-                    ('Minimum hits', 6), 
-                    ('Maximum ChiSq', 10)])
-
 def control_panel() -> None:
     window = tk.Tk()
     window.title("Event Display")
-    par_fields_arr = []   
+    par_fields_arr = [] 
+    parameters = dict([ ('Event Number', 0), 
+                        ('Q threshold', 4000),
+                        ('Minimum hits', 6), 
+                        ('Maximum ChiSq', 10)])  
     
     #Ask for the file to open
     file_path = filedialog.askopenfilename()
@@ -88,7 +87,7 @@ def averages_control_panel(tree) -> None:
     
     tk.Button(window, text="Time Differences",  command=td_action)          .grid(row=0, column=0)
     tk.Button(window, text="Number of Hits",    command=num_action)         .grid(row=0, column=1)
-    tk.Button(window, text="Close Averages",    command=terminate_action)   .grid(row=5, column=0)
+    tk.Button(window, text="Close Averages",    command=terminate_action)   .grid(row=1, column=0)
 
 
 if __name__ == "__main__":

@@ -109,32 +109,29 @@ class Disk:
         n_hits = slice.nHits
         x_arr = np.frombuffer(slice.Xval)
         y_arr = np.frombuffer(slice.Yval)
-        t_arr = np.frombuffer(slice.Tval)
+        t_arr = np.frombuffer(slice.templTime)
         q_arr = np.frombuffer(slice.Qval)
+        cry_num_arr = np.frombuffer(slice.iCry, dtype= np.int32)
         
         #The centroid of the event is defined as the weighted average of the hit positions
         if n_hits > 0:
             self.centroid = np.array([np.average(x_arr, weights= q_arr), np.average(y_arr, weights= q_arr)], dtype= np.double)
         
         #Place hits in crystals
-        for i in range(n_hits):
+        for hit_num in range(n_hits):
             #Loop over hits
-            curr_hit = Hit(i, x_arr[i], y_arr[i], t_arr[i], q_arr[i])
-            curr_xy = np.array([x_arr[i], y_arr[i]])
-            #Find closest crystal to the hit
-            cry_hit_distances = np.linalg.norm(self.cry_pos - curr_xy, axis = 1)
-            cry_index = np.argmin(cry_hit_distances)
-            if not self.cry_arr[cry_index].test_new_hit(curr_hit):
-                print("Error! Hit doesn't correspond to a crystal!")
+            curr_hit = Hit(hit_num, x_arr[hit_num], y_arr[hit_num], t_arr[hit_num], q_arr[hit_num])
+            if self.cry_arr[cry_num_arr[hit_num]].test_new_hit(curr_hit):
+                hits_for_crystal[cry_num_arr[hit_num]] += 1
             else:
-                hits_for_crystal[cry_index] += 1
+                print("Error! Hit doesn't correspond to a crystal!")
                 
         #Check that each crystal has an even number of hits
-        for i, n in enumerate(hits_for_crystal):
+        for hit_num, n in enumerate(hits_for_crystal):
             if n % 2 != 0:
                 #print("Warning! On event ", self.ev_num, " crystal ", i, " has ", n, " hits.")
                 #If one of the crystals doesn't have an even number of hits, the last timing is deleted (this only affects the time difference disply)
-                self.cry_arr[i].t_arr = self.cry_arr[i].t_arr[ :-1]
+                self.cry_arr[hit_num].t_arr = self.cry_arr[hit_num].t_arr[ :-1]
                     
         return n_hits
     
