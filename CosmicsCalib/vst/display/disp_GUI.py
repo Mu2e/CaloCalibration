@@ -16,7 +16,10 @@ def control_panel() -> None:
     parameters = dict([ ('Event Number', 0), 
                         ('Q threshold', 4000),
                         ('Minimum hits', 6), 
-                        ('Maximum ChiSq', 10)])  
+                        ('Maximum ChiSq', 10)])
+    vert_options : tuple[str] = ("Include vertical tracks", "Exclude vertical tracks", "Only vertical tracks")
+    selected_vertical = tk.StringVar(window)
+    selected_vertical.set('Include vertical tracks')
     
     #Ask for the file to open
     file_path = filedialog.askopenfilename()
@@ -30,6 +33,7 @@ def control_panel() -> None:
         entry.grid(row=i, column=1)
         entry.insert(0, value)
         par_fields_arr.append(entry)
+    v_mode_menu = tk.OptionMenu(window, selected_vertical, *vert_options).grid(row=4, column=0)
 
     def go_action() -> None:
         #Collect parameters
@@ -38,6 +42,13 @@ def control_panel() -> None:
                 parameters[p_name] = int(field.get())
             else:
                 parameters[p_name] = float(field.get())
+        match selected_vertical.get():
+            case "Include vertical tracks":
+                vert_mode = 'i'
+            case "Exclude vertical tracks":
+                vert_mode = 'e'
+            case "Only vertical tracks":
+                vert_mode = 'o'
             
         while parameters['Event Number'] < tree.GetEntries() - 1:
             calo.empty()
@@ -46,7 +57,8 @@ def control_panel() -> None:
                                    parameters["Event Number"], 
                                    parameters['Q threshold'], 
                                    parameters['Minimum hits'], 
-                                   parameters['Maximum ChiSq']):
+                                   parameters['Maximum ChiSq'],
+                                   vert_mode):
                 par_fields_arr[0].delete(0, tk.END)
                 par_fields_arr[0].insert(0, parameters["Event Number"])
                 break      
@@ -61,10 +73,10 @@ def control_panel() -> None:
     def td_action() -> None:
         disp.signle_event_td(calo, tree, parameters["Event Number"])
 
-    tk.Button(window, text="Go",        command=go_action)          .grid(row=4, column=0)
-    tk.Button(window, text="T Diff.",   command=td_action)          .grid(row=4, column=1)
-    tk.Button(window, text="Terminate", command=terminate_action)   .grid(row=5, column=0)
-    tk.Button(window, text="Averages",  command=average_action)     .grid(row=5, column=1)
+    tk.Button(window, text="Go",        command=go_action)          .grid(row=5, column=0)
+    tk.Button(window, text="T Diff.",   command=td_action)          .grid(row=5, column=1)
+    tk.Button(window, text="Terminate", command=terminate_action)   .grid(row=6, column=0)
+    tk.Button(window, text="Averages",  command=average_action)     .grid(row=6, column=1)
 
     window.mainloop()
     

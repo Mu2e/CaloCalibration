@@ -307,17 +307,34 @@ class Disk:
             else:
                 print("You are drawing a fit that does not exist! Try linear_fit() [or other] before.")     
 
-def single_event_q(calo : Disk, tree : R.TTree, ev_num : int, threshold : float = 4000, min_hits : int = 6, max_chi : float = 20) -> bool:
+def single_event_q(calo : Disk, tree : R.TTree, ev_num : int, threshold : float = 4000, min_hits : int = 6, max_chi : float = 20, v_mode :str = 'i') -> bool:
     #If the event matches the conditions is is shown and True is returned
     tree.GetEntry(ev_num)
     #Afther GerEntry, the tree objects gains all the attributes of a slice
     calo.load_event(event_number = ev_num, slice = tree)
     hits, chi = calo.event_fit(threshold = threshold, type = 'linear')
-    if hits > min_hits and (chi < max_chi or calo.fit_arr[0].vertical):
-        calo.draw_q()
-        return True
-    else:
-        return False
+    match v_mode:
+        case 'i':
+            #Include vertical tracks if they meet max_chi
+            if hits > min_hits and (chi < max_chi or calo.fit_arr[0].vertical):
+                calo.draw_q()
+                return True
+            else:
+                return False
+        case 'e':
+            #Exclude vertival tracks
+            if hits > min_hits and chi < max_chi :
+                calo.draw_q()
+                return True
+            else:
+                return False
+        case 'o':
+            #Only show vertical tracks
+            if hits > min_hits and calo.fit_arr[0].vertical :
+                calo.draw_q()
+                return True
+            else:
+                return False
     
 def signle_event_td(calo : Disk, tree : R.TTree, ev_num : int) -> None:
     #Display the reconstructed time difference for the channels of each crystal for a single event
