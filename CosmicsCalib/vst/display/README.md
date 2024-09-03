@@ -1,4 +1,4 @@
-# Event display for cosmic events on the Mu2E Calorimeter.
+# Cosmic Event Display for the Mu2E Calorimeter.
 
 ## To use
 
