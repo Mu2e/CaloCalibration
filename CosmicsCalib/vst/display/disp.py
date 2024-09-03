@@ -190,7 +190,7 @@ class Disk:
     def draw_tdif(self, plot_name : str = False) -> None:
         #Use this method to draw the mean time difference of the resposnses of each crystal 
         # (also over multiple events)
-        name : str = plot_name or "Run " + str(self.run_num) + "Event " + str(self.ev_num) + " time differences"
+        name : str = plot_name or "Run " + str(self.run_num) + " Event " + str(self.ev_num) + " time differences"
         self.canvas = R.TCanvas(name, name, 1000, 1000)
         self.crys_hist = R.TH2Poly()
         for crystal in self.cry_arr:
@@ -391,38 +391,30 @@ def load_tree(tree : R.TTree) -> None:
             print("Loading entry:", entry_num)
 
 if __name__ == '__main__':
+    #Parameters
     TRESHOLD = 4000
-    n_min = 6
-    chi_max = 20
+    HITS_MIN = 6
+    CHI_MAX = 20
 
     #Open tree
     file_name = input("File to open:")
     file = R.TFile.Open(file_name)
     tree = file.sidet
-    calo = Disk()
     average_mode = input ("Display the average time diffeneces? y/[n]")
     hitcount_mode = input ("Display the total hit count? y/[n]")
     if average_mode == "y":
-        for ev_num, slice in enumerate(tree):
-            calo.load_event(ev_num, slice)
+        load_tree(tree)
         calo.draw_tdif("Average Time Differences")
     elif hitcount_mode == "y":
-        for ev_num, slice in enumerate(tree):
-            calo.load_event(ev_num, slice)
+        load_tree(tree)
         calo.draw_hitcount()
     else:
-        ev_num :int = 0
-        while ev_num < tree.GetEntries():
-            tree.GetEntry(ev_num)
-            calo.load_event(ev_num, tree)
-            hits, chi = calo.event_fit()
-            if hits > n_min and (chi < chi_max or calo.fit_arr[0].vertical):
-                calo.draw_q()
-                input("Press any key for time difernces")
-                calo.draw_tdif()
-                ev_num = int(input("Event to jump= [enter for next]") or ev_num+1)
-                calo.empty()
-            else:
-                ev_num += 1
-                calo.empty()
+        entry_num : int = 0
+        run_n : int = 0
+        ev_n :int = 0
+        while entry_num < tree.GetEntries():
+            run_n, ev_n = single_event_q(tree, run_n, ev_n, q_min= TRESHOLD, hits_min= HITS_MIN, chi_max= CHI_MAX)
+            input("Press any key for T Differences")
+            signle_event_td(tree, run_n, ev_n)
+            input("Press any key for next")     
     input("Press any key to exit")
