@@ -6,7 +6,6 @@
 
 import ROOT as R
 import numpy as np
-#import concurrent.futures
 from array import array
 import crystalpos
 #crystalpos.py is just a file with 2 np arrays with crystal x and y and the measure of the crystal side
@@ -343,28 +342,27 @@ def single_event_q(tree : R.TTree,
         #Afther GerEntry, the tree objects gains all the attributes of a slice
         calo.load_event(slice = tree)
         hits, chi = calo.event_fit(threshold = threshold, type = 'linear')
-        match v_mode:
-            case 'i':
-                #Include vertical tracks if they meet max_chi
-                if hits > min_hits and (chi < max_chi or calo.fit_arr[0].vertical):
-                    calo.draw_q()
-                    return True
-                else:
-                    return False
-            case 'e':
-                #Exclude vertival tracks
-                if hits > min_hits and chi < max_chi :
-                    calo.draw_q()
-                    return True
-                else:
-                    return False
-            case 'o':
-                #Only show vertical tracks
-                if hits > min_hits and calo.fit_arr[0].vertical :
-                    calo.draw_q()
-                    return True
-                else:
-                    return False
+        if v_mode == 'i':
+            #Include vertical tracks if they meet max_chi
+            if hits > min_hits and (chi < max_chi or calo.fit_arr[0].vertical):
+                calo.draw_q()
+                return True
+            else:
+                return False
+        elif v_mode == 'e':
+            #Exclude vertival tracks
+            if hits > min_hits and chi < max_chi :
+                calo.draw_q()
+                return True
+            else:
+                return False
+        elif 'o':
+            #Only show vertical tracks
+            if hits > min_hits and calo.fit_arr[0].vertical :
+                calo.draw_q()
+                return True
+            else:
+                return False
     
     global calo
     entry_n = tree.GetEntryNumberWithBestIndex(run_n, ev_n)

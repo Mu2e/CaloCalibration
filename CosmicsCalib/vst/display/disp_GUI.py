@@ -27,7 +27,7 @@ def control_panel() -> None:
     #Open file
     file_path = filedialog.askopenfilename()
     file = R.TFile.Open(file_path)
-    tree = file["sidet"]
+    tree = file.sidet
     tree.BuildIndex("nrun","evnum")
 
     #Declare fields
