@@ -13,60 +13,55 @@ def control_panel() -> None:
     window = tk.Tk()
     window.title("Event Display")
     par_fields_arr = [] 
-    parameters = dict([ ('Run Number', 0),
-                        ('Event Number', 0), 
-                        ('Q Threshold', 4000),
-                        ('Minimum Hits', 6), 
-                        ('Maximum ChiSq', 10)])
-    vert_options : tuple[str] = ("Include vertical tracks", "Exclude vertical tracks", "Only vertical tracks")
+    parameters = dict([ ('Run Number',      0),
+                        ('Event Number',    0), 
+                        ('Q Threshold',     4000),
+                        ('Minimum Hits',    6), 
+                        ('Maximum ChiSq',   10)])
+    vert_options = dict([   ("Include vertical tracks", "i"),
+                            ("Exclude vertical tracks", "e"),
+                            ("Only vertical tracks",    "o")])
     selected_vertical = tk.StringVar(window)
     selected_vertical.set('Include vertical tracks')
     
-    #Ask for the file to open
+    #Open file
     file_path = filedialog.askopenfilename()
     file = R.TFile.Open(file_path)
     tree = file["sidet"]
     tree.BuildIndex("nrun","evnum")
-    calo = disp.Disk(0)
 
+    #Declare fields
     for i, (name, value) in enumerate(parameters.items()):
         tk.Label(window, text=name).grid(row=i, column=0)
         entry = tk.Entry(window)
         entry.grid(row=i, column=1)
         entry.insert(0, value)
         par_fields_arr.append(entry)
-    v_mode_menu = tk.OptionMenu(window, selected_vertical, *vert_options).grid(row=4, column=0)
+    v_mode_menu = tk.OptionMenu(window, selected_vertical, *vert_options).grid(row=5, column=0)
 
     def go_action() -> None:
         #Collect parameters
+        user_set_ev : bool = False
         for field, p_name in zip(par_fields_arr, parameters):
             if p_name == 'Event Number' or p_name == 'Run Number' or p_name == 'Minimum Hits':
+                if p_name == 'Event Number' or p_name == 'Run Number':
+                    if parameters[p_name] != int(field.get()):
+                        user_set_ev = True
                 parameters[p_name] = int(field.get())
             else:
                 parameters[p_name] = float(field.get())
-        match selected_vertical.get():
-            case "Include vertical tracks":
-                vert_mode = 'i'
-            case "Exclude vertical tracks":
-                vert_mode = 'e'
-            case "Only vertical tracks":
-                vert_mode = 'o'
+        vert_mode = vert_options[selected_vertical.get()]
             
-        #Find next event to display
-        entry_n = tree.GetEntryNumberWithBestIndex(parameters["Run Number"], parameters["Event Number"])
-        while entry_n < tree.GetEntries() - 1:
-            calo.empty()
-            entry_n += 1
-            if disp.single_event_q(calo, tree, 
-                                   entry_n, 
-                                   parameters['Q Threshold'], 
-                                   parameters['Minimum Hits'], 
-                                   parameters['Maximum ChiSq'],
-                                   vert_mode):
-                break
-        tree.GetEntry(entry_n)
-        parameters["Run Number"] = tree.nrun
-        parameters["Event Number"] = tree.evnum
+        #Display the next event
+        parameters["Run Number"], parameters ["Event Number"] = disp.single_event_q(tree, 
+                                                                                    parameters["Run Number"],
+                                                                                    parameters["Event Number"],
+                                                                                    parameters["Q Threshold"],
+                                                                                    parameters["Minimum Hits"],
+                                                                                    parameters["Maximum ChiSq"],
+                                                                                    vert_mode,
+                                                                                    user_set_ev)
+        
         par_fields_arr[0].delete(0, tk.END)
         par_fields_arr[0].insert(0, parameters["Run Number"])
         par_fields_arr[1].delete(0, tk.END)
@@ -80,7 +75,7 @@ def control_panel() -> None:
         averages_control_panel(tree)
         
     def td_action() -> None:
-        disp.signle_event_td(calo, tree, parameters["Event Number"])
+        disp.signle_event_td(tree, parameters["Run Number"], parameters["Event Number"])
 
     tk.Button(window, text="Go",        command=go_action)          .grid(row=6, column=0)
     tk.Button(window, text="T Diff.",   command=td_action)          .grid(row=6, column=1)
@@ -89,23 +84,22 @@ def control_panel() -> None:
 
     window.mainloop()
     
-def averages_control_panel(tree) -> None:
+def averages_control_panel(tree : R.TTree) -> None:
     window = tk.Tk()
     window.title("Averages Display")
-    calo = disp.Disk(0)
-    disp.load_tree(calo, tree)
+    disp.load_tree(tree)
     
     def terminate_action() -> None:
         window.destroy()
         
     def td_action() -> None:
-        calo.draw_tdif(plot_name= "Average Time Differences")
+        disp.calo.draw_tdif(plot_name= "Average Time Differences")
         
     def mean_q_action() ->None:
-        calo.draw_q(fits= False, plot_name= "Agerage Q Values")
+        disp.calo.draw_q(fits= False, plot_name= "Agerage Q Values")
         
     def num_action() -> None:
-        calo.draw_hitcount()
+        disp.calo.draw_hitcount()
         
     
     tk.Button(window, text="Time Differences",  command=td_action)          .grid(row=0, column=0)

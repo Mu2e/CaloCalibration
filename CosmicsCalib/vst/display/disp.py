@@ -116,7 +116,9 @@ class Disk:
         
         #The centroid of the event is defined as the weighted average of the hit positions
         if n_hits > 0:
-            self.centroid = np.array([np.average(x_arr, weights= q_arr), np.average(y_arr, weights= q_arr)], dtype= np.double)
+            self.centroid = np.array([np.average(x_arr, weights= q_arr), 
+                                      np.average(y_arr, weights= q_arr)], 
+                                     dtype= np.double)
         
         #Place hits in crystals
         for hit_num in range(n_hits):
@@ -130,13 +132,15 @@ class Disk:
         #Check that each crystal has an even number of hits
         for hit_num, n in enumerate(hits_for_crystal):
             if n % 2 != 0:
-                #If one of the crystals doesn't have an even number of hits, the last timing is deleted (this only affects the time difference disply)
+                #If one of the crystals doesn't have an even number of hits, the last timing is deleted 
+                #(this only affects the time difference disply)
                 self.cry_arr[hit_num].t_arr = self.cry_arr[hit_num].t_arr[ :-1]
                     
         return n_hits
     
     def event_fit(self, threshold : np.double = 4000 , type : str = 'linear') -> tuple[int, np.double]:
-        #type indicates the kind of fit to perform, this function might be called more than once if more than one fit is needed, all performed fits are stored in a fit_arr
+        #type indicates the kind of fit to perform, this function might be called more than once if more than one
+        #fit is needed, all performed fits are stored in a fit_arr
         new_fit = self.Fit(self)
         self.fit_arr.append(new_fit)
         if type == 'linear':
@@ -145,7 +149,7 @@ class Disk:
             return n_sel, chi_squared
         
     def draw_q(self, fits : bool = True, plot_name : str = False) -> None:
-        #Use this method to draw the Q values of an event, if "fits" it will (hopefully) display all the applied fits
+        #Use this method to draw the Q values of an event, if "fits" it will display all the applied fits
         ev_name : str = plot_name or "Run " + str(self.run_num) + " Event " + str(self.ev_num)
         self.canvas = R.TCanvas(ev_name, ev_name, 1000, 1000)
         self.__draw_q(ev_name)
@@ -185,7 +189,8 @@ class Disk:
         self.crys_hist.Draw('zcol Cont0 same')
     
     def draw_tdif(self, plot_name : str = False) -> None:
-        #Use this method to draw the mean time difference of the resposnses of each crystal ( also over multiple events)
+        #Use this method to draw the mean time difference of the resposnses of each crystal 
+        # (also over multiple events)
         name : str = plot_name or "Run " + str(self.run_num) + "Event " + str(self.ev_num) + " time differences"
         self.canvas = R.TCanvas(name, name, 1000, 1000)
         self.crys_hist = R.TH2Poly()
@@ -205,7 +210,8 @@ class Disk:
         self.__draw_circles()
         
     def draw_hitcount(self) -> None:
-        #use this method to draw a plot where each box represents the number of hits collected by each crystal (typically afther loading mutiple events)
+        #use this method to draw a plot where each box represents the number of hits collected by each crystal 
+        #(typically afther loading mutiple events)
         name : str = "Number of Hits"
         self.canvas = R.TCanvas(name, name, 1000, 1000)
         self.crys_hist = R.TH2Poly()
@@ -235,14 +241,18 @@ class Disk:
             crystal.empty()
         
     class Fit:
-        #Once you decide to fit an event, you instantiate this nested class, if new fit methods are developed, they should be placed in this class. To use them, call event_fit() on the Event, it returns an Event_fit object, if you vant to fit the same event vith different parametrs call event_fit() more than once
+        #Once you decide to fit an event, you instantiate this nested class, if new fit methods are developed, 
+        #they should be placed in this class. To use them, call event_fit() on the Event, 
+        #it returns an Event_fit object, if you vant to fit the same event vith different parametrs
+        #call event_fit() more than once
         def __init__(self, disk : 'Disk') -> None:
             self.disk : 'Disk' = disk
             self.vertical : bool = False
             self.chi_sqare : np.double = np.nan
 
         def linear_fit(self, threshold : float) -> int:
-            #The treshold applies on Qvals (mean value if crystal has 2 hits) and all hits over it get fitted linearly, returns the number of crystals considered
+            #The treshold applies on Qvals (mean value if crystal has 2 hits) 
+            #and all hits over it get fitted linearly, returns the number of crystals considered
             n_sel = 0
             x_arr = array('f')
             y_arr = array('f')
@@ -276,7 +286,8 @@ class Disk:
             return n_sel
 
         def __is_vertical(self, x_arr : array, y_arr : array) -> bool:
-            #This method is called when fitting (it is suposed to be shared between differnet fit tecniques), if you want to access its result just read Event.Evnet_fit.vertical
+            #This method is called when fitting (it is suposed to be shared between differnet fit tecniques),
+            #if you want to access its result just read Event.Evnet_fit.vertical
             min_x = np.min(x_arr)
             max_x = np.max(x_arr)
             dx = max_x - min_x
@@ -285,7 +296,10 @@ class Disk:
             return self.vertical
 
         def draw(self) -> None:
-            #This method produces a TCanvas with the detector activation and the current fit (the one Event.Event_fit object on wich you call the method), if you are looking at a TCanvas with all the fits onverlayed over the calorimeter activation, or if you don't want to draw fits at all look at Event.event_draw()
+            #This method produces a TCanvas with the detector activation and the current fit 
+            #(the one Event.Event_fit object on wich you call the method), if you are looking at a 
+            #TCanvas with all the fits onverlayed over the calorimeter activation, 
+            #or if you don't want to draw fits at all look at Event.event_draw()
             fit_name = "Run " + str(self.disk.run_num) + "Event " + str(self.disk.ev_num)
             self.canvas = R.TCanvas(fit_name, fit_name, 1000, 1000)
             self.disk.__draw_q(fit_name)
@@ -308,42 +322,70 @@ class Disk:
             else:
                 print("You are drawing a fit that does not exist! Try linear_fit() [or other] before.")     
 
-def single_event_q(calo : Disk, tree : R.TTree, entry_num : int, threshold : float = 4000, min_hits : int = 6, max_chi : float = 20, v_mode :str = 'i') -> bool:
-    #If the event matches the conditions is is shown and True is returned
-    tree.GetEntry(entry_num)
-    #Afther GerEntry, the tree objects gains all the attributes of a slice
-    calo.load_event(slice = tree)
-    hits, chi = calo.event_fit(threshold = threshold, type = 'linear')
-    match v_mode:
-        case 'i':
-            #Include vertical tracks if they meet max_chi
-            if hits > min_hits and (chi < max_chi or calo.fit_arr[0].vertical):
-                calo.draw_q()
-                return True
-            else:
-                return False
-        case 'e':
-            #Exclude vertival tracks
-            if hits > min_hits and chi < max_chi :
-                calo.draw_q()
-                return True
-            else:
-                return False
-        case 'o':
-            #Only show vertical tracks
-            if hits > min_hits and calo.fit_arr[0].vertical :
-                calo.draw_q()
-                return True
-            else:
-                return False
+calo = Disk(0)
+
+def single_event_q(tree : R.TTree,
+                   run_n : int = 0,
+                   ev_n : int =0,
+                   q_min :np.double = 4000,
+                   hits_min :int = 6,
+                   chi_max : np.double = 20,
+                   v_mode : str = 'i',
+                   from_0 : bool = False) -> tuple[int, int]:
     
-def signle_event_td(calo : Disk, tree : R.TTree, entry_num : int) -> None:
+    def single_event_try(calo : Disk, tree : R.TTree, entry_num : int,
+                         threshold : float = 4000,
+                         min_hits : int = 6,
+                         max_chi : float = 20,
+                         v_mode :str = 'i') -> bool:
+        #If the event matches the conditions is is shown and True is returned
+        tree.GetEntry(entry_num)
+        #Afther GerEntry, the tree objects gains all the attributes of a slice
+        calo.load_event(slice = tree)
+        hits, chi = calo.event_fit(threshold = threshold, type = 'linear')
+        match v_mode:
+            case 'i':
+                #Include vertical tracks if they meet max_chi
+                if hits > min_hits and (chi < max_chi or calo.fit_arr[0].vertical):
+                    calo.draw_q()
+                    return True
+                else:
+                    return False
+            case 'e':
+                #Exclude vertival tracks
+                if hits > min_hits and chi < max_chi :
+                    calo.draw_q()
+                    return True
+                else:
+                    return False
+            case 'o':
+                #Only show vertical tracks
+                if hits > min_hits and calo.fit_arr[0].vertical :
+                    calo.draw_q()
+                    return True
+                else:
+                    return False
+    
+    global calo
+    entry_n = tree.GetEntryNumberWithBestIndex(run_n, ev_n)
+    if from_0:
+        entry_n -= 1
+    while entry_n < tree.GetEntries() - 1:
+        calo.empty()
+        entry_n += 1
+        if single_event_try(calo, tree, entry_n, q_min, hits_min, chi_max,v_mode):
+                break
+                        
+    tree.GetEntry(entry_n)
+    return tree.nrun, tree.evnum
+
+def signle_event_td(tree: R.TTree, run_num: int, event_num : int) -> None:
     #Display the reconstructed time difference for the channels of each crystal for a single event
-    tree.GetEntry(entry_num)
+    tree.GetEntryWithIndex(run_num, event_num)
     calo.load_event(tree)
     calo.draw_tdif()
     
-def load_tree(calo : Disk, tree : R.TTree) -> None:
+def load_tree(tree : R.TTree) -> None:
     #Load the entire tree for average/cumulative drawings
     for entry_num, slice in enumerate(tree):
         calo.load_event(slice)
