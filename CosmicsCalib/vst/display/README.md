@@ -3,7 +3,7 @@
 ## To use
 
 ### On mu2e gpvms
-On mu2e gpvms, onnce you copied this folder and navigate to it, run:
+On mu2e gpvms, once you copied this folder and navigate to it, run:
 ```
 mu2einit
 muse setup
@@ -16,7 +16,7 @@ DeprecationWarning: The attribute syntax for TFile is deprecated and will be rem
 Please use TFile["sidet"] instead of TFile.sidet
 ```
 It should not break the program, the use of this command is necessary if the program needs to run on Root 6.30/04 on gpvms.
-## Containts
-disp.py contains the most important calsses and a reference CLI program, while disp_GUI.py cointains the graphical user intergace elements. crystalpos.py specifies the positions of the crystals as well as the measure of their side.
+## Contains
+disp.py contains the most important classes and a reference CLI program, while disp_GUI.py contains the graphical user interface elements. crystalpos.py specifies the positions of the crystals as well as the measure of their side.
 
 At the moment, the program only considers one of the two calorimeter disks.
