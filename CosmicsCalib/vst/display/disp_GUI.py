@@ -1,7 +1,7 @@
 """ Mu2E Calorimeter Calibration
-    Track event display GUI version 1.1
+    Track event display GUI version 1.2
     by Giacinto Boccia
-    2024-00-01
+    2024-00-03
     """
 
 import tkinter as tk

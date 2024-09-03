@@ -1,7 +1,7 @@
 """ Mu2E Calorimeter Calibration
-    Track event display version 2.1
+    Track event display version 2.2
     by Giacinto Boccia
-    2024-09-01
+    2024-09-03
     """
 
 import ROOT as R
