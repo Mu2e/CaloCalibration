@@ -121,8 +121,8 @@ class Disk:
         for hit_num in range(n_hits):
             #Loop over hits
             curr_hit = Hit(hit_num, x_arr[hit_num], y_arr[hit_num], t_arr[hit_num], q_arr[hit_num])
-            if self.cry_arr[cry_num_arr[hit_num]].test_new_hit(curr_hit):
-                hits_for_crystal[cry_num_arr[hit_num]] += 1
+            if self.cry_arr[cry_num_arr[hit_num] % self.n_crystals].test_new_hit(curr_hit):
+                hits_for_crystal[cry_num_arr[hit_num] % self.n_crystals] += 1
             else:
                 print("Error! Hit doesn't correspond to a crystal!")
                 
