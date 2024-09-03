@@ -109,7 +109,7 @@ class Disk:
         n_hits = slice.nHits
         x_arr = np.frombuffer(slice.Xval)
         y_arr = np.frombuffer(slice.Yval)
-        t_arr = np.frombuffer(slice.templTime)
+        t_arr = np.frombuffer(slice.Tval) + np.frombuffer(slice.templTime)
         q_arr = np.frombuffer(slice.Qval)
         cry_num_arr = np.frombuffer(slice.iCry, dtype= np.int32)
         

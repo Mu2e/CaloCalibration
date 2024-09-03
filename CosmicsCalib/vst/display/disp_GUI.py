@@ -14,8 +14,8 @@ def control_panel() -> None:
     window.title("Event Display")
     par_fields_arr = [] 
     parameters = dict([ ('Event Number', 0), 
-                        ('Q threshold', 4000),
-                        ('Minimum hits', 6), 
+                        ('Q Threshold', 4000),
+                        ('Minimum Hits', 6), 
                         ('Maximum ChiSq', 10)])
     vert_options : tuple[str] = ("Include vertical tracks", "Exclude vertical tracks", "Only vertical tracks")
     selected_vertical = tk.StringVar(window)
