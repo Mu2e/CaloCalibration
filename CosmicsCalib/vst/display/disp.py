@@ -150,7 +150,8 @@ class Disk:
     def draw_q(self, fits : bool = True, plot_name : str = False) -> None:
         #Use this method to draw the Q values of an event, if "fits" it will display all the applied fits
         ev_name : str = plot_name or "Run " + str(self.run_num) + " Event " + str(self.ev_num)
-        self.canvas = R.TCanvas(ev_name, ev_name, 1000, 1000)
+        self.canvas = R.TCanvas(ev_name, ev_name, 1150, 1000)
+        self.canvas.SetRightMargin(0.2)
         self.__draw_q(ev_name)
         self.__draw_circles()
         if fits:
@@ -191,7 +192,8 @@ class Disk:
         #Use this method to draw the mean time difference of the resposnses of each crystal 
         # (also over multiple events)
         name : str = plot_name or "Run " + str(self.run_num) + " Event " + str(self.ev_num) + " time differences"
-        self.canvas = R.TCanvas(name, name, 1000, 1000)
+        self.canvas = R.TCanvas(name, name, 1150, 1000)
+        self.canvas.SetRightMargin(0.2)
         self.crys_hist = R.TH2Poly()
         for crystal in self.cry_arr:
             boud_x, boud_y = crystal.angles()
@@ -212,7 +214,8 @@ class Disk:
         #use this method to draw a plot where each box represents the number of hits collected by each crystal 
         #(typically afther loading mutiple events)
         name : str = "Number of Hits"
-        self.canvas = R.TCanvas(name, name, 1000, 1000)
+        self.canvas = R.TCanvas(name, name, 1150, 1000)
+        self.canvas.SetRightMargin(0.2)
         self.crys_hist = R.TH2Poly()
         for crystal in self.cry_arr:
             boud_x, boud_y = crystal.angles()
@@ -300,7 +303,8 @@ class Disk:
             #TCanvas with all the fits onverlayed over the calorimeter activation, 
             #or if you don't want to draw fits at all look at Event.event_draw()
             fit_name = "Run " + str(self.disk.run_num) + "Event " + str(self.disk.ev_num)
-            self.canvas = R.TCanvas(fit_name, fit_name, 1000, 1000)
+            self.canvas = R.TCanvas(fit_name, fit_name, 1150, 1000)
+            self.canvas.SetRightMargin(0.2)
             self.disk.__draw_q(fit_name)
             self.__fit_draw(fit_name)
             self.disk.__draw_circles
