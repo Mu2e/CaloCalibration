@@ -13,11 +13,11 @@ def control_panel() -> None:
     window = tk.Tk()
     window.title("Event Display")
     par_fields_arr = [] 
-    parameters : dict[str, int | float] = dict([('Run Number',      0),
-                                                ('Event Number',    0), 
-                                                ('Q Threshold',     4000.),
-                                                ('Minimum Hits',    6), 
-                                                ('Maximum ChiSq',   10.)])
+    parameters = dict([('Run Number',      0),
+                       ('Event Number',    0), 
+                       ('Q Threshold',     4000.),
+                       ('Minimum Hits',    6), 
+                       ('Maximum ChiSq',   10.)])
     vert_options = dict([("Include vertical tracks", "i"),
                          ("Exclude vertical tracks", "e"),
                          ("Only vertical tracks",    "o")])
