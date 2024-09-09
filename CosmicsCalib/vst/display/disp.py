@@ -137,7 +137,7 @@ class Disk:
                     
         return n_hits
     
-    def event_fit(self, threshold : np.double = 4000 , type : str = 'linear') -> tuple[int, np.double]:
+    def event_fit(self, threshold : np.double = 4000. , type : str = 'linear') -> tuple[int, np.double] | None:
         #type indicates the kind of fit to perform, this function might be called more than once if more than one
         #fit is needed, all performed fits are stored in a fit_arr
         new_fit = self.Fit(self)
@@ -146,6 +146,8 @@ class Disk:
             n_sel = new_fit.linear_fit(threshold)
             chi_squared = new_fit.chi_sqare
             return n_sel, chi_squared
+        else:
+            return None
         
     def draw_q(self, fits : bool = True, plot_name : str = False) -> None:
         #Use this method to draw the Q values of an event, if "fits" it will display all the applied fits
@@ -334,7 +336,7 @@ def single_event_q(tree : R.TTree,
                    hits_min :int = 6,
                    chi_max : np.double = 20,
                    v_mode : str = 'i',
-                   from_0 : bool = False) -> tuple[int, int]:
+                   manual : bool = False) -> tuple[int, int]:
     
     def single_event_try(calo : Disk, tree : R.TTree, entry_num : int,
                          threshold : float = 4000,
@@ -360,7 +362,7 @@ def single_event_q(tree : R.TTree,
                 return True
             else:
                 return False
-        elif 'o':
+        else:
             #Only show vertical tracks
             if hits > min_hits and calo.fit_arr[0].vertical :
                 calo.draw_q()
@@ -370,13 +372,20 @@ def single_event_q(tree : R.TTree,
     
     global calo
     entry_n = tree.GetEntryNumberWithBestIndex(run_n, ev_n)
-    if from_0:
-        entry_n -= 1
-    while entry_n < tree.GetEntries() - 1:
+    if manual:
+        #In this case whe just draw the selected event
         calo.empty()
-        entry_n += 1
-        if single_event_try(calo, tree, entry_n, q_min, hits_min, chi_max,v_mode):
-                break
+        tree.GetEntry(entry_n)
+        calo.load_event(slice = tree)
+        calo.event_fit(threshold = q_min, type = 'linear')
+        calo.draw_q()
+    else:
+        #If not in manual mode, we try untill an event meets our criteria
+        while entry_n < tree.GetEntries() - 1:
+            calo.empty()
+            entry_n += 1
+            if single_event_try(calo, tree, entry_n, q_min, hits_min, chi_max, v_mode):
+                    break
                         
     tree.GetEntry(entry_n)
     return tree.nrun, tree.evnum
