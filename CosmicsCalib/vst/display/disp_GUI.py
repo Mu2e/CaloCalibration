@@ -13,14 +13,14 @@ def control_panel() -> None:
     window = tk.Tk()
     window.title("Event Display")
     par_fields_arr = [] 
-    parameters = dict([ ('Run Number',      0),
-                        ('Event Number',    0), 
-                        ('Q Threshold',     4000),
-                        ('Minimum Hits',    6), 
-                        ('Maximum ChiSq',   10)])
-    vert_options = dict([   ("Include vertical tracks", "i"),
-                            ("Exclude vertical tracks", "e"),
-                            ("Only vertical tracks",    "o")])
+    parameters : dict[str, int | float] = dict([('Run Number',      0),
+                                                ('Event Number',    0), 
+                                                ('Q Threshold',     4000.),
+                                                ('Minimum Hits',    6), 
+                                                ('Maximum ChiSq',   10.)])
+    vert_options = dict([("Include vertical tracks", "i"),
+                         ("Exclude vertical tracks", "e"),
+                         ("Only vertical tracks",    "o")])
     selected_vertical = tk.StringVar(window)
     selected_vertical.set('Include vertical tracks')
     
@@ -35,7 +35,7 @@ def control_panel() -> None:
         tk.Label(window, text=name).grid(row=i, column=0)
         entry = tk.Entry(window)
         entry.grid(row=i, column=1)
-        entry.insert(0, value)
+        entry.insert(0, str(value))
         par_fields_arr.append(entry)
     v_mode_menu = tk.OptionMenu(window, selected_vertical, *vert_options).grid(row=5, column=0)
 
