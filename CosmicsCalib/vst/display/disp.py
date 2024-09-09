@@ -137,7 +137,7 @@ class Disk:
                     
         return n_hits
     
-    def event_fit(self, threshold : np.double = 4000. , type : str = 'linear') -> tuple[int, np.double] | None:
+    def event_fit(self, threshold : np.double = 4000. , type : str = 'linear') -> tuple[int, np.double]:
         #type indicates the kind of fit to perform, this function might be called more than once if more than one
         #fit is needed, all performed fits are stored in a fit_arr
         new_fit = self.Fit(self)
