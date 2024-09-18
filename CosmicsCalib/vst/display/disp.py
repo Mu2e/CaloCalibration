@@ -59,7 +59,7 @@ class Crystal:
             return t_diff
         elif self.t_arr.size > 2 and self.t_arr.size % 2 == 0:
             diff_arr = np.abs(np.diff(self.t_arr)[ : :2])
-            return np.mean(diff_arr)
+            return np.nanmean(diff_arr)
         else:
             return np.nan
 
