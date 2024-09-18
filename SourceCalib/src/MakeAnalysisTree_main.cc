@@ -28,15 +28,21 @@ int main(int argc, char* argv[]){
 
   }
   TFile *ouptFile = new TFile("paraFile.root", "RECREATE");
-  Float_t fpeak, fsigma, chiSq;
+  Float_t fpeak, fsigma, fchiSq;//, fstpeak, fstsigma, fstchiSq, scdpeak,scdsigma,scdchiSq;
   TTree *covar = new TTree("covar","Covariance Plot");
   covar->Branch("Peak", &fpeak,"fpeak/F");
   covar->Branch("Width", &fsigma,"fsigma/F");
-  covar->Branch("ChiSq", &chiSq,"chiSq/F");
+  covar->Branch("ChiSq", &fchiSq,"fchiSq/F");
+  /*covar->Branch("1stPeak", &fstpeak,"fstpeak/F");
+  covar->Branch("1stWidth", &fstsigma,"fstsigma/F");
+  covar->Branch("1stChiSq", &fstchiSq,"fstchiSq/F");
+  covar->Branch("2ndPeak", &scdpeak,"scdpeak/F");
+  covar->Branch("2ndWidth", &scdsigma,"scdsigma/F");
+  covar->Branch("2ndChiSq", &scdchiSq,"scdchiSq/F");*/
   //add mean sigma and chisq
   //get python document and 
   
- for(int cryNum=674; cryNum<1348; cryNum++){
+ for(int cryNum=674; cryNum<675; cryNum++){
   TH1F* h = get_data_histogram(cryNum);
   std::cout<<"start value"<<anacrys_start<<std::endl;
   std::cout<<"end value"<<anacrys_end<<std::endl;
@@ -44,7 +50,7 @@ int main(int argc, char* argv[]){
   //MakeCrystalListOutputs(anacrys_start,anacrys_end);
   //MakeCrystalBinsOutputs(anacrys_start,anacrys_end);
   SourceFitter *fit = new SourceFitter();
-  fit->FitCrystal(h,"chi2", cryNum, covar, fpeak,fsigma, chiSq);
+  fit->FitCrystal(h,"chi2", cryNum, covar, fpeak,fsigma,fchiSq);//, fstpeak, fstsigma, fstchiSq, scdpeak,scdsigma,scdchiSq);
  };
  	ouptFile -> Write();
   ouptFile -> Close();
