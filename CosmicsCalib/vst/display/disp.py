@@ -129,11 +129,11 @@ class Disk:
                 print("Error! Hit doesn't correspond to a crystal!")
                 
         #Check that each crystal has an even number of hits
-        for hit_num, n in enumerate(hits_for_crystal):
-            if n % 2 != 0:
+        for crys_num, crys_hits in enumerate(hits_for_crystal):
+            if crys_hits % 2 != 0:
                 #If one of the crystals doesn't have an even number of hits, the last timing is deleted 
                 #(this only affects the time difference disply)
-                self.cry_arr[hit_num].t_arr = self.cry_arr[hit_num].t_arr[ :-1]
+                self.cry_arr[crys_num].t_arr = self.cry_arr[crys_num].t_arr[ :-1]
                     
         return n_hits
     
