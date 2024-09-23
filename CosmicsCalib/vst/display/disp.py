@@ -1,5 +1,5 @@
 """ Mu2E Calorimeter Calibration
-    Track event display version 2.2
+    Track event display version 2.3
     by Giacinto Boccia
     2024-09-03
     """
@@ -12,12 +12,12 @@ import crystalpos
 CRYSTALS = 674
 
 class Hit:
-    def __init__(self, number, x, y, time, qval) -> None:
+    def __init__(self, number, x, y, time, v_val) -> None:
         self.n = number
         self.x = x
         self.y = y
         self.t = time
-        self.q = qval
+        self.v = v_val
 
 class Crystal:
     side = crystalpos.crys_side
@@ -25,7 +25,7 @@ class Crystal:
 
     def __init__(self, number : int, x : float, y : float) -> None:
         self.hit_arr : list[Hit] = []
-        self.q_arr = np.array([], dtype = np.double)
+        self.v_arr = np.array([], dtype = np.double)
         self.t_arr = np.array([], dtype = np.double)
         self.n = number
         self.x = x
@@ -44,13 +44,13 @@ class Crystal:
     def force_new_hit(self, new_hit : Hit) -> int:
         #Returns the index where the hit is stored
         self.hit_arr.append(new_hit)
-        self.q_arr = np.append(self.q_arr, new_hit.q)
+        self.v_arr = np.append(self.v_arr, new_hit.v)
         self.t_arr = np.append(self.t_arr, new_hit.t)
         return len(self.hit_arr) - 1
   
-    def get_q(self) -> np.double:
+    def get_v(self) -> np.double:
         #If the crystal has multiple hits, an average is retunred
-        return np.mean(self.q_arr)
+        return np.mean(self.v_arr)
     
     def get_t_diff(self) ->np.double:
         #If more than two events, returns the mean of (|t1-t2|, |t3-t4|, |t5-t6|, ...)
@@ -79,7 +79,7 @@ class Crystal:
     def empty(self) -> None:
         #Keeps crystal position and remove all hits and values
         self.hit_arr : list[Hit] = []
-        self.q_arr = np.array([], dtype = np.double)
+        self.v_arr = np.array([], dtype = np.double)
         self.t_arr = np.array([], dtype = np.double)
         
 class Disk:
@@ -110,19 +110,19 @@ class Disk:
         x_arr = np.frombuffer(slice.Xval)
         y_arr = np.frombuffer(slice.Yval)
         t_arr = np.frombuffer(slice.Tval) + np.frombuffer(slice.templTime)
-        q_arr = np.frombuffer(slice.Qval)
+        v_arr = np.frombuffer(slice.Vmax)
         cry_num_arr = np.frombuffer(slice.iCry, dtype= np.int32)
         
         #The centroid of the event is defined as the weighted average of the hit positions
         if n_hits > 0:
-            self.centroid = np.array([np.average(x_arr, weights= q_arr), 
-                                      np.average(y_arr, weights= q_arr)], 
+            self.centroid = np.array([np.average(x_arr, weights= v_arr), 
+                                      np.average(y_arr, weights= v_arr)], 
                                      dtype= np.double)
         
         #Place hits in crystals
         for hit_num in range(n_hits):
             #Loop over hits
-            curr_hit = Hit(hit_num, x_arr[hit_num], y_arr[hit_num], t_arr[hit_num], q_arr[hit_num])
+            curr_hit = Hit(hit_num, x_arr[hit_num], y_arr[hit_num], t_arr[hit_num], v_arr[hit_num])
             if self.cry_arr[cry_num_arr[hit_num] % self.n_crystals].test_new_hit(curr_hit):
                 hits_for_crystal[cry_num_arr[hit_num] % self.n_crystals] += 1
             else:
@@ -149,12 +149,12 @@ class Disk:
         else:
             return None
         
-    def draw_q(self, fits : bool = True, plot_name : str = False) -> None:
-        #Use this method to draw the Q values of an event, if "fits" it will display all the applied fits
+    def draw_v(self, fits : bool = True, plot_name : str = False) -> None:
+        #Use this method to draw the V values of an event, if "fits" it will display all the applied fits
         ev_name : str = plot_name or "Run " + str(self.run_num) + " Event " + str(self.ev_num)
         self.canvas = R.TCanvas(ev_name, ev_name, 1150, 1000)
         self.canvas.SetRightMargin(0.2)
-        self.__draw_q(ev_name)
+        self.__draw_v(ev_name)
         self.__draw_circles()
         if fits:
             for fit in self.fit_arr:
@@ -173,19 +173,19 @@ class Disk:
         self.outer_c.SetFillStyle(0)
         self.outer_c.Draw()
     
-    def __draw_q(self, ev_name : str) -> None:
-        #Create an histogram for the crystals and write the Q value of each crystal as Z
+    def __draw_v(self, ev_name : str) -> None:
+        #Create an histogram for the crystals and write the V value of each crystal as Z
         self.crys_hist = R.TH2Poly()
         for crystal in self.cry_arr:
             boud_x, boud_y = crystal.angles()
             bin = self.crys_hist.AddBin(boud_x[0], boud_y[0], boud_x[1], boud_y[1])
-            mean_q = crystal.get_q()
-            if not np.isnan(mean_q):
-                self.crys_hist.SetBinContent(bin, crystal.get_q())
+            mean_v = crystal.get_v()
+            if not np.isnan(mean_v):
+                self.crys_hist.SetBinContent(bin, mean_v)
         #Draw the histogram as colored/empty boxes
         self.crys_hist.SetStats(0)
         self.crys_hist.SetTitle(ev_name)
-        self.crys_hist.GetZaxis().SetTitle("Q")
+        self.crys_hist.GetZaxis().SetTitle("Vmax")
         self.crys_hist.GetZaxis().SetTitleOffset(2.1)
         self.crys_hist.Draw('apl')
         self.crys_hist.Draw('zcol Cont0 same')
@@ -202,7 +202,7 @@ class Disk:
             bin = self.crys_hist.AddBin(boud_x[0], boud_y[0], boud_x[1], boud_y[1])
             t_diff = crystal.get_t_diff()
             if not np.isnan(t_diff):
-                self.crys_hist.SetBinContent(bin, crystal.get_q())
+                self.crys_hist.SetBinContent(bin, crystal.get_v())
         #Draw the histogram as colored/empty boxes
         self.crys_hist.SetStats(0)
         self.crys_hist.SetTitle(name)
@@ -253,7 +253,7 @@ class Disk:
             self.chi_sqare : np.double = np.nan
 
         def linear_fit(self, threshold : float) -> int:
-            #The treshold applies on Qvals (mean value if crystal has 2 hits) 
+            #The treshold applies on Vmax (mean value if crystal has 2 hits) 
             #and all hits over it get fitted linearly, returns the number of crystals considered
             n_sel = 0
             x_arr = array('f')
@@ -261,7 +261,7 @@ class Disk:
 
             #Apply treshold
             for crystal in self.disk.cry_arr:
-                if crystal.get_q() > threshold:
+                if crystal.get_v() > threshold:
                     x_arr.append(crystal.x)
                     y_arr.append(crystal.y)
                     n_sel +=1
@@ -305,7 +305,7 @@ class Disk:
             fit_name = "Run " + str(self.disk.run_num) + "Event " + str(self.disk.ev_num)
             self.canvas = R.TCanvas(fit_name, fit_name, 1150, 1000)
             self.canvas.SetRightMargin(0.2)
-            self.disk.__draw_q(fit_name)
+            self.disk.__draw_v(fit_name)
             self.__fit_draw(fit_name)
             self.disk.__draw_circles
                       
@@ -327,10 +327,10 @@ class Disk:
 
 calo = Disk(0)
 
-def single_event_q(tree : R.TTree,
+def single_event_v(tree : R.TTree,
                    run_n : int = 0,
-                   ev_n : int =0,
-                   q_min :np.double = 4000,
+                   ev_n : int = 0,
+                   v_min :np.double = 300,
                    hits_min :int = 6,
                    chi_max : np.double = 20,
                    v_mode : str = 'i',
@@ -349,21 +349,21 @@ def single_event_q(tree : R.TTree,
         if v_mode == 'i':
             #Include vertical tracks if they meet max_chi
             if hits > min_hits and (chi < max_chi or calo.fit_arr[0].vertical):
-                calo.draw_q()
+                calo.draw_v()
                 return True
             else:
                 return False
         elif v_mode == 'e':
             #Exclude vertival tracks
             if hits > min_hits and chi < max_chi :
-                calo.draw_q()
+                calo.draw_v()
                 return True
             else:
                 return False
         else:
             #Only show vertical tracks
             if hits > min_hits and calo.fit_arr[0].vertical :
-                calo.draw_q()
+                calo.draw_v()
                 return True
             else:
                 return False
@@ -375,14 +375,14 @@ def single_event_q(tree : R.TTree,
         calo.empty()
         tree.GetEntry(entry_n)
         calo.load_event(slice = tree)
-        calo.event_fit(threshold = q_min, type = 'linear')
-        calo.draw_q()
+        calo.event_fit(threshold = v_min, type = 'linear')
+        calo.draw_v()
     else:
         #If not in manual mode, we try untill an event meets our criteria
         while entry_n < tree.GetEntries() - 1:
             calo.empty()
             entry_n += 1
-            if single_event_try(calo, tree, entry_n, q_min, hits_min, chi_max, v_mode):
+            if single_event_try(calo, tree, entry_n, v_min, hits_min, chi_max, v_mode):
                     break
                         
     tree.GetEntry(entry_n)
@@ -424,7 +424,7 @@ if __name__ == '__main__':
         run_n : int = 0
         ev_n :int = 0
         while entry_num < tree.GetEntries():
-            run_n, ev_n = single_event_q(tree, run_n, ev_n, q_min= TRESHOLD, hits_min= HITS_MIN, chi_max= CHI_MAX)
+            run_n, ev_n = single_event_v(tree, run_n, ev_n, v_min= TRESHOLD, hits_min= HITS_MIN, chi_max= CHI_MAX)
             input("Press any key for T Differences")
             signle_event_td(tree, run_n, ev_n)
             input("Press any key for next")     
