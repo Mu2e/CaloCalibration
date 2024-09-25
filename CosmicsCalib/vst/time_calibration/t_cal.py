@@ -38,7 +38,7 @@ class Cosmic_Event_Class(ak.Record):
         return v_filter
        
     def t_residuals(self) -> dict[str, np.double] | None:
-        #returns a dictionary with '(row, col, sipm)' as key and the residual as value
+        #returns a dictionary with 'row, col, sipm' as key and the residual as value
         v_filter = self.v_filter()
         
         #Get the input values from the event
@@ -130,7 +130,7 @@ def residuals_to_correction(channel : str) -> None:
             num_res_arr[run_n, chan_address[0], chan_address[1], chan_address[2]] = num_res
         cal_corection[chan_address[0], chan_address[1], chan_address[2]] -= mean_res * CORR_FACTOR
 
-def residuals_plot(y_min = None, y_max = None) -> plt.Figure:
+def residuals_plot(y_min : float | None = None, y_max : float | None = None) -> plt.Figure:
     #Plot the residuals
     fig, ax = plt.subplots()
     ax.set_xlabel("Channel")
@@ -150,7 +150,7 @@ def residuals_plot(y_min = None, y_max = None) -> plt.Figure:
     plt.title("Residuals")
     return fig
 
-def residuals_hist(chan_num : int = None) -> None:
+def residuals_hist(chan_num : int | None = None) -> None:
     plt.figure()
     for run in range(0, n_runs, GRAPH_RUNS_STEP):
         y_arr = []
@@ -168,12 +168,15 @@ def residuals_hist(chan_num : int = None) -> None:
         plt.title("Residuals for channel " + residuals.fields[chan_num] + " [ns]")
     else:
         plt.title("Mean Residuals (all channels) [ns]")
+        
+def get_y_span(event) -> pq.Quantity:
+    return event.y_span()
 
 #Input
-hits_path = input("Hits file to process [.root]:")
-n_runs = int(input("Iterations to perform:"))
-cal_path = input("Starting caibration file [Optional]:") or False
-save_f_name = input("Calibration file to save [Deafault <hits>_t_calibration.csv]:") or False
+hits_path = input("Hits file to process [.root]: ")
+n_runs = int(input("Iterations to perform: "))
+cal_path = input("Starting caibration file [Optional]: ") or False
+save_f_name = input("Calibration file to save [Deafault <hits>_t_calibration.csv]: ") or False
 if not save_f_name:
     #if no file is spcified, a default is prepared removing the .root and adding a different string
     save_f_name = hits_path[ : -5] + "_t_calibration.csv"
@@ -228,25 +231,27 @@ filtered_events = tree[filters['n_min'] &
 #Vertical events skip the slope and chi_sq filters
 filtered_events = ak.drop_none(filtered_events)
 
-#We don't really need to store the means, unless we want to do a plot
 if DRAWING :
+    #We don't really need to store these values, unless we want to do a plot
     mean_res_arr = np.full([n_runs, N_ROWS, N_COLUMNS, N_SIPMS], np.nan) * pq.ns
     sigma_res_arr = np.full([n_runs, N_ROWS, N_COLUMNS, N_SIPMS], np.nan) * pq.ns ** 2
-    #We also wnat to plot the number of residuals taken for each channel
     num_res_arr = np.zeros([n_runs, N_ROWS, N_COLUMNS, N_SIPMS])
     res_arr_list = []
     cal_corr_arr = []
+    with ProcessPoolExecutor() as executor:
+        y_span_arr = list(executor.map(get_y_span, tree))
         
-for run_n in range(n_runs):
-    
-    if DRAWING:
-        cal_corr_arr.append(cal_corection.copy())
-    
+for run_n in range(n_runs):    
     #Get the residuals  
     with ProcessPoolExecutor() as executor:
         residuals = list(executor.map(get_t_residuals, filtered_events))
     residuals = ak.Array(residuals)
-    res_arr_list.append(residuals)
+    
+    if DRAWING:
+        cal_corr_arr.append(cal_corection.copy())
+        res_arr_list.append(residuals)
+    
+    #Update the corrections
     for chan_res in residuals.fields:
         residuals_to_correction(chan_res)
         
@@ -280,6 +285,11 @@ if DRAWING:
             residuals_hist(int(chan_num))
         else:
             break
+    
+    plt.figure()
+    plt.hist(y_span_arr)
+    plt.title("Y spans of the events")
+        
 print("Events Loaded:", len(tree))
 #Intended to check tha the whole tree was loaded 
 input("Press any key to exit")
