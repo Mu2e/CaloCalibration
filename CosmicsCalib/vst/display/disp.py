@@ -9,7 +9,6 @@ import numpy as np
 from array import array
 import crystalpos
 #crystalpos.py is just a file with 2 np arrays with crystal x and y and the measure of the crystal side
-CRYSTALS = 674
 
 class Hit:
     def __init__(self, number, x, y, time, v_val) -> None:
@@ -83,7 +82,7 @@ class Crystal:
         self.t_arr = np.array([], dtype = np.double)
         
 class Disk:
-    n_crystals = 674
+    N_CRYSTALS = 674
        
     def __init__(self, id :int = 0) -> None:
         #cry_pos is a matrix where each row is the [x,y] position of a crystal
@@ -93,9 +92,9 @@ class Disk:
         #prepare the crystals
         self.cry_arr : list[Crystal] = []
         if id == 0:
-            self.cry_pos = np.column_stack((crystalpos.crys_x, crystalpos.crys_y))[ : self.n_crystals-1]
+            self.cry_pos = np.column_stack((crystalpos.crys_x, crystalpos.crys_y))[ : self.N_CRYSTALS-1]
         elif id == 1:
-            self.cry_pos = np.column_stack((crystalpos.crys_x, crystalpos.crys_y))[self.n_crystals-1 : ]
+            self.cry_pos = np.column_stack((crystalpos.crys_x, crystalpos.crys_y))[self.N_CRYSTALS-1 : ]
         else:
             print("Invalid Disk id!")   
         for i in range(self.cry_pos.shape[0]):
@@ -123,8 +122,8 @@ class Disk:
         for hit_num in range(n_hits):
             #Loop over hits
             curr_hit = Hit(hit_num, x_arr[hit_num], y_arr[hit_num], t_arr[hit_num], v_arr[hit_num])
-            if self.cry_arr[cry_num_arr[hit_num] % self.n_crystals].test_new_hit(curr_hit):
-                hits_for_crystal[cry_num_arr[hit_num] % self.n_crystals] += 1
+            if self.cry_arr[cry_num_arr[hit_num] % self.N_CRYSTALS].test_new_hit(curr_hit):
+                hits_for_crystal[cry_num_arr[hit_num] % self.N_CRYSTALS] += 1
             else:
                 print("Error! Hit doesn't correspond to a crystal!")
                 
