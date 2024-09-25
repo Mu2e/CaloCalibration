@@ -3,6 +3,7 @@
 *.root
 *.exe
 *.app
+*.csv
 *~
 **/__pycache__/
 .vscode/
