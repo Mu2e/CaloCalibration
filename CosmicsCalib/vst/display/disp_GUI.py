@@ -1,5 +1,5 @@
 """ Mu2E Calorimeter Calibration
-    Track event display GUI version 1.2
+    Track event display GUI version 1.3
     by Giacinto Boccia
     2024-00-03
     """
@@ -15,7 +15,7 @@ def control_panel() -> None:
     par_fields_arr = [] 
     parameters = dict([('Run Number',      0),
                        ('Event Number',    0), 
-                       ('Q Threshold',     4000.),
+                       ('V Threshold',     300.),
                        ('Minimum Hits',    6), 
                        ('Maximum ChiSq',   10.)])
     vert_options = dict([("Include vertical tracks", "i"),
@@ -53,10 +53,10 @@ def control_panel() -> None:
         vert_mode = vert_options[selected_vertical.get()]
             
         #Display the next event
-        parameters["Run Number"], parameters ["Event Number"] = disp.single_event_q(tree, 
+        parameters["Run Number"], parameters ["Event Number"] = disp.single_event_v(tree, 
                                                                                     parameters["Run Number"],
                                                                                     parameters["Event Number"],
-                                                                                    parameters["Q Threshold"],
+                                                                                    parameters["V Threshold"],
                                                                                     parameters["Minimum Hits"],
                                                                                     parameters["Maximum ChiSq"],
                                                                                     vert_mode,
@@ -95,8 +95,8 @@ def averages_control_panel(tree : R.TTree) -> None:
     def td_action() -> None:
         disp.calo.draw_tdif(plot_name= "Average Time Differences")
         
-    def mean_q_action() ->None:
-        disp.calo.draw_q(fits= False, plot_name= "Agerage Q Values")
+    def mean_v_action() ->None:
+        disp.calo.draw_v(fits= False, plot_name= "Agerage Vmax Values")
         
     def num_action() -> None:
         disp.calo.draw_hitcount()
@@ -105,7 +105,7 @@ def averages_control_panel(tree : R.TTree) -> None:
     tk.Button(window, text="Time Differences",  command=td_action)          .grid(row=0, column=0)
     tk.Button(window, text="Number of Hits",    command=num_action)         .grid(row=0, column=1)
     tk.Button(window, text="Close Averages",    command=terminate_action)   .grid(row=1, column=0)
-    tk.Button(window, text="Average Qs",        command=mean_q_action)      .grid(row=1, column=1)
+    tk.Button(window, text="Average Vs",        command=mean_v_action)      .grid(row=1, column=1)
 
 if __name__ == "__main__":
     control_panel()
