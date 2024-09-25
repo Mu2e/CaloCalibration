@@ -20,13 +20,14 @@ CHI_ON_NDF_CUT =    5       #2
 VERTICALS =         True    #Allows verticl events
 RES_NUM_CUT =       10      #Minimum number of residuals to calibrate a channel
 #Other constants
-CORR_FACTOR =       1
+IGNORE_TVAL =       False   #For tests only, considers emplateTime and not Tval
+CORR_FACTOR =       1       #Speed at wich the calibration correction changes
 N_ROWS =            36
 N_COLUMNS =         28
 N_SIPMS =           2
 CRY_SIDE =          34.4 * pq.mm
-DRAWING =           True
-GRAPH_RUNS_STEP =   3
+DRAWING =           True    #Enables the display of plots
+GRAPH_RUNS_STEP =   3       #Plots will show runs following this stepping (say run 0, 3, 6, 9)
 
 class Cosmic_Event_Class(ak.Record):
     
@@ -50,7 +51,10 @@ class Cosmic_Event_Class(ak.Record):
         else:
             #This is if we are skipping vertial events
             return None
-        t_arr = np.array(self.Tval[v_filter] + self.templTime[v_filter]) * pq.ns 
+        if IGNORE_TVAL:
+            t_arr = np.array(self.templTime[v_filter]) * pq.ns
+        else:
+            t_arr = np.array(self.Tval[v_filter] + self.templTime[v_filter]) * pq.ns 
         y_arr = np.array(self.Yval[v_filter]) * pq.mm
         v_arr = np.array(self.Vmax[v_filter])
         t_res = dict()
@@ -76,7 +80,8 @@ class Cosmic_Event_Class(ak.Record):
             t_res[str(row) + ', ' + str(col) + ', ' + str(sipm)] = residual.item()
         return t_res
     
-    def y_span(self) -> pq.mm:
+    def y_span(self) -> pq.Quantity:
+        #Returns the y span of the event, in mm
         v_filter = self.v_filter()
         if len(self.Yval[v_filter]) > 0:
             y_max = np.max(self.Yval[v_filter])
@@ -272,8 +277,9 @@ if DRAWING:
     while True:
         chan_num = input("Channel number to draw: ")
         if chan_num:
-            residuals_hist(chan_num)
+            residuals_hist(int(chan_num))
         else:
             break
-
+print("Events Loaded:", len(tree))
+#Intended to check tha the whole tree was loaded 
 input("Press any key to exit")
