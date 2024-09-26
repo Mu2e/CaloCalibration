@@ -20,15 +20,16 @@ class Hit:
 
 class Crystal:
     side = crystalpos.crys_side
-    #Each crystal Should contain 2 hits
-
+    
     def __init__(self, number : int, x : float, y : float) -> None:
-        self.hit_arr : list[Hit] = []
-        self.v_arr = np.array([], dtype = np.double)
-        self.t_arr = np.array([], dtype = np.double)
         self.n = number
         self.x = x
         self.y = y
+        #initializations
+        self.hit_arr : list[Hit] = []
+        self.hit_n : int = 0
+        self.sum_v : float = 0.
+        self.sum_t_diff :float = 0.
 
     def angles(self) -> tuple[np.array, np.array]:
         #Returs the angles of the crystal as [x_max, x_min], [y_max, y_min]
@@ -40,25 +41,29 @@ class Crystal:
         y[1] = self.y - self.side / 2
         return x, y
     
-    def force_new_hit(self, new_hit : Hit) -> int:
-        #Returns the index where the hit is stored
+    def force_new_hit(self, new_hit : Hit) -> None:
+        #hit_arr is only a temporary storage for sigle hits waiting for matching
         self.hit_arr.append(new_hit)
-        self.v_arr = np.append(self.v_arr, new_hit.v)
-        self.t_arr = np.append(self.t_arr, new_hit.t)
-        return len(self.hit_arr) - 1
+        if len(self.hit_arr) == 2:
+            #If we reach 2 hits, the hit_arr is emptied to preserve memory
+            t_diff = np.abs(self.hit_arr[1].t - self.hit_arr[0].t)
+            #Signals above the cut are ignored
+            self.hit_n += 2
+            self.sum_v += self.hit_arr[1].v + self.hit_arr[0].v 
+            self.sum_t_diff += t_diff
+            self.hit_arr = []
   
     def get_v(self) -> np.double:
-        #If the crystal has multiple hits, an average is retunred
-        return np.mean(self.v_arr)
+        #An average is returned
+        if self.hit_n > 0:
+            return self.sum_v / self.hit_n
+        else:
+            return 0.
     
     def get_t_diff(self) ->np.double:
         #If more than two events, returns the mean of (|t1-t2|, |t3-t4|, |t5-t6|, ...)
-        if self.t_arr.size == 2:
-            t_diff = abs(self.t_arr[1] - self.t_arr[0])
-            return t_diff
-        elif self.t_arr.size > 2 and self.t_arr.size % 2 == 0:
-            diff_arr = np.abs(np.diff(self.t_arr)[ : :2])
-            return np.nanmean(diff_arr)
+        if self.hit_n > 0:
+            return self.sum_t_diff / self.hit_n
         else:
             return np.nan
 
@@ -77,9 +82,11 @@ class Crystal:
         
     def empty(self) -> None:
         #Keeps crystal position and remove all hits and values
-        self.hit_arr : list[Hit] = []
-        self.v_arr = np.array([], dtype = np.double)
-        self.t_arr = np.array([], dtype = np.double)
+        self.hit_arr = []
+        self.hit_n = 0
+        self.sum_v = 0.
+        self.sum_t_diff = 0.
+        
         
 class Disk:
     N_CRYSTALS = 674
@@ -125,14 +132,11 @@ class Disk:
             if self.cry_arr[cry_num_arr[hit_num] % self.N_CRYSTALS].test_new_hit(curr_hit):
                 hits_for_crystal[cry_num_arr[hit_num] % self.N_CRYSTALS] += 1
             else:
-                print("Error! Hit doesn't correspond to a crystal!")
-                
+                print("Error! Hit doesn't correspond to a crystal!")    
         #Check that each crystal has an even number of hits
-        for crys_num, crys_hits in enumerate(hits_for_crystal):
-            if crys_hits % 2 != 0:
-                #If one of the crystals doesn't have an even number of hits, the last timing is deleted 
-                #(this only affects the time difference disply)
-                self.cry_arr[crys_num].t_arr = self.cry_arr[crys_num].t_arr[ :-1]
+        #If any of the crystals doesn't have an even number of hits, the mismathced hit is removed
+        for crys_num in np.where(hits_for_crystal % 2 != 0)[0]:
+            self.cry_arr[crys_num].hit_arr = []
                     
         return n_hits
     
@@ -221,7 +225,7 @@ class Disk:
         for crystal in self.cry_arr:
             boud_x, boud_y = crystal.angles()
             bin = self.crys_hist.AddBin(boud_x[0], boud_y[0], boud_x[1], boud_y[1])
-            self.crys_hist.SetBinContent(bin, len(crystal.hit_arr))
+            self.crys_hist.SetBinContent(bin, crystal.hit_n)
         #Draw the histogram as colored/empty boxes
         self.crys_hist.SetStats(0)
         self.crys_hist.SetTitle(name)
