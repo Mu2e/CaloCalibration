@@ -205,7 +205,7 @@ class Disk:
             bin = self.crys_hist.AddBin(boud_x[0], boud_y[0], boud_x[1], boud_y[1])
             t_diff = crystal.get_t_diff()
             if not np.isnan(t_diff):
-                self.crys_hist.SetBinContent(bin, crystal.get_v())
+                self.crys_hist.SetBinContent(bin, t_diff)
         #Draw the histogram as colored/empty boxes
         self.crys_hist.SetStats(0)
         self.crys_hist.SetTitle(name)
