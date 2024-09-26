@@ -46,11 +46,11 @@ class Crystal:
         self.hit_arr.append(new_hit)
         if len(self.hit_arr) == 2:
             #If we reach 2 hits, the hit_arr is emptied to preserve memory
-            t_diff = np.abs(self.hit_arr[1].t - self.hit_arr[0].t)
-            #Signals above the cut are ignored
             self.hit_n += 2
             self.sum_v += self.hit_arr[1].v + self.hit_arr[0].v 
-            self.sum_t_diff += t_diff
+            t_diff = np.abs(self.hit_arr[1].t - self.hit_arr[0].t)
+            if not np.isnan(t_diff):
+                self.sum_t_diff += t_diff
             self.hit_arr = []
   
     def get_v(self) -> np.double:
