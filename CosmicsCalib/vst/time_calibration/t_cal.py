@@ -1,6 +1,6 @@
 """ Time Calibration of the Mu2e Calorimeter
     by Giacinto boccia
-    version 2.0 | 2024-09-24
+    version 2.1 | 2024-09-24
 """
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,13 +12,15 @@ from concurrent.futures import ProcessPoolExecutor
 
 #Cut parameters
 YSPAN_CUT =         250 * pq.mm
-HITNUM_CUT =        3       #6
-V_MIN_CUT =         300     #Use 338 for 15 MeV 
-V_MAX_CUT =         800     #Use 675 for 30 MeV
-COS_THETA_CUT =     0.2     #0.2 
-CHI_ON_NDF_CUT =    5       #2
-VERTICALS =         True    #Allows verticl events
-RES_NUM_CUT =       10      #Minimum number of residuals to calibrate a channel
+HITNUM_CUT =        3           #6
+V_MIN_CUT =         300         #Use 338 for 15 MeV 
+V_MAX_CUT =         800         #Use 675 for 30 MeV
+COS_THETA_CUT =     0.2         #0.2 
+CHI_ON_NDF_CUT =    5           #2
+VERTICALS =         False       #Allows verticl events
+RES_NUM_CUT =       10          #Minimum number of residuals to calibrate a channel
+MIN_RES_CUT =       -10 *pq.ns  #Decides the rejection criterium for residuals of each channel
+MAX_RES_CUT =       10 *pq.ns
 #Other constants
 IGNORE_TVAL =       False   #For tests only, considers emplateTime and not Tval
 CORR_FACTOR =       1       #Speed at wich the calibration correction changes
@@ -27,7 +29,7 @@ N_COLUMNS =         28
 N_SIPMS =           2
 CRY_SIDE =          34.4 * pq.mm
 DRAWING =           True    #Enables the display of plots
-GRAPH_RUNS_STEP =   3       #Plots will show runs following this stepping (say run 0, 3, 6, 9)
+GRAPH_RUNS_STEP =   3       #Plots will show runs following this stepping (say run 0, 3, 6, 9)       
 
 class Cosmic_Event_Class(ak.Record):
     
@@ -121,7 +123,9 @@ def residuals_to_correction(channel : str) -> None:
     res_arr = np.array(ak.drop_none(residuals[channel]))
     num_res = np.count_nonzero(~np.isnan(res_arr))
     if num_res >= RES_NUM_CUT:
-        mean_res, sigma = sp.norm.fit(res_arr)
+        #There are aoutliers in the residuals due to errors in reconstruction
+        res_filter = (res_arr > MIN_RES_CUT) & (res_arr < MAX_RES_CUT)
+        mean_res, sigma = sp.norm.fit(res_arr[res_filter])
         mean_res = mean_res * pq.ns
         if DRAWING :
             sigma = sigma * pq.ns ** 2        
@@ -162,7 +166,7 @@ def residuals_hist(chan_num : int | None = None) -> None:
                 scalar = mean.item()
                 if not np.isnan(scalar):
                     y_arr.append(scalar)
-        plt.hist(y_arr, label= "Run " + str(run))
+        plt.hist(y_arr, label= "Run " + str(run), bins= 100, range=(-5., 5.))
     plt.legend()
     if chan_num:
         plt.title("Residuals for channel " + residuals.fields[chan_num] + " [ns]")
@@ -230,6 +234,15 @@ filtered_events = tree[filters['n_min'] &
                        filters['vertical'] | (filters['slope_min'] & filters['chi_sq'])]
 #Vertical events skip the slope and chi_sq filters
 filtered_events = ak.drop_none(filtered_events)
+
+#for i, event in enumerate(filtered_events):
+#    print ("event ",i)
+#    print (event.t_residuals())
+#    for val in event.Tval:
+#        print(val)
+#    print (event.templTime)
+#    print (event.Vmax)
+#    input("Next")  
 
 if DRAWING :
     #We don't really need to store these values, unless we want to do a plot
