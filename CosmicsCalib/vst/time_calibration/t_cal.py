@@ -9,18 +9,19 @@ import awkward as ak
 import uproot
 import quantities as pq
 from concurrent.futures import ProcessPoolExecutor
+import warnings
 
 #Cut parameters
-YSPAN_CUT =         250 * pq.mm
+YSPAN_CUT =         200 * pq.mm
 HITNUM_CUT =        3           #6
 V_MIN_CUT =         300         #Use 338 for 15 MeV 
 V_MAX_CUT =         800         #Use 675 for 30 MeV
-COS_THETA_CUT =     0.2         #0.2 
+COS_THETA_CUT =     0.2         #0.2 Theta refers to Y axis
 CHI_ON_NDF_CUT =    5           #2
 VERTICALS =         False       #Allows verticl events
 RES_NUM_CUT =       10          #Minimum number of residuals to calibrate a channel
 MIN_RES_CUT =       -10 *pq.ns  #Decides the rejection criterium for residuals of each channel
-MAX_RES_CUT =       10 *pq.ns
+MAX_RES_CUT =       10  *pq.ns
 #Other constants
 IGNORE_TVAL =       False   #For tests only, considers emplateTime and not Tval
 CORR_FACTOR =       1       #Speed at wich the calibration correction changes
@@ -28,8 +29,7 @@ N_ROWS =            36
 N_COLUMNS =         28
 N_SIPMS =           2
 CRY_SIDE =          34.4 * pq.mm
-DRAWING =           True    #Enables the display of plots
-GRAPH_RUNS_STEP =   3       #Plots will show runs following this stepping (say run 0, 3, 6, 9)       
+GRAPH_RUNS_STEP =   2       #Plots will show runs following this stepping (say run 0, 3, 6, 9)       
 
 class Cosmic_Event_Class(ak.Record):
     
@@ -53,12 +53,14 @@ class Cosmic_Event_Class(ak.Record):
         else:
             #This is if we are skipping vertial events
             return None
-        if IGNORE_TVAL:
-            t_arr = np.array(self.templTime[v_filter]) * pq.ns
-        else:
-            t_arr = np.array(self.Tval[v_filter] + self.templTime[v_filter]) * pq.ns 
-        y_arr = np.array(self.Yval[v_filter]) * pq.mm
-        v_arr = np.array(self.Vmax[v_filter])
+        with warnings.catch_warnings(action="ignore"):
+            #Suppress warnings from the coflict between np and ak
+            if IGNORE_TVAL:
+                t_arr = np.array(self.templTime[v_filter]) * pq.ns
+            else:
+                t_arr = np.array(self.Tval[v_filter] + self.templTime[v_filter]) * pq.ns 
+            y_arr = np.array(self.Yval[v_filter]) * pq.mm
+            v_arr = np.array(self.Vmax[v_filter])
         t_res = dict()
         #This will hold the times corrected for the position of the hit
         t_geom_arr = np.full_like(t_arr, np.nan)
@@ -120,14 +122,16 @@ def get_t_residuals(event : Cosmic_Event_Class) -> dict | None:
         
 def residuals_to_correction(channel : str) -> None:
     chan_address = tuple(int(entry) for entry in channel.split(', '))
-    res_arr = np.array(ak.drop_none(residuals[channel]))
+    with warnings.catch_warnings(action="ignore"):
+        #Suppress warnings from the coflict between np and ak
+        res_arr = np.array(ak.drop_none(residuals[channel]))
     num_res = np.count_nonzero(~np.isnan(res_arr))
     if num_res >= RES_NUM_CUT:
         #There are aoutliers in the residuals due to errors in reconstruction
         res_filter = (res_arr > MIN_RES_CUT) & (res_arr < MAX_RES_CUT)
         mean_res, sigma = sp.norm.fit(res_arr[res_filter])
         mean_res = mean_res * pq.ns
-        if DRAWING :
+        if drawing :
             sigma = sigma * pq.ns ** 2        
             sigma_res_arr[run_n, chan_address[0], chan_address[1], chan_address[2]] = sigma
             mean_res_arr[run_n, chan_address[0], chan_address[1], chan_address[2]] = mean_res
@@ -161,12 +165,13 @@ def residuals_hist(chan_num : int | None = None) -> None:
         if chan_num:
             residuals = res_arr_list[run]
             y_arr = residuals[residuals.fields[chan_num]]
+            plt.hist(y_arr, label= "Run " + str(run), bins= 50, range=(-5., 5.))
         else:
             for mean in mean_res_arr[run].flatten():
                 scalar = mean.item()
                 if not np.isnan(scalar):
                     y_arr.append(scalar)
-        plt.hist(y_arr, label= "Run " + str(run), bins= 100, range=(-5., 5.))
+            plt.hist(y_arr, label= "Run " + str(run), bins= 100, range=(-1., 1.))
     plt.legend()
     if chan_num:
         plt.title("Residuals for channel " + residuals.fields[chan_num] + " [ns]")
@@ -174,13 +179,18 @@ def residuals_hist(chan_num : int | None = None) -> None:
         plt.title("Mean Residuals (all channels) [ns]")
         
 def get_y_span(event) -> pq.Quantity:
+    #Just rewrapped for the executor
     return event.y_span()
 
 #Input
 hits_path = input("Hits file to process [.root]: ")
-n_runs = int(input("Iterations to perform: "))
+n_runs = int(input("Iterations to perform: ")) + 1
 cal_path = input("Starting caibration file [Optional]: ") or False
 save_f_name = input("Calibration file to save [Deafault <hits>_t_calibration.csv]: ") or False
+if input("Show Plots (y/[n]): ") == "y":
+    drawing : bool = True
+else:
+    drawing : bool = False
 if not save_f_name:
     #if no file is spcified, a default is prepared removing the .root and adding a different string
     save_f_name = hits_path[ : -5] + "_t_calibration.csv"
@@ -202,14 +212,7 @@ else:
     
 #Loading tree in an array structure, we only need some of the branches
 branches = ("nrun", "nsubrun", "evnum", "nHits", "iRow", "iCol", "SiPM", "Xval", "Yval", "Vmax", "Tval", "templTime")
-#For a single file
-with uproot.open(hits_path) as file:
-    tree = file.arrays(filter_name = branches)
-
-#If we want to concatenate more files
-#files = "/exp/mu2e/data/users/simona/sidet/digi/cosmic_calibrated_run*_reco_vmax.root:sidet"
-#tree = uproot.concatenate(files, expressions = branches)   
-
+tree = uproot.concatenate(hits_path, expressions = branches)   
 #Now change the array so that it uses the custom class defned above
 tree = ak.Array(tree, with_name= "cosmic")
 
@@ -223,28 +226,20 @@ tree = ak.with_field(tree, fit_results.slope,       "slope")
 tree = ak.with_field(tree, fit_results.intercept,   "intercept")
 tree = ak.with_field(tree, fit_results.chi_sq,      "chi_sq")
 tree = ak.with_field(tree, fit_results.ndf,         "ndf")
+print("Linear Fits completed")
 
-#Residuals
+#Event selection
 slope_cut = COS_THETA_CUT / np.sqrt(1 - COS_THETA_CUT ** 2)
 filters = {'n_min' :        tree.nHits > HITNUM_CUT,
            'slope_min' :    abs(tree.slope) > slope_cut,
            'chi_sq' :       tree.chi_sq / tree.ndf < CHI_ON_NDF_CUT,
            'vertical' :     tree.vertical * VERTICALS}
+#Vertical events skip the slope and chi_sq filters
 filtered_events = tree[filters['n_min'] & 
                        filters['vertical'] | (filters['slope_min'] & filters['chi_sq'])]
-#Vertical events skip the slope and chi_sq filters
 filtered_events = ak.drop_none(filtered_events)
 
-#for i, event in enumerate(filtered_events):
-#    print ("event ",i)
-#    print (event.t_residuals())
-#    for val in event.Tval:
-#        print(val)
-#    print (event.templTime)
-#    print (event.Vmax)
-#    input("Next")  
-
-if DRAWING :
+if drawing :
     #We don't really need to store these values, unless we want to do a plot
     mean_res_arr = np.full([n_runs, N_ROWS, N_COLUMNS, N_SIPMS], np.nan) * pq.ns
     sigma_res_arr = np.full([n_runs, N_ROWS, N_COLUMNS, N_SIPMS], np.nan) * pq.ns ** 2
@@ -253,6 +248,7 @@ if DRAWING :
     cal_corr_arr = []
     with ProcessPoolExecutor() as executor:
         y_span_arr = list(executor.map(get_y_span, tree))
+    print("y_spans (only used for plot) computed")
         
 for run_n in range(n_runs):    
     #Get the residuals  
@@ -260,13 +256,15 @@ for run_n in range(n_runs):
         residuals = list(executor.map(get_t_residuals, filtered_events))
     residuals = ak.Array(residuals)
     
-    if DRAWING:
+    if drawing:
+        #Saved after residuals are computed byt before calibration is updated
         cal_corr_arr.append(cal_corection.copy())
         res_arr_list.append(residuals)
     
     #Update the corrections
     for chan_res in residuals.fields:
         residuals_to_correction(chan_res)
+    print("Run", run_n, "completed")
         
 #Save the last calibration
 with open(save_f_name, mode = 'w') as file:
@@ -278,17 +276,20 @@ with open(save_f_name, mode = 'w') as file:
             for sipm in range(N_SIPMS):
                 print(row, col, sipm, cal_corection[row, col, sipm].item(), file= file, sep= ",")
  
-if DRAWING:               
+if drawing:               
     #Residuals plot
     plt.ion()
     residuals_plot()
-    residuals_plot(-100, 100)
+    residuals_plot(-0.5, 0.5)
 
     #Plot number of residuals in channels
     plt.figure()
     plt.hist(num_res_arr[0].flatten())
-    plt.yscale('log')
     plt.title("Number of residuals for each channel")
+    
+    plt.figure()
+    plt.hist(y_span_arr)
+    plt.title("Y spans of the events")
     
     #Draw the distibutions of the mean residuals over all the channels
     residuals_hist()
@@ -299,10 +300,6 @@ if DRAWING:
         else:
             break
     
-    plt.figure()
-    plt.hist(y_span_arr)
-    plt.title("Y spans of the events")
-        
-print("Events Loaded:", len(tree))
-#Intended to check tha the whole tree was loaded 
+print("Total events:", len(tree))
+#Intended to check that the whole tree was processed
 input("Press any key to exit")

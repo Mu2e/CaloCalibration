@@ -9,6 +9,17 @@ mu2einit
 muse setup
 /usr/bin/python3 disp_GUI.py
 ```
+Note the use of '/usr/bin/python3' as interpreter.
+
+### On DAQ machines
+The program has been tested on mu2edaq18 and it works, to run:
+```
+source /cvmfs/mu2e.opensciencegrid.org/setupmu2e-art.sh
+muse setup
+/usr/bin/python3 ots_spack/Analysis/display/disp_GUI.py
+```
+Note the use of '/usr/bin/python3' as interpreter.
+
 ### Other machines
 For all other machines, use the included **conda/mamba environment**. Root will then raise the warning:
 ```
