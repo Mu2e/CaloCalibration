@@ -158,20 +158,24 @@ def residuals_plot(y_min : float | None = None, y_max : float | None = None) -> 
     plt.title("Residuals")
     return fig
 
-def residuals_hist(chan_num : int | None = None) -> None:
+def residuals_hist(chan_num : int | None = None, bins : int | None = None) -> None:
     plt.figure()
     for run in range(0, n_runs, GRAPH_RUNS_STEP):
         y_arr = []
         if chan_num:
             residuals = res_arr_list[run]
             y_arr = residuals[residuals.fields[chan_num]]
-            plt.hist(y_arr, label= "Run " + str(run), bins= 50, range=(-5., 5.))
+            if bins == None:
+                bins = 50
+            plt.hist(y_arr, label= "Run " + str(run), bins= bins, range=(-5., 5.))
         else:
             for mean in mean_res_arr[run].flatten():
                 scalar = mean.item()
                 if not np.isnan(scalar):
                     y_arr.append(scalar)
-            plt.hist(y_arr, label= "Run " + str(run), bins= 100, range=(-1., 1.))
+            if bins == None:
+                bins = 100
+            plt.hist(y_arr, label= "Run " + str(run), bins= bins, range=(-1., 1.))
     plt.legend()
     if chan_num:
         plt.title("Residuals for channel " + residuals.fields[chan_num] + " [ns]")
@@ -293,6 +297,14 @@ if drawing:
     
     #Draw the distibutions of the mean residuals over all the channels
     residuals_hist()
+    while True:
+        bins = input("Number of bins [or enter]: ")
+        if bins:
+            residuals_hist(bins= int(bins))
+        else:
+            break
+        
+    #Draw the residuals distribution for user selected channels
     while True:
         chan_num = input("Channel number to draw: ")
         if chan_num:
