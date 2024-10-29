@@ -43,6 +43,7 @@
 #include "RooAbsReal.h"
 #include "RooFormulaVar.h"
 #include "RooAddition.h"
+#include "RooChi2Var.h" //included to add minimiser alternations
 using namespace std;
 using namespace TMath;
 using namespace RooFit;
@@ -56,6 +57,7 @@ namespace CaloSourceCalib{
         virtual ~SourceFitter() = default;
         #ifndef __CINT__
         void FitCrystal(TH1F* histogram, TString opt, int cryNum, TTree* covar, Float_t &fpeak, Float_t &fsigma, Float_t &fchiSq);//, Float_t &fstpeak, Float_t &fstsigma, Float_t &fstchiSq, Float_t &scdpeak,Float_t &scdsigma, Float_t &scdchiSq);
+        void MCFitCrystal(int crystalNo, TString opt);//, Float_t &fstpeak, Float_t &fstsigma, Float_t &fstchiSq, Float_t &scdpeak,Float_t &scdsigma, Float_t &scdchiSq);
         #endif
         ClassDef (SourceFitter,1);
     };
