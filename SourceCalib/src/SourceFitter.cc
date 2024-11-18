@@ -4,7 +4,7 @@ using namespace TMath;
 using namespace RooFit;
 using namespace CaloSourceCalib;
 
-void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *covar, Float_t &fpeak, Float_t &fsigma, Float_t &fchiSq){//, Float_t &fstpeak, Float_t &fstsigma, Float_t &fstchiSq, Float_t &scdpeak,Float_t &scdsigma,Float_t &scdchiSq){
+void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *covar, Float_t &fpeak, Float_t &fsigma, Float_t &chiSq, Float_t &fstpeak,Float_t &fstsigma, Float_t &scdpeak,Float_t &scdsigma,Float_t &fcbalphaparam,Float_t &fcbndegparam,Float_t &Aparam,Float_t &Bparam, Float_t &Cparam, Float_t &fullResparam, Float_t &fstResparam,Float_t &scdResparam,Float_t &comCnstparam, Float_t &combetaparam, Float_t &frFullparam, Float_t &frFrstparam,Float_t &frScndparam,Float_t &crystalNoparam,Float_t &frBKGparam){//Float_t &frBKGparam
     
     // set stlye optionsr
     gStyle -> SetOptFit(1111);
@@ -19,19 +19,19 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
     TCanvas *can = new TCanvas("can", "", 100, 100, 600, 600);
     can -> Draw();
     TString cryNum = to_string(crystalNo);
-    //TString fName = "mu2e_caloSimu_crysEdep_"+cryNum+".root" ;--uncomment for pull
+    //TString fName = "mu2e_caloSimu_crysEdep_"+cryNum+".root" ;//--uncomment for pull -- can delete
     TString oName = "mu2e_simu_fitSpec_"+ opt+"_" + cryNum + ".root";
     //how do i make anotehr branch in this file?
     // need to  make a branch that look at MC energy deposited and maybe another looking at 
     TString title = "Energy Spectrum of Crystal " + cryNum;
-    //TFile *inFile = TFile::Open(fName);
+    //TFile *inFile = TFile::Open(fName);// can delete
 
    TFile *ouptFile = new TFile("mu2e_caloSourceFit_" + cryNum + ".root", "RECREATE");
 
     
     // obtain the two initial values for the parameters
-    double par1 = 1600;//100.;
-    double par2 = 160;//10.;
+    double par1 = 2500;//100.;1600
+    double par2 = 50;//10.;
     //double ergElec_ADC = 8.176;
    // double b_adc = 2.4;
     //double c_adc = 3.2;
@@ -41,31 +41,32 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
     //add b and c as double, also define adc conversion as a constant
     //parameters
     RooRealVar crysADC("crysADC", "ADC[counts]", 48, 120);
+    RooRealVar ergElec("ergElec", "electron energy in ADC", 8.176);
 		RooRealVar fcbalpha("fcbalpha", "fcbalpha", 0.5, 0.1, 5);
     RooRealVar fcbndeg("fcbndeg", "fcbndeg", 10, 1, 40.);
-    RooRealVar A("A", "coeff of E", 0.006,0.00001,10);//0.16, 0.08, 16);0.006
-    RooRealVar B("B", "const B",0.0405,0.00001,10);//8, 0.08, 16);0.00405
-    RooRealVar C("C", "const C", 0.0027,0.00001,10);//Electronic noise in MeV 2.40.0027
+    RooRealVar A("A", "coeff of E", 0.02,0.001,3);//0.16, 0.08, 16);0.006
+    RooRealVar B("B", "const B",0.00405,0.0001,2);//8, 0.08, 16);0.00405
+    RooRealVar C("C", "const C", 0.0027,0.0001,3);//Electronic noise in MeV 2.4  0.0027
     
 //conv is GEV TO MEV then to ADC for A
     //Full peak:
     RooRealVar fullPeak("fullPeak", "full peak", 96.8, 80, 108);
     //RooFormulaVar fullRes("fullRes","full peak resolution","0.98650796*sqrt(((A)/pow(98.08/1000,0.5))+(B/0.0625)+(C/(98.08/1000)))", RooArgSet(A,B,C));
-    RooFormulaVar fullRes("fullRes","full peak resolution","0.98650796*sqrt(pow(A/pow(98.08/1000,0.25),2)+pow(B/0.0625,2)+pow(C/(98.08/1000),2))", RooArgSet(A,B,C));    
+    RooFormulaVar fullRes("fullRes","full peak resolution","0.98650796*sqrt(pow(A/pow(fullPeak/1000,0.25),2)+pow(B/0.0625,2)+pow(C/(fullPeak/1000),2))", RooArgSet(A,B,C,fullPeak));    
     //RooFormulaVar fullRes("fullRes","full peak resolution","sqrt(pow((A*0.125)/pow(98.08/1000,0.25),2)+pow(B*0.0625,2)+pow(C/98.08,2))", RooArgSet(A,B,C));//old formula 
     RooFormulaVar fullWidth("fullWidth", "width of the full peak", "fullPeak*fullRes",RooArgSet(fullPeak, fullRes));
 		//RooRealVar fullWidth("fullWidth", "width of the full peak", 5, 1, 10);
     // 1st escape peak:
-    RooFormulaVar fstEsPeak("fstEsPeak", "first escape peak", "fullPeak - 8.176", RooArgSet(fullPeak));
+    RooFormulaVar fstEsPeak("fstEsPeak", "first escape peak", "fullPeak - ergElec", RooArgSet(fullPeak,ergElec));
     //RooFormulaVar fstRes("fstRes","first peak resolution","0.98650796*sqrt(pow((A)/pow(89.904 /1000,0.5),2)+(B/0.0625)+(C/(89.904/1000) ))", RooArgSet(A,B,C));//,fstEsPeak));//89.904
-    RooFormulaVar fstRes("fstRes","first peak resolution","0.98650796*sqrt(pow(A/pow(89.904 /1000,0.25),2)+pow(B/0.0625,2)+pow(C/(89.904/1000),2))", RooArgSet(A,B,C));
+    RooFormulaVar fstRes("fstRes","first peak resolution","0.98650796*sqrt(pow(A/pow(fstEsPeak /1000,0.25),2)+pow(B/0.0625,2)+pow(C/(fstEsPeak/1000),2))", RooArgSet(A,B,C,fstEsPeak));
     //RooFormulaVar fstRes("fstRes","first peak resolution","sqrt(pow((A*0.125)/pow(89.904 /1000,0.25),2)+pow(B*0.0625,2)+pow(C/89.904 ,2))", RooArgSet(A,B,C)); //old formula 
     RooFormulaVar fstWidth("fstWidth", "width of first escape peak","fstEsPeak*fstRes",RooArgSet(fstEsPeak,fstRes));
 
     // 2nd escape peak:
-    RooFormulaVar scdEsPeak("scdEsPeak", "second escape peak", "fullPeak - 2*8.176", RooArgSet(fullPeak));
+    RooFormulaVar scdEsPeak("scdEsPeak", "second escape peak", "fullPeak - 2*ergElec", RooArgSet(fullPeak,ergElec));
     //RooFormulaVar scdRes("scdRes","second peak resolution","0.98650796*sqrt(pow((A)/pow(81.72/1000,0.5),2)+(B/0.0625)+(C/(81.72/1000)))", RooArgSet(A,B,C));//,scdEsPeak));//81.72
-    RooFormulaVar scdRes("scdRes","second peak resolution","0.98650796*sqrt(pow(A/pow(81.72/1000,0.25),2)+pow(B/0.0625,2)+pow(C/(81.72/1000),2))", RooArgSet(A,B,C));
+    RooFormulaVar scdRes("scdRes","second peak resolution","0.98650796*sqrt(pow(A/pow(scdEsPeak/1000,0.25),2)+pow(B/0.0625,2)+pow(C/(scdEsPeak/1000),2))", RooArgSet(A,B,C,scdEsPeak));
     //RooFormulaVar scdRes("scdRes","second peak resolution","sqrt(pow((A*0.125)/pow(81.72/1000,0.25),2)+pow(B*0.0625,2)+pow(C/81.72,2))", RooArgSet(A,B,C));//old formula 
     RooFormulaVar scdWidth("scdWidth", "width of second escape peak","scdEsPeak*scdRes",RooArgSet(scdEsPeak,scdRes));
 
@@ -83,8 +84,10 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
     RooRealVar frFull("frFull", "Fraction of full peak",0.3,0.25, 1);
     RooRealVar frFrst("frFrst", "Fraction of first escape peak", 0.5,0.1, 1);
     RooRealVar frScnd("frScnd", "Fraction of second escape peak", 0.1, 0.1, 1);
-    RooRealVar frBKG("frBKG", "Fraction of BKG peak", 0.1, 0.01, 1);
-    RooAddition constrSum("add","add", RooArgList(frFull,frFrst,frScnd));
+   // RooRealVar frBKG("frBKG", "Fraction of BKG peak", 0.1, 0.01, 1);
+    //RooAddition constrSum("add","add", RooArgList(frFull,frFull,frScnd));
+    //RooFormulaVar frBKG("frBKG", "Fraction of BKG peak", "1 - (frFull+frFrst+frScnd)", RooArgSet(frFull,frFull,frScnd));
+    //make the above line a double 1-frFull.getval() at the bottom with the other
     // the parameter is 11 after setting width of escape peaks opened
     //Float_t dpeak;//,dsigma,fpeak, fsigma
     //Float_t chiSq = 0;
@@ -100,37 +103,58 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
       RooAddPdf fitFun("fitFun", "firsErg + (secdErg + (fullErg + comPdf))", RooArgList(firsErg, secdErg, fullErg, comPdf), RooArgList(frFrst, frScnd, frFull) );
 			//RooAddPdf fitFun("fitFun", "firsErg*frFrst + secdErg*frScnd + fullErg*frFull + comPdf(1-constrSum)", RooArgList(firsErg, secdErg, fullErg, comPdf), RooArgList(frFrst, frScnd, frFull) );
       //chi2 fit
-      //RooFitResult *fitRes = fitFun.chi2FitTo(chSpec, Range(48,115.2), Strategy(3),Hesse(kTRUE), PrintLevel(1), Extended(),Save()) ;
+      RooFitResult *fitRes = fitFun.chi2FitTo(chSpec, Range(48,115.2), Strategy(1),Hesse(kTRUE), PrintLevel(1),Save()) ;//Extended()
+       fitRes->Print("v");
+       //NLL fit
+       //RooFitResult *fitRes = fitFun.fitTo(chSpec,Range(48,115.2), Strategy(2),Hesse(kTRUE), PrintLevel(1),Save());
        //fitRes->Print("v");
        
        //testing minimiser here
-       RooChi2Var chi2("chi2", "chi2", fitFun, chSpec, Range(48, 115.2), Extended());
-       RooMinimizer minimizer(chi2);
-			 minimizer.minimize("Minuit2", "Migrad");
-			 minimizer.minos();
+       //RooChi2Var chi2("chi2", "chi2", fitFun, chSpec, Range(48, 115.2), Extended());
+       //RooMinimizer minimizer(chi2);
+			// minimizer.minimize("Minuit2", "Migrad");
+			 //minimizer.minos();
 			 //minimizer.hesse();
-			 RooFitResult* fitRes = minimizer.save();
-			 fitRes->Print("v");
+			 //RooFitResult* fitRes = minimizer.save();
+			 //fitRes->Print("v");
        //end test
-       
-      //nll fit
-      //RooFitResult *fitRes = fitFun.fitTo(chSpec,Extended(kTRUE)) ;
+
       // plot components
       chSpec.plotOn(chFrame, MarkerColor(kBlack), LineColor(kBlack), MarkerSize(0.5), Name("chSpec"));
       fitFun.plotOn(chFrame, LineColor(kRed), LineStyle(1), Name("fullFit"));
-      fchiSq = chFrame->chiSquare(11);
+      chiSq = chFrame->chiSquare(11);
       fitFun.plotOn(chFrame, Components(fullErg), LineColor(kOrange), LineStyle(5));
       fitFun.plotOn(chFrame, Components(firsErg), LineColor(kViolet), LineStyle(5));
       fitFun.plotOn(chFrame, Components(secdErg), LineColor(kCyan), LineStyle(5));
       fitFun.plotOn(chFrame, Components(comPdf), LineColor(kBlue), LineStyle(5));
     }
-    //std::cout<<"Result "<< fitRes <<std::endl;
+		
     fpeak = fullPeak.getVal();
     dpeak = fullPeak.getError();
     fsigma = fullWidth.getVal();
-    //std::cout<<"dsigma"<<dsigma<<std::endl;
+    fstpeak = fstEsPeak.getVal();
+    fstsigma = fstWidth.getVal();
+    scdpeak = scdEsPeak.getVal();
+    scdsigma = scdWidth.getVal();
+    fcbalphaparam = fcbalpha.getVal();
+    fcbndegparam = fcbndeg.getVal();
+    Aparam = A.getVal();
+    Bparam = B.getVal();
+    Cparam = C.getVal();
+    fullResparam = fullRes.getVal();
+    fstResparam = fstRes.getVal();
+    scdResparam = scdRes.getVal();
+    comCnstparam = comCnst.getVal();
+    combetaparam = combeta.getVal();
+    frFullparam = frFull.getVal();
+    frFrstparam = frFrst.getVal();
+    frScndparam = frScnd.getVal();
+    frBKGparam= 1-(frFullparam+frFrstparam+frScndparam);
+    std::cout<< "fraction of background" <<frBKGparam <<std::endl;
+    crystalNoparam = crystalNo;
+
     //make pretty plots
-    TPaveLabel *pchi2 = new TPaveLabel(0.20, 0.70, 0.35, 0.80, Form("#chi^{2}/ndf = %4.2f", fchiSq), "brNDC");
+    TPaveLabel *pchi2 = new TPaveLabel(0.20, 0.70, 0.35, 0.80, Form("#chi^{2}/ndf = %4.2f", chiSq), "brNDC");
     pchi2 -> SetFillStyle(0);
     pchi2 -> SetBorderSize(0);
     pchi2 -> SetTextSize(0.25);
@@ -151,7 +175,7 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
     fsg -> SetTextColor(kBlack);
     fsg -> SetFillColor(kWhite);
     chFrame -> addObject(fsg);
-    std::cout << "chi2: " << fchiSq << "; Probability: " << Prob(fchiSq, 151) << std::endl;
+    std::cout << "chi2: " << chiSq << "; Probability: " << Prob(chiSq, 151) << std::endl;
 
     chFrame -> SetYTitle("Events per 25 keV");
     chFrame -> Draw();
@@ -206,17 +230,17 @@ void SourceFitter::MCFitCrystal(int crystalNo, TString opt){
 
     //Full peak:
     RooRealVar fullPeak_MC("fullPeak_MC", "full peak_MC", 6.05, 5.0, 6.75);
-    RooFormulaVar fullRes_MC("fullRes_MC","full peak resolution_MC","sqrt(pow(A_MC/pow(98.08/1000,0.25),2)+pow(B_MC/0.0625,2)+pow(C_MC/(98.08/1000),2))", RooArgSet(A_MC,B_MC,C_MC));    
+    RooFormulaVar fullRes_MC("fullRes_MC","full peak resolution_MC","sqrt(pow(A_MC/pow(6.13/1000,0.25),2)+pow(B_MC/0.0625,2)+pow(C_MC/(6.13/1000),2))", RooArgSet(A_MC,B_MC,C_MC));    
     RooFormulaVar fullWidth_MC("fullWidth_MC", "width of the full peak_MC", "fullPeak_MC*fullRes_MC",RooArgSet(fullPeak_MC, fullRes_MC));
 
     // 1st escape peak:
     RooFormulaVar fstEsPeak_MC("fstEsPeak_MC", "first escape peak_MC", "fullPeak_MC - 0.511", RooArgSet(fullPeak_MC));
-    RooFormulaVar fstRes_MC("fstRes_MC","first peak resolution_MC","sqrt(pow(A_MC/pow(89.904 /1000,0.25),2)+pow(B_MC/0.0625,2)+pow(C_MC/(89.904/1000),2))", RooArgSet(A_MC,B_MC,C_MC));
+    RooFormulaVar fstRes_MC("fstRes_MC","first peak resolution_MC","sqrt(pow(A_MC/pow(5.619/1000,0.25),2)+pow(B_MC/0.0625,2)+pow(C_MC/(5.619/1000),2))", RooArgSet(A_MC,B_MC,C_MC));
     RooFormulaVar fstWidth_MC("fstWidth_MC", "width of first escape peak_MC","fstEsPeak_MC*fstRes_MC",RooArgSet(fstEsPeak_MC,fstRes_MC));
 
     // 2nd escape peak:
     RooFormulaVar scdEsPeak_MC("scdEsPeak_MC", "second escape peak_MC", "fullPeak_MC - 2*0.511", RooArgSet(fullPeak_MC));
-    RooFormulaVar scdRes_MC("scdRes_MC","second peak resolution_MC","sqrt(pow(A_MC/pow(81.72/1000,0.25),2)+pow(B_MC/0.0625,2)+pow(C_MC/(81.72/1000),2))", RooArgSet(A_MC,B_MC,C_MC));
+    RooFormulaVar scdRes_MC("scdRes_MC","second peak resolution_MC","sqrt(pow(A_MC/pow(5.1075/1000,0.25),2)+pow(B_MC/0.0625,2)+pow(C_MC/(5.1075/1000),2))", RooArgSet(A_MC,B_MC,C_MC));
     RooFormulaVar scdWidth_MC("scdWidth_MC", "width of second escape peak_MC","scdEsPeak_MC*scdRes_MC",RooArgSet(scdEsPeak_MC,scdRes_MC));
 
     // construct CBs:
@@ -273,7 +297,6 @@ void SourceFitter::MCFitCrystal(int crystalNo, TString opt){
     fpeak_MC = fullPeak_MC.getVal();
     dpeak_MC = fullPeak_MC.getError();
     fsigma_MC = fullWidth_MC.getVal();
-    //dsigma_MC = fullWidth_MC.getError();
 
     //make pretty plots
     TPaveLabel *pchi2_MC = new TPaveLabel(0.20, 0.70, 0.35, 0.80, Form("#chi^{2}/ndf = %4.2f", chiSq_MC), "brNDC");

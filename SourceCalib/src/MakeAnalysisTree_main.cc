@@ -5,7 +5,7 @@ using namespace std::chrono;
 
 using namespace CaloSourceCalib;
 
-TString filepath = "/pnfs/mu2e/tape/usr-nts/nts/sophie/SourceCalibSimAna/ADCCuts/root/56/e6///nts.sophie.SourceCalibSimAna.ADCCuts.0.root";
+TString filepath = "/pnfs/mu2e/tape/usr-nts/nts/sophie/SourceCalibSimAna/ADCCuts/root/56/e6/nts.sophie.SourceCalibSimAna.ADCCuts.0.root";
 
 //TString filepath = "/exp/mu2e/app/users/hjafree/SourceFitDir/mu2e_caloSimu_crysEdep_770.root";
 /*function to extract the TTree from the SourceCalibAna output*/
@@ -24,6 +24,7 @@ TTree* get_data_tree(){
     TTree *t = (TTree*)f->Get("CaloExample/Calo");
     return t;
 }
+//new function void-- loop over ttree (use above func to get ttree) use t2hf func to get histogram-- bin width is 674 bins 
 /* bin for a given crystal */
 void AnalyzeTruthCrystal(int crystalNo){
 
@@ -57,10 +58,10 @@ void AnalyzeTruthCrystal(int crystalNo){
     inTree -> SetBranchAddress("cryPosX", &cryPosX);//calhitRecoPosX
     inTree -> SetBranchAddress("cryPosY", &cryPosY);//calhitRecoPosY
     inTree -> SetBranchAddress("cryPosZ", &cryPosZ);//calhitRecoPosZ
-    
+   
     //unsigned int nEvt = (int)inTree -> GetEntries();
     unsigned int nEvtCrys = 0; //events in this crystal
-    for(unsigned int iEvt=0; iEvt<1e6; iEvt++)//1e7
+    for(unsigned int iEvt=0; iEvt<1e7; iEvt++)//1e7
     {
       // extract single entry in the Tree
       inTree -> GetEntry(iEvt);
@@ -104,7 +105,7 @@ void AnalyzeTruthCrystal(int crystalNo){
       sort(deltaTime.begin(), deltaTime.end());
       float difTime = deltaTime.back() - deltaTime.front();
       
-      if((edepTarget / (edepTarget + edepOthers)) >= 0 && difTime < 400)//0.8, 4
+      if((edepTarget / (edepTarget + edepOthers)) >= 0.8 && difTime < 4)//0.8, 4
       {
         trueEdep =edepTarget;
         true_spec->Fill(edepTarget);
@@ -136,25 +137,37 @@ int main(int argc, char* argv[]){
 
   }
 
-  int debug = 1;
+  int debug = 0;
   if (debug == 0) {
  
 		TFile *ouptFile = new TFile("paraFile.root", "RECREATE");
-		Float_t fpeak, fsigma, fchiSq;//, fstpeak, fstsigma, fstchiSq, scdpeak,scdsigma,scdchiSq;
+		Float_t fpeak, fsigma, chiSq, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,fullResparam,fstResparam,scdResparam,comCnstparam,
+		combetaparam,frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam;//frBKGparam
 		TTree *covar = new TTree("covar","Covariance Plot");
 		covar->Branch("Peak", &fpeak,"fpeak/F");
 		covar->Branch("Width", &fsigma,"fsigma/F");
-		covar->Branch("ChiSq", &fchiSq,"fchiSq/F");
-		/*covar->Branch("1stPeak", &fstpeak,"fstpeak/F");
+		covar->Branch("ChiSq", &chiSq,"chiSq/F");
+		covar->Branch("1stPeak", &fstpeak,"fstpeak/F");
 		covar->Branch("1stWidth", &fstsigma,"fstsigma/F");
-		covar->Branch("1stChiSq", &fstchiSq,"fstchiSq/F");
 		covar->Branch("2ndPeak", &scdpeak,"scdpeak/F");
 		covar->Branch("2ndWidth", &scdsigma,"scdsigma/F");
-		covar->Branch("2ndChiSq", &scdchiSq,"scdchiSq/F");*/
-		//add mean sigma and chisq
-		//get python document and 
+		covar->Branch("Alpha", &fcbalphaparam,"fcbalphaparam/F");
+		covar->Branch("Ndeg", &fcbndegparam,"fcbndegparam/F");
+		covar->Branch("A", &Aparam,"Aparam/F");
+		covar->Branch("B", &Bparam,"Bparam/F");
+		covar->Branch("C", &Cparam,"Cparam/F");
+		covar->Branch("fullRes", &fullResparam,"fullResparam/F");
+		covar->Branch("fstRes", &fstResparam,"fstResparam/F");
+		covar->Branch("scdRes", &scdResparam,"scdResparam/F");
+		covar->Branch("comCnst", &comCnstparam,"comCnstparam/F");
+		covar->Branch("combeta", &combetaparam,"combetaparam/F");
+		covar->Branch("frFull", &frFullparam,"frFullparam/F");
+		covar->Branch("frFrst", &frFrstparam,"frFrstparam/F");
+		covar->Branch("frScnd", &frScndparam,"frScndparam/F");
+		covar->Branch("frBKG", &frBKGparam,"frBKGparam/F");
+		covar->Branch("crystalNo", &crystalNoparam,"crystalNoparam/F");
 		
-	 for(int cryNum=770; cryNum<771; cryNum++){//674 --> 1348
+	 for(int cryNum=770; cryNum<771; cryNum++){//674 --> 1348 
 		TH1F* h = get_data_histogram(cryNum);
 		std::cout<<"start value"<<anacrys_start<<std::endl;
 		std::cout<<"end value"<<anacrys_end<<std::endl;
@@ -162,7 +175,9 @@ int main(int argc, char* argv[]){
 		//MakeCrystalListOutputs(anacrys_start,anacrys_end);
 		//MakeCrystalBinsOutputs(anacrys_start,anacrys_end);
 		SourceFitter *fit = new SourceFitter();
-		fit->FitCrystal(h,"chi2", cryNum, covar, fpeak,fsigma,fchiSq);//, fstpeak, fstsigma, fstchiSq, scdpeak,scdsigma,scdchiSq);
+		fit->FitCrystal(h,"chi2", cryNum, covar, fpeak,fsigma,chiSq, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,
+		fullResparam,fstResparam,scdResparam,comCnstparam,combetaparam,
+		frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam);//add fractions frBKGparam
 	 };
 	 	ouptFile -> Write();
 		ouptFile -> Close();
@@ -175,5 +190,37 @@ int main(int argc, char* argv[]){
     RunRooFit(crystalNo);
 }
 			};
+/*	if (debug == 2){
+			
+		TFile *ouptFile = new TFile("paraFile.root", "RECREATE");
+		Float_t fpeak, fsigma, chiSq,fcbalphaparam,fcbndegparam,comCnstparam,
+		combetaparam,crystalNoparam;
+		TTree *covar = new TTree("covar","Covariance Plot");
+		covar->Branch("Peak", &fpeak,"fpeak/F");
+		covar->Branch("Width", &fsigma,"fsigma/F");
+		covar->Branch("ChiSq", &chiSq,"chiSq/F");
+		covar->Branch("Alpha", &fcbalphaparam,"fcbalphaparam/F");
+		covar->Branch("Ndeg", &fcbndegparam,"fcbndegparam/F");
+		covar->Branch("comCnst", &comCnstparam,"comCnstparam/F");
+		covar->Branch("combeta", &combetaparam,"combetaparam/F");
+		covar->Branch("crystalNo", &crystalNoparam,"crystalNoparam/F");
+		
+		for(int cryNum=770; cryNum<771; cryNum++){//674 --> 1348 
+		TH1F* h = get_data_histogram(cryNum);
+		std::cout<<"start value"<<anacrys_start<<std::endl;
+		std::cout<<"end value"<<anacrys_end<<std::endl;
+		std::cout<<"Running crystal binning ....."<<std::endl;
+		//MakeCrystalListOutputs(anacrys_start,anacrys_end);
+		//MakeCrystalBinsOutputs(anacrys_start,anacrys_end);
+		SourceFitter *fit = new SourceFitter();
+		fit->CBFitCrystal(h,"chi2", cryNum, covar, fpeak,fsigma,chiSq,fcbalphaparam,fcbndegparam,
+		comCnstparam,combetaparam,crystalNoparam);//add fractions
+	 };
+	 	ouptFile -> Write();
+		ouptFile -> Close();
+
+		std::cout<<"Finished processing ..."<<std::endl;
+		
+}*/
   return 0;
 }
