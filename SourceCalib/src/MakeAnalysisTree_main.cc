@@ -15,12 +15,6 @@ TH1F* get_data_histogram(int cryNum){
     return hist;
 }
 
-/*function calls RooFit and fits a given crystal file*/
-/*void RunRooFit(int crystalNo) {
-  SourceFitter *fit = new SourceFitter();
-  fit->FitCrystal(crystalNo,"chi2_MC");
-}*/
-
 /*main function allows a loop over all crystals or a choice of a single crystal*/
 int main(int argc, char* argv[]){
   std::cout<<"========== Welcome to the Mu2e Source Calibration Analysis =========="<<std::endl;
@@ -31,52 +25,51 @@ int main(int argc, char* argv[]){
     cout<<"crystal to be analyzed (int) : "<<endl;
     cin>>anacrys_start;
     anacrys_end = anacrys_start+1;
-
   }
- 
-		TFile *ouptFile = new TFile("paraFile.root", "RECREATE");
-		Float_t fpeak, fsigma, chiSq, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,fullResparam,fstResparam,scdResparam,comCnstparam,
-		combetaparam,frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam;//frBKGparam
-		TTree *covar = new TTree("covar","Covariance Plot");
-		covar->Branch("Peak", &fpeak,"fpeak/F");
-		covar->Branch("Width", &fsigma,"fsigma/F");
-		covar->Branch("ChiSq", &chiSq,"chiSq/F");
-		covar->Branch("1stPeak", &fstpeak,"fstpeak/F");
-		covar->Branch("1stWidth", &fstsigma,"fstsigma/F");
-		covar->Branch("2ndPeak", &scdpeak,"scdpeak/F");
-		covar->Branch("2ndWidth", &scdsigma,"scdsigma/F");
-		covar->Branch("Alpha", &fcbalphaparam,"fcbalphaparam/F");
-		covar->Branch("Ndeg", &fcbndegparam,"fcbndegparam/F");
-		covar->Branch("A", &Aparam,"Aparam/F");
-		covar->Branch("B", &Bparam,"Bparam/F");
-		covar->Branch("C", &Cparam,"Cparam/F");
-		covar->Branch("fullRes", &fullResparam,"fullResparam/F");
-		covar->Branch("fstRes", &fstResparam,"fstResparam/F");
-		covar->Branch("scdRes", &scdResparam,"scdResparam/F");
-		covar->Branch("comCnst", &comCnstparam,"comCnstparam/F");
-		covar->Branch("combeta", &combetaparam,"combetaparam/F");
-		covar->Branch("frFull", &frFullparam,"frFullparam/F");
-		covar->Branch("frFrst", &frFrstparam,"frFrstparam/F");
-		covar->Branch("frScnd", &frScndparam,"frScndparam/F");
-		covar->Branch("frBKG", &frBKGparam,"frBKGparam/F");
-		covar->Branch("crystalNo", &crystalNoparam,"crystalNoparam/F");
-		
-	 for(int cryNum=anacrys_start; cryNum<anacrys_end; cryNum++){
-		  TH1F* h = get_data_histogram(cryNum);
-		  std::cout<<"Running fitter ....."<<std::endl;
-		  auto start_bin = high_resolution_clock::now();
-    
-		  SourceFitter *fit = new SourceFitter();
-		  fit->FitCrystal(h,"chi2", cryNum, covar, fpeak,fsigma,chiSq, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,
-		  fullResparam,fstResparam,scdResparam,comCnstparam,combetaparam,
-		  frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam);
-		  
-		  auto end_bin = high_resolution_clock::now();
-      std::cout<<" Time take to fit crystal "<<cryNum<<" "<<duration_cast<seconds>(end_bin - start_bin)<<" s "<<std::endl;
-	  };
-	 	ouptFile -> Write();
-		ouptFile -> Close();
 
-		std::cout<<"Finished processing ..."<<std::endl;
+  TFile *ouptFile = new TFile("paraFile.root", "RECREATE");
+  Float_t fpeak, fsigma, chiSq, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,fullResparam,fstResparam,scdResparam,comCnstparam,
+  combetaparam,frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam;//frBKGparam
+  TTree *covar = new TTree("covar","Covariance Plot");
+  covar->Branch("Peak", &fpeak,"fpeak/F");
+  covar->Branch("Width", &fsigma,"fsigma/F");
+  covar->Branch("ChiSq", &chiSq,"chiSq/F");
+  covar->Branch("1stPeak", &fstpeak,"fstpeak/F");
+  covar->Branch("1stWidth", &fstsigma,"fstsigma/F");
+  covar->Branch("2ndPeak", &scdpeak,"scdpeak/F");
+  covar->Branch("2ndWidth", &scdsigma,"scdsigma/F");
+  covar->Branch("Alpha", &fcbalphaparam,"fcbalphaparam/F");
+  covar->Branch("Ndeg", &fcbndegparam,"fcbndegparam/F");
+  covar->Branch("A", &Aparam,"Aparam/F");
+  covar->Branch("B", &Bparam,"Bparam/F");
+  covar->Branch("C", &Cparam,"Cparam/F");
+  covar->Branch("fullRes", &fullResparam,"fullResparam/F");
+  covar->Branch("fstRes", &fstResparam,"fstResparam/F");
+  covar->Branch("scdRes", &scdResparam,"scdResparam/F");
+  covar->Branch("comCnst", &comCnstparam,"comCnstparam/F");
+  covar->Branch("combeta", &combetaparam,"combetaparam/F");
+  covar->Branch("frFull", &frFullparam,"frFullparam/F");
+  covar->Branch("frFrst", &frFrstparam,"frFrstparam/F");
+  covar->Branch("frScnd", &frScndparam,"frScndparam/F");
+  covar->Branch("frBKG", &frBKGparam,"frBKGparam/F");
+  covar->Branch("crystalNo", &crystalNoparam,"crystalNoparam/F");
+
+  for(int cryNum=anacrys_start; cryNum<anacrys_end; cryNum++){
+    TH1F* h = get_data_histogram(cryNum);
+    std::cout<<"Running fitter ....."<<std::endl;
+    auto start_bin = high_resolution_clock::now();
+
+    SourceFitter *fit = new SourceFitter();
+    fit->FitCrystal(h,"nll", cryNum, covar, fpeak,fsigma,chiSq, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,
+    fullResparam,fstResparam,scdResparam,comCnstparam,combetaparam,
+    frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam);
+
+    auto end_bin = high_resolution_clock::now();
+    std::cout<<" ******** Time take to fit crystal: "<<cryNum<<" "<<duration_cast<seconds>(end_bin - start_bin)<<std::endl;
+  };
+  ouptFile -> Write();
+  ouptFile -> Close();
+
+  std::cout<<"Finished processing ..."<<std::endl;
   return 0;
 }
