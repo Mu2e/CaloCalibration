@@ -1,5 +1,6 @@
 #include "CaloCalibration/SourceCalib/inc/MakeAnalysisTree.hh"
 #include "CaloCalibration/SourceCalib/inc/SourceFitter.hh"
+#include "CaloCalibration/SourceCalib/inc/SourcePlotter.hh"
 #include <chrono>
 using namespace std::chrono;
 
@@ -26,7 +27,7 @@ int main(int argc, char* argv[]){
     cin>>anacrys_start;
     anacrys_end = anacrys_start+1;
   }
-
+ 
   TFile *ouptFile = new TFile("paraFile.root", "RECREATE");
   Float_t fpeak, fsigma, chiSq, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,fullResparam,fstResparam,scdResparam,comCnstparam,
   combetaparam,frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam;//frBKGparam
@@ -69,7 +70,9 @@ int main(int argc, char* argv[]){
   };
   ouptFile -> Write();
   ouptFile -> Close();
-
+  
+  //SourcePlotter *plot = new SourcePlotter();
+  //plot->ParamPlots(covar);
   std::cout<<"Finished processing ..."<<std::endl;
   return 0;
 }
