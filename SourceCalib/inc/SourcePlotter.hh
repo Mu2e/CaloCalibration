@@ -13,6 +13,7 @@
 #include "TCanvas.h"
 #include "TMath.h"
 #include "TGraph.h"
+#include "TGraphErrors.h"
 #include "TAxis.h"
 #include <Riostream.h>
 #include <vector>
@@ -29,7 +30,7 @@ namespace CaloSourceCalib{
         SourcePlotter& operator = (const SourcePlotter &);
         virtual ~SourcePlotter() = default;
         #ifndef __CINT__
-        void ParamPlots(TTree* t);        
+        void ParamPlots(TTree* t, TFile *f);        
         #endif
         ClassDef (SourcePlotter,1);
     };

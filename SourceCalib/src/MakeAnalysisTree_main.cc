@@ -20,7 +20,7 @@ TH1F* get_data_histogram(int cryNum){
 int main(int argc, char* argv[]){
   std::cout<<"========== Welcome to the Mu2e Source Calibration Analysis =========="<<std::endl;
   int anacrys_start = 674; //starting crystal//675
-  int anacrys_end = 1348; //final crystal//680
+  int anacrys_end = 680; //final crystal//680
   std::cout<<"choosing crystal "<<std::endl;
   if(strcmp( argv[1], "chooseCrystal") == 0 ){
     cout<<"crystal to be analyzed (int) : "<<endl;
@@ -29,10 +29,13 @@ int main(int argc, char* argv[]){
   }
  
   TFile *ouptFile = new TFile("paraFile.root", "RECREATE");
-  Float_t fpeak, fsigma, chiSq, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,fullResparam,fstResparam,scdResparam,comCnstparam,
+  Int_t nEvents;
+  Float_t fpeak, dpeak, fsigma, chiSq, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,fullResparam,fstResparam,scdResparam,comCnstparam,
   combetaparam,frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam;//frBKGparam
   TTree *covar = new TTree("covar","Covariance Plot");
+  covar->Branch("nEvents", &nEvents,"nEvents/I");
   covar->Branch("Peak", &fpeak,"fpeak/F");
+  covar->Branch("PeakErr", &dpeak,"dpeak/F");
   covar->Branch("Width", &fsigma,"fsigma/F");
   covar->Branch("ChiSq", &chiSq,"chiSq/F");
   covar->Branch("1stPeak", &fstpeak,"fstpeak/F");
@@ -61,18 +64,19 @@ int main(int argc, char* argv[]){
     auto start_bin = high_resolution_clock::now();
 
     SourceFitter *fit = new SourceFitter();
-    fit->FitCrystal(h,"nll", cryNum, covar, fpeak,fsigma,chiSq, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,
+    fit->FitCrystal(h,"nll", cryNum, covar, nEvents, fpeak, dpeak, fsigma,chiSq, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,
     fullResparam,fstResparam,scdResparam,comCnstparam,combetaparam,
     frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam);
 
     auto end_bin = high_resolution_clock::now();
     std::cout<<" ******** Time take to fit crystal: "<<cryNum<<" "<<duration_cast<seconds>(end_bin - start_bin)<<std::endl;
   };
+
+  
+  SourcePlotter *plot = new SourcePlotter();
+  plot->ParamPlots(covar,ouptFile);
   ouptFile -> Write();
   ouptFile -> Close();
-  
-  //SourcePlotter *plot = new SourcePlotter();
-  //plot->ParamPlots(covar);
   std::cout<<"Finished processing ..."<<std::endl;
   return 0;
 }

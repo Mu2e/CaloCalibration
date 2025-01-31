@@ -4,7 +4,7 @@ using namespace TMath;
 using namespace RooFit;
 using namespace CaloSourceCalib;
 
-void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *covar, Float_t &fpeak, Float_t &fsigma, Float_t &chiSq, Float_t &fstpeak,Float_t &fstsigma, Float_t &scdpeak,Float_t &scdsigma,Float_t &fcbalphaparam,Float_t &fcbndegparam,Float_t &Aparam,Float_t &Bparam, Float_t &Cparam, Float_t &fullResparam, Float_t &fstResparam,Float_t &scdResparam,Float_t &comCnstparam, Float_t &combetaparam, Float_t &frFullparam, Float_t &frFrstparam,Float_t &frScndparam,Float_t &crystalNoparam,Float_t &frBKGparam){//Float_t &frBKGparam
+void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *covar, Int_t &nEvents, Float_t &fpeak, Float_t &dpeak, Float_t &fsigma, Float_t &chiSq, Float_t &fstpeak,Float_t &fstsigma, Float_t &scdpeak,Float_t &scdsigma,Float_t &fcbalphaparam,Float_t &fcbndegparam,Float_t &Aparam,Float_t &Bparam, Float_t &Cparam, Float_t &fullResparam, Float_t &fstResparam,Float_t &scdResparam,Float_t &comCnstparam, Float_t &combetaparam, Float_t &frFullparam, Float_t &frFrstparam,Float_t &frScndparam,Float_t &crystalNoparam,Float_t &frBKGparam){//Float_t &frBKGparam
     
   // set stlye optionsr
   gStyle -> SetOptFit(1111);
@@ -69,7 +69,6 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   RooRealVar frFrst("frFrst", "Fraction of first escape peak", 0.5,0.1, 1);
   RooRealVar frScnd("frScnd", "Fraction of second escape peak", 0.1, 0.1, 1);
 
-  Float_t dpeak;
   //preparing RooPlot
   RooPlot *chFrame = crysADC.frame(Title(title));
   RooDataHist chSpec("crysADC","crysADC", crysADC, h_spec);
@@ -100,6 +99,7 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   fitFun.plotOn(chFrame, Components(secdErg), LineColor(kCyan), LineStyle(5));
   fitFun.plotOn(chFrame, Components(comPdf), LineColor(kBlue), LineStyle(5));
 
+  nEvents = h_spec->GetEntries();
   fpeak = fullPeak.getVal();
   dpeak = fullPeak.getError();
   fsigma = fullWidth.getVal();
