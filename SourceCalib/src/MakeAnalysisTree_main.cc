@@ -1,5 +1,6 @@
 #include "CaloCalibration/SourceCalib/inc/MakeAnalysisTree.hh"
 #include "CaloCalibration/SourceCalib/inc/SourceFitter.hh"
+#include "CaloCalibration/SourceCalib/inc/SourcePlotter.hh"
 #include <chrono>
 using namespace std::chrono;
 
@@ -29,7 +30,7 @@ int main(int argc, char* argv[]){
 
   TFile *ouptFile = new TFile("paraFile.root", "RECREATE");
   Float_t fpeak, fsigma, chiSq, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,fullResparam,fstResparam,scdResparam,comCnstparam,
-  combetaparam,frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam;//frBKGparam
+  combetaparam,frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam,calibconst;//frBKGparam
   TTree *covar = new TTree("covar","Covariance Plot");
   covar->Branch("Peak", &fpeak,"fpeak/F");
   covar->Branch("Width", &fsigma,"fsigma/F");
@@ -53,23 +54,28 @@ int main(int argc, char* argv[]){
   covar->Branch("frScnd", &frScndparam,"frScndparam/F");
   covar->Branch("frBKG", &frBKGparam,"frBKGparam/F");
   covar->Branch("crystalNo", &crystalNoparam,"crystalNoparam/F");
-
+  covar->Branch("ADC2MeV", &calibconst,"calibconst/F");
   for(int cryNum=anacrys_start; cryNum<anacrys_end; cryNum++){
     TH1F* h = get_data_histogram(cryNum);
     std::cout<<"Running fitter ....."<<std::endl;
     auto start_bin = high_resolution_clock::now();
 
     SourceFitter *fit = new SourceFitter();
-    fit->FitCrystal(h,"nll", cryNum, covar, fpeak,fsigma,chiSq, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,
+    fit->FitCrystal(h,"chi2", cryNum, covar, fpeak,fsigma,chiSq, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,
     fullResparam,fstResparam,scdResparam,comCnstparam,combetaparam,
-    frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam);
+    frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam,calibconst);
 
+ 
     auto end_bin = high_resolution_clock::now();
     std::cout<<" ******** Time take to fit crystal: "<<cryNum<<" "<<duration_cast<seconds>(end_bin - start_bin)<<std::endl;
   };
   ouptFile -> Write();
   ouptFile -> Close();
 
+    TFile *inputFile = new TFile("paraFile.root", "READ");
+    TTree *t = (TTree*)inputFile->Get("covar");
+    SourcePlotter *plot = new SourcePlotter();
+    plot->ParamPlots(t);
   std::cout<<"Finished processing ..."<<std::endl;
   return 0;
 }
