@@ -20,9 +20,7 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   can -> Draw();
   TString cryNum = to_string(crystalNo);
   TString oName = "mu2e_simu_fitSpec_"+ opt+"_" + cryNum + ".root";
-  TString title = "Energy Spectrum of Crystal " + cryNum;
-
-  TFile *ouptFile = new TFile("mu2e_caloSourceFit_" + cryNum + ".root", "RECREATE");
+  TString title = "Crystal " + cryNum;
 
   // obtain the two initial values for the parameters
   double par1 = 2500;
@@ -80,9 +78,6 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
     fitRes->Print("v");
    }  
   if(opt == "nll"){ //binned nll fit
-
-    //RooAddPdf fitFun("fitFun", "firsErg + (secdErg + (fullErg + comPdf))", RooArgList(firsErg, secdErg, fullErg, comPdf), RooArgList(frFrst, frScnd, frFull), kTRUE);
-
     RooAbsReal* nll = fitFun.createNLL(chSpec, Range(48,115.2));
     RooMinimizer m(*nll);
     m.migrad();
@@ -92,12 +87,12 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   }
   // plot components
   chSpec.plotOn(chFrame, MarkerColor(kBlack), LineColor(kBlack), MarkerSize(0.5), Name("chSpec"));
-  fitFun.plotOn(chFrame, LineColor(kRed), LineStyle(1), Name("fullFit"));
+  fitFun.plotOn(chFrame, LineColor(kRed), LineStyle(1), Name("fit"));
   chiSq = chFrame->chiSquare(11);
-  fitFun.plotOn(chFrame, Components(fullErg), LineColor(kOrange), LineStyle(5));
-  fitFun.plotOn(chFrame, Components(firsErg), LineColor(kViolet), LineStyle(5));
-  fitFun.plotOn(chFrame, Components(secdErg), LineColor(kCyan), LineStyle(5));
-  fitFun.plotOn(chFrame, Components(comPdf), LineColor(kBlue), LineStyle(5));
+  fitFun.plotOn(chFrame, Components(fullErg), LineColor(kOrange), LineStyle(5), Name("main"));
+  fitFun.plotOn(chFrame, Components(firsErg), LineColor(kViolet), LineStyle(5), Name("fescape"));
+  fitFun.plotOn(chFrame, Components(secdErg), LineColor(kCyan), LineStyle(5), Name("sescape"));
+  fitFun.plotOn(chFrame, Components(comPdf), LineColor(kBlue), LineStyle(5), Name("background"));
 
   nEvents = h_spec->GetEntries();
   fpeak = fullPeak.getVal();
@@ -121,38 +116,63 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   frFrstparam = frFrst.getVal();
   frScndparam = frScnd.getVal();
   frBKGparam= 1-(frFullparam+frFrstparam+frScndparam);
-  std::cout<< "fraction of background" <<frBKGparam <<std::endl;
   crystalNoparam = crystalNo;
 
   //make pretty plots
-  TPaveLabel *pchi2 = new TPaveLabel(0.20, 0.70, 0.35, 0.80, Form("#chi^{2}/ndf = %4.2f", chiSq), "brNDC");
+  TPaveLabel *ptitle = new TPaveLabel(0.80, 0.90, 0.85, 0.80, Form("Mu2e Simulation"), "brNDC");
+  ptitle -> SetFillStyle(0);
+  ptitle -> SetBorderSize(0);
+  ptitle -> SetTextSize(0.4);
+  ptitle -> SetTextColor(kBlack);
+  ptitle -> SetTextFont(72);
+  ptitle -> SetFillColor(kWhite);
+  chFrame -> addObject(ptitle);
+  TPaveLabel *pnentres = new TPaveLabel(0.15, 0.85, 0.25, 0.75, Form("Nentries = %4.2i", nEvents), "brNDC");
+  pnentres -> SetFillStyle(0);
+  pnentres -> SetBorderSize(0);
+  pnentres -> SetTextSize(0.4);
+  pnentres -> SetTextFont(42);
+  pnentres -> SetTextColor(kBlack);
+  pnentres -> SetFillColor(kWhite);
+  chFrame -> addObject(pnentres);
+  TPaveLabel *pchi2 = new TPaveLabel(0.15, 0.75, 0.25, 0.65, Form("#chi^{2}/ndf = %4.2f", chiSq), "brNDC");
   pchi2 -> SetFillStyle(0);
   pchi2 -> SetBorderSize(0);
-  pchi2 -> SetTextSize(0.25);
+  pchi2 -> SetTextSize(0.4);
+  pchi2 -> SetTextFont(42);
   pchi2 -> SetTextColor(kBlack);
   pchi2 -> SetFillColor(kWhite);
   chFrame -> addObject(pchi2);
-  TPaveLabel *fpk = new TPaveLabel(0.20, 0.85, 0.35, 0.95, Form("peak = %.2f#pm%.2f", fpeak, dpeak), "brNDC");
+  TPaveLabel *fpk = new TPaveLabel(0.15, 0.65, 0.25, 0.55, Form("#mu_{main} = %.2f#pm%.2f", fpeak, dpeak), "brNDC");
   fpk -> SetFillStyle(0);
   fpk -> SetBorderSize(0);
-  fpk -> SetTextSize(0.25);
+  fpk -> SetTextSize(0.4);
+  fpk -> SetTextFont(42);
   fpk -> SetTextColor(kBlack);
   fpk -> SetFillColor(kWhite);
   chFrame -> addObject(fpk);
-  TPaveLabel *fsg = new TPaveLabel(0.20, 0.775, 0.35, 0.875, Form("sigma = %4.2f", fsigma), "brNDC");//dsigma
+  TPaveLabel *fsg = new TPaveLabel(0.15, 0.55, 0.25, 0.45, Form("#sigma_{main} = %4.2f", fsigma), "brNDC");
   fsg -> SetFillStyle(0);
   fsg -> SetBorderSize(0);
-  fsg -> SetTextSize(0.25);
+  fsg -> SetTextSize(0.4);
+  fsg -> SetTextFont(42);
   fsg -> SetTextColor(kBlack);
   fsg -> SetFillColor(kWhite);
   chFrame -> addObject(fsg);
   std::cout << "chi2: " << chiSq << "; Probability: " << Prob(chiSq, 151) << std::endl;
-
+  
   chFrame -> SetYTitle("Events per 25 keV");
+  chFrame -> GetYaxis()->SetTitleOffset(1.0);
   chFrame -> Draw();
-  can -> SaveAs(oName);
+  TLegend* legend = new TLegend(0.5, 0.7);
+  legend->SetBorderSize(0);
+  legend->SetFillStyle(0);
+  legend->AddEntry("main", "main (eqv. 6.13MeV)", "L");
+  legend->AddEntry("fescape", "first escape", "L");
+  legend->AddEntry("sescape", "second escape", "L");
+  legend->AddEntry("background", "background", "L");
+  legend->Draw();
+  can -> SaveAs(oName); 
 
   covar->Fill();
-  ouptFile -> Write();
-  ouptFile -> Close();
 }

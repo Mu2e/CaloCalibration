@@ -30,7 +30,7 @@ namespace CaloSourceCalib{
         SourcePlotter& operator = (const SourcePlotter &);
         virtual ~SourcePlotter() = default;
         #ifndef __CINT__
-        void ParamPlots(TTree* t, TFile *f);        
+        void ParamPlots(TTree* t, TFile *inputFile, TFile *outputFile);        
         #endif
         ClassDef (SourcePlotter,1);
     };
