@@ -28,6 +28,8 @@ int Contains(std::vector<int> v, int x)
 {
   return std::count(v.begin(), v.end(), x);
 }
+
+//std::vector<int> badcrys = {774, 775,776,792, 793,794,795,796,798,814,815,816,818,819,820,822,851,865,881,941, 965,969,1006,1029,1039,1071,1097,1144,1183,1209,1243,1275,1281,1316,1336};
 namespace mu2e {
 
   class SourceCalibDigiAna : public art::EDAnalyzer
@@ -90,6 +92,8 @@ namespace mu2e {
         virtual void analyze(const art::Event& e);
 
      private:
+        //std::ofstream badfile;
+        //std::ofstream goodfile;
         void extractRecoDigi(const art::ValidHandle<CaloDigiCollection>&, double );
 
         const  art::ProductToken<CaloDigiCollection> caloDigisToken_;
@@ -104,6 +108,7 @@ namespace mu2e {
         TH1F* list_of_hists[ncrystals];
   };
 
+  
   void SourceCalibDigiAna::analyze(const art::Event& event)
   {
       if (diagLevel_ > 0) std::cout<<"[SourceCalibDigiAna::analyze] begin"<<std::endl;
@@ -120,8 +125,10 @@ namespace mu2e {
       art::TFileDirectory tfdir = tfs->mkdir( "crystals_ADC" );
       for(int i = 0; i < 1348 ; i++){
         TString histname = "hspec_"+std::to_string(i);
-        list_of_hists[i] = tfdir.make<TH1F>( histname , histname, 300, 0.0, 150);
+        list_of_hists[i] = tfdir.make<TH1F>( histname , histname, 300, 0.0, 120);
       }
+      //badfile.open("badcrys.csv");
+      //goodfile.open("goodcrys.csv");
   }
 
   //--------------------------------------------------
@@ -133,6 +140,7 @@ namespace mu2e {
   //------------------------------------------------------------------------------------------------------------
   void SourceCalibDigiAna::extractRecoDigi(const art::ValidHandle<CaloDigiCollection>& caloDigisHandle, double pbtOffset)
   {
+      
       const auto& caloDigis = *caloDigisHandle;
       ConditionsHandle<CalorimeterCalibrations> calorimeterCalibrations("ignored");
 
@@ -142,8 +150,8 @@ namespace mu2e {
       //int idExist = 0;
       std::vector<int> crystals_in_event;
       std::vector<double> time;
-      double total_energy_in_crystal[ncrystals];
-
+      //double total_energy_in_crystal[ncrystals];
+      std::vector<double> total_energy_in_crystal(ncrystals, 0);
       for (const auto& caloDigi : caloDigis)
       {
           int    SiPMID   = caloDigi.SiPMID();
@@ -175,12 +183,14 @@ namespace mu2e {
                 if (Contains(crystals_in_event, SiPMID/2) == 0) {
                   crystals_in_event.push_back(SiPMID/2);
                   total_energy_in_crystal[SiPMID/2] = eDep;
-                } else{ total_energy_in_crystal[SiPMID/2]+= eDep; }
+                } else{ 
+                  total_energy_in_crystal[SiPMID/2]+= eDep;
+                }
               } else crystals_in_event.push_back(SiPMID/2);
               //list_of_hists[SiPMID/2]->Fill(waveformProcessor_->amplitude(i));
           }
       }
-      
+
       bool passes_time = true; 
       bool passes_ratio = true;
       double difTime = 0;
@@ -205,6 +215,9 @@ namespace mu2e {
         if(passes_time and passes_ratio){
           list_of_hists[id]->Fill(total_energy_in_crystal[id]);
         }
+        /*if (passes_time and passes_ratio and Contains(badcrys, id) == 1) { 
+          badfile<<id<<","<<passes_time<<","<<passes_ratio<<","<<total_energy_in_crystal[id]<<std::endl;
+        }*/
       }
       if (diagLevel_ > 1) std::cout<<"[SourceCalibDigiAna] Total energy reco "<<totEnergyReco <<std::endl;
   }
