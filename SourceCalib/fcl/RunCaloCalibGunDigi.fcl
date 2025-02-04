@@ -8,6 +8,7 @@
 #include "Offline/CommonMC/fcl/prolog.fcl"
 #include "Offline/EventGenerator/fcl/prolog.fcl"
 #include "Production/JobConfig/digitize/prolog.fcl"
+#include "CaloCalibration/SourceCalib/fcl/prolog.fcl"
 
 process_name: SourceCalibSimAna
 
@@ -39,11 +40,8 @@ physics: {
       FindMCPrimary : { module_type:FindMCPrimary}
       @table::EventGenerator.producers
       @table::Digitize.producers
-      @table::CommonMC.producers
       @table::CaloMC.producers
       @table::CaloReco.producers
-      @table::CaloMC.TruthProducers
-
    }
 
     filters: {
@@ -51,28 +49,14 @@ physics: {
     }
 
     analyzers: {
-
-      CaloSourceCalibDigiAna :
-      {
-          module_type         : SourceCalibDigiAna
-          caloDigiCollection  : CaloDigiMaker
-          RawProcessor        : { @table::RawProcessor }
-          TemplateProcessor   : { @table::TemplateProcessor }
-          processorStrategy   : "TemplateFit"
-          digiSampling        : @local::HitMakerDigiSampling
-          ProtonBunchTimeTag  : "EWMProducer"
-          maxChi2Cut          : 2.0
-          diagLevel           : 0
-      }
+      @table::SourceCalib.analyzers
     }
 
     p1: [ generate, g4run,  EWMProducer,
           @sequence::CaloMC.StepSim,
-          @sequence::CommonMC.DigiSim,
           @sequence::CaloMC.DigiSim]
-          //@sequence::CaloReco.CaloRecoDigiMaker]
 
-    e1: [CaloSourceCalibDigiAna]
+    e1: [SourceAna]
 
     trigger_paths: [p1]
     end_paths:     [e1]

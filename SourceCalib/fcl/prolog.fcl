@@ -1,0 +1,26 @@
+#include "Offline/fcl/minimalMessageService.fcl"
+#include "Offline/fcl/standardProducers.fcl"
+#include "Offline/fcl/standardServices.fcl"
+#include "Offline/CaloMC/fcl/prolog.fcl"
+#include "Offline/CaloReco/fcl/prolog.fcl"
+BEGIN_PROLOG
+
+CaloSourceAna :
+        {
+            module_type         : SourceCalibDigiAna
+            caloDigiCollection  : CaloDigiMaker
+            RawProcessor        : { @table::CaloReco.RawProcessor }
+            TemplateProcessor   : { @table::CaloReco.TemplateProcessor }
+            processorStrategy   : "TemplateFit"
+            digiSampling        : @local::HitMakerDigiSampling
+            ProtonBunchTimeTag  : "EWMProducer"
+            maxChi2Cut          : 2.0
+            diagLevel           : 0
+        }
+
+SourceCalib: {
+    analyzers: {
+      SourceAna : @local::CaloSourceAna
+    }
+}
+END_PROLOG
