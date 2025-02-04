@@ -20,7 +20,7 @@ This runs an analyzer which will loop over the simulated events and analyze the 
 To accumulate all the events for a give crystal run the MakeAnalysisTree program as follows:
 
 ```
-bash-5.1$ ./build/al9-prof-e28-p057/CaloCalibration/bin/MakeAnalysisTree chooseCrystal
+bash-5.1$ ./build/al9-prof-e28-p057/CaloCalibration/bin/MakeAnalysisTree 674 1348 "nll"
 ========== Welcome to the Mu2e Source Calibration Analysis ==========
 crystal to be analyzed (int) : 
 1322
@@ -32,11 +32,11 @@ Running pre-processing .....
 Finished pre-processing ...
 
 ```
-the "chooseCrystal" option allows calibration of a single crystal e.g. 1322. If you run without that argument the code loops over all crystals, creating a .root ntuple for each.
+The arguments are the crystal ranges you want to fit to.
 
 ## Fitting
 
-Once you have the per crystal ntuples you can fit the RooFit code these. The SourceFitter class utilizes RooFit to fit an individual crystal. 
+Once you have the per crystal ntuples you can fit the RooFit code these. The SourceFitter class utilizes RooFit to fit an individual crystal. The user can chose between an nll or chi2 fit by setting the  third input arg to either "nll" or "chi2".
 
 The code is currently setup to loop over the chosen crystals, fitting to each one and storing the resulting fit parameters. An intermediate .root file is created. In theory, this would be our archive table.
 

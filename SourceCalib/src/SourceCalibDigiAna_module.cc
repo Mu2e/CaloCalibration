@@ -24,6 +24,7 @@
 #include "TTree.h"
 
 constexpr int ncrystals = 1348;
+constexpr int nsipm = 2696;
 int Contains(std::vector<int> v, int x)
 {
   return std::count(v.begin(), v.end(), x);
@@ -106,6 +107,7 @@ namespace mu2e {
         int                                          diagLevel_;
         std::unique_ptr<CaloWaveformProcessor>       waveformProcessor_;
         TH1F* list_of_hists[ncrystals];
+        TH1F* list_of_sipm_hists[nsipm];
   };
 
   
@@ -123,9 +125,13 @@ namespace mu2e {
   void SourceCalibDigiAna::beginJob(){
       art::ServiceHandle<art::TFileService> tfs;
       art::TFileDirectory tfdir = tfs->mkdir( "crystals_ADC" );
-      for(int i = 0; i < 1348 ; i++){
-        TString histname = "hspec_"+std::to_string(i);
+      for(int i = 0; i < ncrystals ; i++){
+        TString histname = "cry_"+std::to_string(i);
         list_of_hists[i] = tfdir.make<TH1F>( histname , histname, 300, 0.0, 120);
+      }
+      for(int i = 0; i < nsipm ; i++){
+        TString histname = "sipm_"+std::to_string(i);
+        list_of_sipm_hists[i] = tfdir.make<TH1F>( histname , histname, 300, 0.0, 120);
       }
       //badfile.open("badcrys.csv");
       //goodfile.open("goodcrys.csv");
@@ -147,10 +153,9 @@ namespace mu2e {
       double totEnergyReco(0);
       std::vector<double> x{},y{};
       
-      //int idExist = 0;
+
       std::vector<int> crystals_in_event;
       std::vector<double> time;
-      //double total_energy_in_crystal[ncrystals];
       std::vector<double> total_energy_in_crystal(ncrystals, 0);
       for (const auto& caloDigi : caloDigis)
       {

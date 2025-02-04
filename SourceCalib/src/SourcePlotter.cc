@@ -1,5 +1,6 @@
 #include "CaloCalibration/SourceCalib/inc/SourcePlotter.hh"
 #include <chrono>
+#include <numeric>
 using namespace std::chrono;
 using namespace CaloSourceCalib;
 
@@ -20,7 +21,7 @@ void SourcePlotter::ParamPlots(TTree* inputTree, TFile *inputFile, TFile *output
         inputTree->GetEntry(entry);
         crystalNos.push_back(crystalNo);
         Peaks.push_back(1/(Peak/6.13));
-        PeakErrs.push_back(PeakErr);
+        PeakErrs.push_back((1/(Peak/6.13))*(PeakErr/Peak));
         ChiSqs.push_back(ChiSq);
         Events.push_back(nEvents);
         EventsErr.push_back(sqrt(nEvents));       
@@ -30,7 +31,7 @@ void SourcePlotter::ParamPlots(TTree* inputTree, TFile *inputFile, TFile *output
     TGraphErrors grpeaks(crystalNos.size(), &crystalNos[0], &Peaks[0], nullptr, &PeakErrs[0]);
     TGraph grchi2(crystalNos.size(), &crystalNos[0], &ChiSqs[0]);
     TGraphErrors grN(crystalNos.size(), &crystalNos[0], &Events[0], nullptr, &EventsErr[0]);
-
+    
     // Customize the plot
     grpeaks.SetTitle("Cry Number vs MeV/ADC;Crystal Number;MeV/ADC");
     grpeaks.SetMarkerStyle(20);
@@ -38,10 +39,11 @@ void SourcePlotter::ParamPlots(TTree* inputTree, TFile *inputFile, TFile *output
     grpeaks.SetMarkerColor(kBlue);
     grpeaks.SetLineColor(kBlue);
     TCanvas canvas("canvas", "Scatter Plot", 800, 600);
-    grpeaks.Draw("AP"); // A for axis, P for points
+    grpeaks.Draw("APsame"); // A for axis, P for points
     outputFile->cd();
     grpeaks.Write("Peaks");
-
+    //canvas.SaveAs("Peaks.root");
+    
     grchi2.SetTitle("Cry Number vs Chisq ;Crystal Number; Chi Square");
     grchi2.SetMarkerStyle(20);
     grchi2.SetMarkerSize(0.8);

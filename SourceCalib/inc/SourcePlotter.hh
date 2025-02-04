@@ -13,6 +13,7 @@
 #include "TCanvas.h"
 #include "TMath.h"
 #include "TGraph.h"
+#include "TLine.h"
 #include "TGraphErrors.h"
 #include "TAxis.h"
 #include <Riostream.h>
