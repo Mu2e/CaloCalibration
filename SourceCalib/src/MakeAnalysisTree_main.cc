@@ -21,18 +21,21 @@ int main(int argc, char* argv[]){
   std::cout<<"========== Welcome to the Mu2e Source Calibration Analysis =========="<<std::endl;
   int anacrys_start = 674; //starting crystal//675
   int anacrys_end = 1348; //final crystal//680
-  std::cout<<"choosing crystal "<<std::endl;
+  TString alg = "nll"; // fitting alg (nll=NLL, chi2=chi2 fit)
   if(strcmp( argv[1], "chooseCrystal") == 0 ){
     cout<<"crystal to be analyzed (int) : "<<endl;
     cin>>anacrys_start;
     anacrys_end = anacrys_start+1;
   }
-
-  TFile *ouptFile = new TFile("paraFile.root", "RECREATE");
-  Float_t fpeak, fsigma, chiSq, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,fullResparam,fstResparam,scdResparam,comCnstparam,
-  combetaparam,frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam,calibconst;//frBKGparam
+ 
+  TFile *table = new TFile("arXivTable.root", "RECREATE");
+  Int_t nEvents;
+  Float_t fpeak, dpeak, fsigma, chiSq, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,fullResparam,fstResparam,scdResparam,comCnstparam,
+  combetaparam,frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam;//frBKGparam
   TTree *covar = new TTree("covar","Covariance Plot");
+  covar->Branch("nEvents", &nEvents,"nEvents/I");
   covar->Branch("Peak", &fpeak,"fpeak/F");
+  covar->Branch("PeakErr", &dpeak,"dpeak/F");
   covar->Branch("Width", &fsigma,"fsigma/F");
   covar->Branch("ChiSq", &chiSq,"chiSq/F");
   covar->Branch("1stPeak", &fstpeak,"fstpeak/F");
@@ -54,28 +57,27 @@ int main(int argc, char* argv[]){
   covar->Branch("frScnd", &frScndparam,"frScndparam/F");
   covar->Branch("frBKG", &frBKGparam,"frBKGparam/F");
   covar->Branch("crystalNo", &crystalNoparam,"crystalNoparam/F");
-  covar->Branch("ADC2MeV", &calibconst,"calibconst/F");
-  for(int cryNum=anacrys_start; cryNum<anacrys_end; cryNum++){
+  auto start_bin = high_resolution_clock::now();
+  //for(int cryNum=anacrys_start; cryNum<anacrys_end; cryNum++){ //uncomment
+	for(int cryNum=1330; cryNum<1348; cryNum++){//674 --> 1348 //delete before push
     TH1F* h = get_data_histogram(cryNum);
-    std::cout<<"Running fitter ....."<<std::endl;
-    auto start_bin = high_resolution_clock::now();
-
     SourceFitter *fit = new SourceFitter();
-    fit->FitCrystal(h,"chi2", cryNum, covar, fpeak,fsigma,chiSq, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,
+    fit->FitCrystal(h,alg, cryNum, covar, nEvents, fpeak, dpeak, fsigma,chiSq, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,
     fullResparam,fstResparam,scdResparam,comCnstparam,combetaparam,
-    frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam,calibconst);
-
- 
-    auto end_bin = high_resolution_clock::now();
-    std::cout<<" ******** Time take to fit crystal: "<<cryNum<<" "<<duration_cast<seconds>(end_bin - start_bin)<<std::endl;
+    frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam);
   };
-  ouptFile -> Write();
-  ouptFile -> Close();
 
-    TFile *inputFile = new TFile("paraFile.root", "READ");
-    TTree *t = (TTree*)inputFile->Get("covar");
-    SourcePlotter *plot = new SourcePlotter();
-    plot->ParamPlots(t);
+  auto end_bin = high_resolution_clock::now();
+  std::cout<<" ******** Av. Time take to fit crystal: "<<duration_cast<seconds>((end_bin - start_bin)/(anacrys_end-anacrys_start))<<std::endl;
+
+  
+  TFile *globalPlots = new TFile("globalPlots.root", "RECREATE");
+  SourcePlotter *plot = new SourcePlotter();
+  plot->ParamPlots(covar, table, globalPlots);
+  table -> Write();
+  table -> Close();
+  globalPlots -> Write();
+  globalPlots -> Close();
   std::cout<<"Finished processing ..."<<std::endl;
   return 0;
 }
