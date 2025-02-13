@@ -6,13 +6,18 @@ using namespace std::chrono;
 
 using namespace CaloSourceCalib;
 
-TString filepath = "/pnfs/mu2e/tape/usr-nts/nts/sophie/SourceCalibSimAna/ADCCuts/root/60/89/nts.sophie.SourceCalibSimAna.ADCCuts.1.root";
+TString filepath_disk0 = "/pnfs/mu2e/tape/usr-nts/nts/sophie/SourceCalibSimAna/Disk0/root/9c/e5//nts.sophie.SourceCalibSimAna.Disk0.2.root";
+
+TString filepath_disk1 = "/pnfs/mu2e/tape/usr-nts/nts/sophie/SourceCalibSimAna/Disk1/root/fc/49/nts.sophie.SourceCalibSimAna.Disk1.2.root";
 
 /*function to extract the TTree from the SourceCalibAna output*/
-TH1F* get_data_histogram(int cryNum){
+TH1F* get_data_histogram(int cryNum, int disk){
+    TString filepath;
+    if(disk == 0) filepath = filepath_disk0;
+    if(disk == 1) filepath = filepath_disk1;
     TFile *f =  new TFile(filepath);
     TString crystalNumber = to_string(cryNum);
-    TH1F* hist = (TH1F*)f->Get("SourceAna/crystals_ADC/hspec_" + crystalNumber); 
+    TH1F* hist = (TH1F*)f->Get("SourceAna/crystals_ADC/cry_" + crystalNumber); 
     return hist;
 }
 
@@ -22,7 +27,7 @@ int main(int argc, char* argv[]){
   int anacrys_start = std::atoi(argv[1]); //starting crystal//675
   int anacrys_end = std::atoi(argv[2]); //final crystal//680
   TString alg = argv[3]; // fitting alg (nll=NLL, chi2=chi2 fit)
- 
+  int disk = std::atoi(argv[4]); //disk number 0 or 1
   TFile *table = new TFile("arXivTable.root", "RECREATE");
   Int_t nEvents;
   Float_t fpeak, dpeak, fsigma, chiSq, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,fullResparam,fstResparam,scdResparam,comCnstparam,
@@ -54,7 +59,7 @@ int main(int argc, char* argv[]){
   covar->Branch("crystalNo", &crystalNoparam,"crystalNoparam/F");
   auto start_bin = high_resolution_clock::now();
   for(int cryNum=anacrys_start; cryNum<anacrys_end; cryNum++){
-    TH1F* h = get_data_histogram(cryNum);
+    TH1F* h = get_data_histogram(cryNum, disk);
     SourceFitter *fit = new SourceFitter();
     fit->FitCrystal(h,alg, cryNum, covar, nEvents, fpeak, dpeak, fsigma,chiSq, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,
     fullResparam,fstResparam,scdResparam,comCnstparam,combetaparam,

@@ -32,6 +32,7 @@ physics: {
         phimax : 2.0
         tmin  :  500.
         tmax : 1694.//TODO - shouldnt need this time
+        nDisk : 0 //Change me to run over other disk
       }
 
       g4run : @local::g4run
