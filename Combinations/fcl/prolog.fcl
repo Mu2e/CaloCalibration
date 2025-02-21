@@ -18,6 +18,8 @@ CaloCosmicCombAna :
             diagLevel           : 0
             ratioCut            : 0.8
             timeCut             : 20
+            endBin              : 1000
+            docuts              : false
         }
 
 CaloCosmicComb: {
