@@ -87,7 +87,6 @@ void SourcePlotter::ParamPlots(TTree* inputTree, TFile *inputFile, TFile *output
     outputFile->cd();
     grpeaks.Write("Peaks");
     canvas.SaveAs("Peaks.root");
-
     
     grchi2.SetTitle("Cry Number vs Chisq ;Crystal Number; Chi Square");
     grchi2.SetMarkerStyle(20);

@@ -52,6 +52,8 @@ namespace mu2e {
            fhicl::Atom<double>                                 ratioCut          { Name("ratioCut"),          Comment("ratio of energy in crystal to others"), 0.8 };
            fhicl::Atom<double>                                timeCut          { Name("timeCut"),          Comment("time for digis in same event"), 20 };
            fhicl::Atom<int>                                    diagLevel           { Name("diagLevel"),           Comment("Diagnosis level") };
+           fhicl::Atom<double>                                    endBin           { Name("endBin"),           Comment("finalBin in ADC"),120 };
+           fhicl::Atom<bool>                                    docuts           { Name("docuts"),           Comment("apply cuts"),true };
         };
 
         explicit SourceCalibDigiAna(const art::EDAnalyzer::Table<Config>& config) :
@@ -63,7 +65,9 @@ namespace mu2e {
            maxChi2Cut_        (config().maxChi2Cut()),
            ratioCut_          (config().ratioCut()),
            timeCut_          (config().timeCut()),
-           diagLevel_         (config().diagLevel())
+           diagLevel_         (config().diagLevel()),
+           endBin_         (config().endBin()),
+           docuts_          (config().docuts())
         {
             std::map<std::string, processorStrategy> spmap;
             spmap["RawExtract"]  = RawExtract;
@@ -105,6 +109,8 @@ namespace mu2e {
         double                                       ratioCut_;
         double                                       timeCut_;
         int                                          diagLevel_;
+        double                                       endBin_;
+        bool                                          docuts_;
         std::unique_ptr<CaloWaveformProcessor>       waveformProcessor_;
         TH1F* list_of_crys_hists[ncrystals];
         TH1F* list_of_sipm_hists[nsipms];
@@ -128,11 +134,13 @@ namespace mu2e {
       art::TFileDirectory sipmdir = tfs->mkdir( "sipm_ADC" );
       for(int i = 0; i < ncrystals ; i++){
         TString histname = "cry_"+std::to_string(i);
-        list_of_crys_hists[i] = crydir.make<TH1F>( histname , histname, 300, 0.0, 120);
+
+        list_of_crys_hists[i] = crydir.make<TH1F>( histname , histname, 300, 0.0, endBin_);
       }
       for(int i = 0; i < nsipms ; i++){
         TString histname = "sipm_"+std::to_string(i);
-        list_of_sipm_hists[i] = sipmdir.make<TH1F>( histname , histname, 300, 0.0, 120);
+        list_of_sipm_hists[i] = sipmdir.make<TH1F>( histname , histname, 300, 0.0, endBin_);
+
       }
       //badfile.open("badcrys.csv");
       //goodfile.open("goodcrys.csv");
@@ -222,14 +230,14 @@ namespace mu2e {
           if(id == id2) edepTarget += total_energy_in_crystal[id];
           else edepOthers += total_energy_in_crystal[id];
         }
-        if(difTime_cry > timeCut_){
+        if(docuts_ and difTime_cry > timeCut_){
           passes_time_cry = false;
         }
 
-        if(edepTarget / (edepTarget + edepOthers) < ratioCut_){
+        if(docuts_ and edepTarget / (edepTarget + edepOthers) < ratioCut_){
           passes_ratio_cry = false;
         }
-        if(passes_time_cry and passes_ratio_cry){
+        if( (passes_time_cry and passes_ratio_cry)){
           list_of_crys_hists[id]->Fill(total_energy_in_crystal[id]);
         }
         /*if (passes_time and passes_ratio and Contains(badcrys, id) == 1) { 

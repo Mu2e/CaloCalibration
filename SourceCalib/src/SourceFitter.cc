@@ -79,6 +79,8 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   if(opt == "nll"){ //binned nll fit
     RooAbsReal* nll = fitFun.createNLL(chSpec, Range(48,115.2));
     RooMinimizer m(*nll);
+    //m.setEps(100);
+    //m.setMaxIterations(2000);
     m.migrad();
     m.hesse();
     m.minos();

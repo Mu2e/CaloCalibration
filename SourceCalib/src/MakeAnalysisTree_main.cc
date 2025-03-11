@@ -29,7 +29,6 @@ int main(int argc, char* argv[]){
   int anacrys_end = std::atoi(argv[2]); //final crystal//680
   TString alg = argv[3]; // fitting alg (nll=NLL, chi2=chi2 fit)
   int disk = std::atoi(argv[4]); //disk number 0 or 1
- 
   TFile *table = new TFile("arXivTable.root", "RECREATE");
   Int_t nEvents;
   Float_t fpeak, dpeak, fsigma, chiSq,pvalue, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,fullResparam,fstResparam,scdResparam,

@@ -1,0 +1,23 @@
+// Driver FCL for the calocalibration (Reconstruct and truth)
+#include "Offline/fcl/minimalMessageService.fcl"
+#include "Offline/fcl/standardProducers.fcl"
+#include "Offline/fcl/standardServices.fcl"
+#include "CaloCalibration/Combinations/fcl/prolog.fcl"
+
+process_name: Combinations
+
+source : { module_type : RootInput }
+
+services : @local::Services.Reco
+services.TFileService : { fileName : "nts.owner.CosmicCalibSimAna.version.sequencer.root"}
+
+physics: {
+
+    analyzers: {
+      @table::CaloCosmicComb.analyzers
+    }
+
+    e1: [CaloCosmicCombAna]
+
+    end_paths:     [e1]
+}
