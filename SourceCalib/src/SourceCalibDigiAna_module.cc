@@ -134,11 +134,13 @@ namespace mu2e {
       art::TFileDirectory sipmdir = tfs->mkdir( "sipm_ADC" );
       for(int i = 0; i < ncrystals ; i++){
         TString histname = "cry_"+std::to_string(i);
+
         list_of_crys_hists[i] = crydir.make<TH1F>( histname , histname, 300, 0.0, endBin_);
       }
       for(int i = 0; i < nsipms ; i++){
         TString histname = "sipm_"+std::to_string(i);
         list_of_sipm_hists[i] = sipmdir.make<TH1F>( histname , histname, 300, 0.0, endBin_);
+
       }
       //badfile.open("badcrys.csv");
       //goodfile.open("goodcrys.csv");
@@ -216,7 +218,6 @@ namespace mu2e {
       // For crystals:
       bool passes_time_cry = true; 
       bool passes_ratio_cry = true;
-      
       double difTime_cry = 0;
       if(time.size() !=0) {
         sort(time.begin(), time.end());

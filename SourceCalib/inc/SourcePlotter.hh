@@ -13,11 +13,20 @@
 #include "TCanvas.h"
 #include "TMath.h"
 #include "TGraph.h"
+#include "TLegend.h"
 #include "TLine.h"
 #include "TGraphErrors.h"
 #include "TAxis.h"
 #include <Riostream.h>
 #include <vector>
+#include <numeric>
+
+#include "TPaveStats.h"
+#include "TPaveText.h"
+#include "TLatex.h"
+#include "TLegend.h"
+#include "TPaveLabel.h"
+#include "TAttFill.h"
 
 using namespace std;
 using namespace TMath;
