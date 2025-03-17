@@ -23,7 +23,6 @@ TH1F* get_data_histogram(int cryNum, int disk){
 
 /*main function allows a loop over all crystals or a choice of a single crystal*/
 int main(int argc, char* argv[]){
-/*function to extract the TTree from the SourceCalibAna output*/
   std::cout<<"========== Welcome to the Mu2e Source Calibration Analysis =========="<<std::endl;
   int anacrys_start = std::atoi(argv[1]); //starting crystal//675
   int anacrys_end = std::atoi(argv[2]); //final crystal//680
@@ -31,15 +30,14 @@ int main(int argc, char* argv[]){
   int disk = std::atoi(argv[4]); //disk number 0 or 1
   TFile *table = new TFile("arXivTable.root", "RECREATE");
   Int_t nEvents;
-  Float_t fpeak, dpeak, fsigma, chiSq,pvalue, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,fullResparam,fstResparam,scdResparam,
-  frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam,comCnstparam,combetaparam, minimiserstatus;
+  Float_t fpeak, dpeak, fsigma, chiSq, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,fullResparam,fstResparam,scdResparam,comCnstparam,
+  combetaparam,frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam;//frBKGparam
   TTree *covar = new TTree("covar","Covariance Plot");
   covar->Branch("nEvents", &nEvents,"nEvents/I");
   covar->Branch("Peak", &fpeak,"fpeak/F");
   covar->Branch("PeakErr", &dpeak,"dpeak/F");
   covar->Branch("Width", &fsigma,"fsigma/F");
   covar->Branch("ChiSq", &chiSq,"chiSq/F");
-  covar->Branch("Pvalue", &pvalue,"pvalue/F");
   covar->Branch("1stPeak", &fstpeak,"fstpeak/F");
   covar->Branch("1stWidth", &fstsigma,"fstsigma/F");
   covar->Branch("2ndPeak", &scdpeak,"scdpeak/F");
@@ -59,16 +57,13 @@ int main(int argc, char* argv[]){
   covar->Branch("frScnd", &frScndparam,"frScndparam/F");
   covar->Branch("frBKG", &frBKGparam,"frBKGparam/F");
   covar->Branch("crystalNo", &crystalNoparam,"crystalNoparam/F");
-  covar->Branch("convergancestatus", &minimiserstatus,"minimiserstatus/F");  
   auto start_bin = high_resolution_clock::now();
-
   for(int cryNum=anacrys_start; cryNum<anacrys_end; cryNum++){
     TH1F* h = get_data_histogram(cryNum, disk);
     SourceFitter *fit = new SourceFitter();
-    fit->FitCrystal(h,alg, cryNum, covar, nEvents, fpeak, dpeak, fsigma,chiSq,pvalue, fstpeak, fstsigma,
-    scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,
-    fullResparam,fstResparam,scdResparam, frFullparam,frFrstparam,frScndparam,crystalNoparam,
-    frBKGparam,comCnstparam,combetaparam,minimiserstatus);
+    fit->FitCrystal(h,alg, cryNum, covar, nEvents, fpeak, dpeak, fsigma,chiSq, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,
+    fullResparam,fstResparam,scdResparam,comCnstparam,combetaparam,
+    frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam);
   };
 
   auto end_bin = high_resolution_clock::now();
