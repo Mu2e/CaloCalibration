@@ -22,6 +22,7 @@ services.TFileService : { fileName : "nts.owner.SourceCalibSimAna.version.sequen
 services.SeedService.baseSeed : 99
 services.SeedService.maxUniqueEngines : 20
 
+
 physics: {
     producers: {
       generate: {
@@ -30,8 +31,9 @@ physics: {
         cosmax :  1.0
         phimin :  0.0
         phimax : 2.0
-        tmin  :  500.
-        tmax : 1694.//TODO - shouldnt need this time
+        tmin  :  0.
+        tmax : 100000.//Off-spill
+        nDisk : 0 //Change me to run over other disk
       }
 
       g4run : @local::g4run
@@ -39,46 +41,32 @@ physics: {
       EWMProducer : { module_type:EventWindowMarkerProducer}
       FindMCPrimary : { module_type:FindMCPrimary}
       @table::EventGenerator.producers
-      @table::Digitize.producers
-      //@table::CommonMC.producers
+      //@table::Digitize.producers
       @table::CaloMC.producers
-      @table::CaloReco.producers
-      @table::CaloCluster.producers
-
    }
 
-    filters: {
-      @table::Digitize.filters
-    }
-
-    analyzers: {
-
-      CaloSourceCalibAna: {
-        module_type           : SourceCalibAna
-        CaloHitCollection     : CaloHitMaker
-        CaloHitMCCollection    : CaloHitTruthMatch
-      }
-
-    }
-
     p1: [ generate, g4run,  EWMProducer,
-          @sequence::CaloMC.StepSim,
-          //@sequence::CommonMC.DigiSim,
-          @sequence::CaloMC.DigiSim,
-          @sequence::CaloReco.Reco,
-          @sequence::CaloCluster.Reco,
-          @sequence::CaloMC.TruthMatch]
+          @sequence::CaloMC.StepSim]
+  trigger_paths: [p1]
+  
+ }   
 
-    e1: [CaloSourceCalibAna]
+outputs:{
 
-    trigger_paths: [p1]
-    end_paths:     [e1]
+  CalibOutput : {
+    module_type : RootOutput
+    fileName    : "dts.owner.SourceCalib.version.sequencer.art"
+    outputCommands : [ "keep *_*_*_*"]
+  }
 }
+      
+physics.EndPath : [CalibOutput]
+physics.end_paths: [EndPath]
 
 physics.producers.CaloHitTruthMatch.primaryParticle : "generate"
 physics.producers.FindMCPrimary.PrimaryProcess : "mu2eCaloCalib"
 
-physics.producers.EWMProducer.SpillType : 0
+physics.producers.EWMProducer.SpillType : 0 //Off-spill
 physics.producers.muonTimeMap.applyToGenIds : [ "StoppedParticleReactionGun", "dioTail", "ExternalRMC", "InternalRMC",
 "MuCapProtonGenTool", "MuCapDeuteronGenTool", "DIOGenTool", "MuCapNeutronGenTool", "MuCapPhotonGenTool", "MuCapGammaRayGenTool"]
 
