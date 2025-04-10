@@ -26,8 +26,8 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   RooRealVar crysADC("crysADC", "ADC[counts]", 48, 120);
   RooRealVar ergElec("ergElec", "electron energy in ADC", 8.176);
 	RooRealVar fcbalpha("fcbalpha", "fcbalpha",0.5, 0.1, 5);
-  RooRealVar fcbndeg("fcbndeg", "fcbndeg",10, 1, 25);//10, 1, 40);
-  RooRealVar A("A", "coeff of E",0.02,0.001,1);//0.02,0.001,3);
+  RooRealVar fcbndeg("fcbndeg", "fcbndeg",10, 1, 40);
+  RooRealVar A("A", "coeff of E",0.02,0.001,3);
   RooRealVar B("B", "const B", 0.00405,0.0001,2);
   RooRealVar C("C", "const C",0.0027,0.0001,3);//Electronic noise in MeV 
   
@@ -52,26 +52,29 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   RooCBShape secdErg("secdErg", "second escape peak", crysADC, scdEsPeak, scdWidth, fcbalpha, fcbndeg);
   
   // logistic background:
-  RooRealVar comCnst("comCnst", "comCnst",  200, 160, 1000);//par1, 160, 5120);
-  RooRealVar combeta("combeta", "combeta",50, 4, 100);//par2, 4, 480);
+  RooRealVar comCnst("comCnst", "comCnst",  50, 10, 200);//par1, 160, 5120);//~100
+  RooRealVar combeta("combeta", "combeta",50, 4, 480);//par2, 4, 480);
   RooGenericPdf comPdf("comPdf", "logistic", "1.0/(1.0+exp((crysADC-comCnst)/combeta))",
              RooArgSet(crysADC, comCnst, combeta));
   
-    // Number of events in each peak
+   /* // Number of events in each peak
   RooRealVar frFull("NumFull", "Number of full peak", h_spec->GetEntries(), 0, h_spec->GetEntries());
   RooRealVar frFrst("NumFrst", "Number of first escape peak", h_spec->GetEntries(), 0, h_spec->GetEntries());
   RooRealVar frScnd("NumScnd", "Number of second escape peak", h_spec->GetEntries(), 0, h_spec->GetEntries());
-  RooRealVar frBKG("NumBKG", "Number of background events", h_spec->GetEntries(), 0, h_spec->GetEntries());
-  
+  RooRealVar frBKG("NumBKG", "Number of background events", h_spec->GetEntries(), 0, h_spec->GetEntries());*/
+  // Fraction of events in each peak
+  RooRealVar frFull("frFull", "Fraction of full peak",0.3,0.25, 1);
+  RooRealVar frFrst("frFrst", "Fraction of first escape peak",0.5,0.1, 1);
+  RooRealVar frScnd("frScnd", "Fraction of second escape peak", 0.1, 0.1, 1);
+
   //preparing RooPlot
   RooPlot *chFrame = crysADC.frame(Title(title));
   RooDataHist chSpec("crysADC","crysADC", crysADC, h_spec);
   // combined fit function
-	RooAddPdf fitFun("fitFun", "firsErg + (secdErg + (fullErg +comPdf))", RooArgList(firsErg, secdErg, fullErg,comPdf), RooArgList(frFrst, frScnd, frFull,frBKG) );
+	RooAddPdf fitFun("fitFun", "firsErg + (secdErg + (fullErg +comPdf))", RooArgList(firsErg, secdErg, fullErg,comPdf), RooArgList(frFrst, frScnd, frFull));//,frBKG) );
 	
   if(opt == "chi2"){ //binned chi2 fit
-    RooFitResult *fitRes = fitFun.chi2FitTo(chSpec, Range(48,115.2), Strategy(1),Hesse(false),
-    MaxCalls(10000),Extended(true),PrintLevel(1),Save());
+    RooFitResult *fitRes = fitFun.chi2FitTo(chSpec, Range(48,115.2),Hesse(kTRUE),Minos(kTRUE), Strategy(1),MaxCalls(10000),PrintLevel(1),Save());//,Extended(true),Hesse(kTRUE),Minos(kTRUE)
     fitRes->Print("v");
     minimiserstatus = fitRes->status();
    }    
@@ -131,10 +134,11 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   scdResparam = scdRes.getVal();
   comCnstparam = comCnst.getVal();
   combetaparam = combeta.getVal();
-  frFullparam = frFull.getVal()/nEvents;
-  frFrstparam = frFrst.getVal()/nEvents;
-  frScndparam = frScnd.getVal()/nEvents;
-  frBKGparam= frBKG.getVal()/nEvents;
+  frFullparam = frFull.getVal();///nEvents;
+  frFrstparam = frFrst.getVal();///nEvents;
+  frScndparam = frScnd.getVal();///nEvents;
+  frBKGparam= 1-(frFullparam+frFrstparam+frScndparam);
+  //frBKGparam= frBKG.getVal();///nEvents;
   crystalNoparam = crystalNo;
 
   //make pretty plots

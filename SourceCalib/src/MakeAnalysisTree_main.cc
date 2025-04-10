@@ -77,7 +77,7 @@ int main(int argc, char* argv[]){
   
   TFile *globalPlots = new TFile("globalPlots.root", "RECREATE");
   SourcePlotter *plot = new SourcePlotter();
-  plot->ParamPlots(covar, table, globalPlots);
+  plot->ParamPlots(covar, table, globalPlots);//add arguement of crynum
   table -> Write();
   table -> Close();
   globalPlots -> Write();
