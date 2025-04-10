@@ -4,7 +4,7 @@ using namespace TMath;
 using namespace RooFit;
 using namespace CaloSourceCalib;
 
-void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *covar, Int_t &nEvents, Float_t &fpeak, Float_t &dpeak, Float_t &fsigma, Float_t &chiSq,Float_t &pvalue, Float_t &fstpeak,Float_t &fstsigma, Float_t &scdpeak,Float_t &scdsigma,Float_t &fcbalphaparam,Float_t &fcbndegparam,Float_t &Aparam,Float_t &Bparam, Float_t &Cparam, Float_t &fullResparam, Float_t &fstResparam,Float_t &scdResparam, Float_t &frFullparam, Float_t &frFrstparam,Float_t &frScndparam,Float_t &crystalNoparam,Float_t &frBKGparam,Float_t &comCnstparam, Float_t &combetaparam, Float_t &minimiserstatus){
+void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *covar, Int_t &nEvents, Float_t &fpeak, Float_t &dpeak, Float_t &fsigma, Float_t &chiSq, Float_t &fstpeak,Float_t &fstsigma, Float_t &scdpeak,Float_t &scdsigma,Float_t &fcbalphaparam,Float_t &fcbndegparam,Float_t &Aparam,Float_t &Bparam, Float_t &Cparam, Float_t &fullResparam, Float_t &fstResparam,Float_t &scdResparam,Float_t &comCnstparam, Float_t &combetaparam, Float_t &frFullparam, Float_t &frFrstparam,Float_t &frScndparam,Float_t &crystalNoparam,Float_t &frBKGparam){//Float_t &frBKGparam
     
   // set stlye optionsr
   gStyle -> SetOptFit(1111);
@@ -22,9 +22,15 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   TString oName = "mu2e_simu_fitSpec_"+ opt+"_" + cryNum + ".root";
   TString title = "Crystal " + cryNum;
 
+  // obtain the two initial values for the parameters
+  double par1 = 2500;
+  double par2 = 50;
+  //double ADC_conv = 0.0625;
+
   //parameters
   RooRealVar crysADC("crysADC", "ADC[counts]", 48, 120);
   RooRealVar ergElec("ergElec", "electron energy in ADC", 8.176);
+
 	RooRealVar fcbalpha("fcbalpha", "fcbalpha",0.5, 0.1, 5);
   RooRealVar fcbndeg("fcbndeg", "fcbndeg",10, 1, 40);
   RooRealVar A("A", "coeff of E",0.02,0.001,3);
@@ -32,7 +38,7 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   RooRealVar C("C", "const C",0.0027,0.0001,3);//Electronic noise in MeV 
   
   //Full peak:
-  RooRealVar fullPeak("fullPeak", "full peak",96.8, 85, 105);
+  RooRealVar fullPeak("fullPeak", "full peak", 96.8, 80, 108);
   RooFormulaVar fullRes("fullRes","full peak resolution","0.98650796*sqrt(pow(A/pow(fullPeak/1000,0.25),2)+pow(B/0.0625,2)+pow(C/(fullPeak/1000),2))", RooArgSet(A,B,C,fullPeak));    
   RooFormulaVar fullWidth("fullWidth", "width of the full peak", "fullPeak*fullRes",RooArgSet(fullPeak, fullRes));
   
@@ -71,14 +77,13 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   RooPlot *chFrame = crysADC.frame(Title(title));
   RooDataHist chSpec("crysADC","crysADC", crysADC, h_spec);
   // combined fit function
+
 	RooAddPdf fitFun("fitFun", "firsErg + (secdErg + (fullErg +comPdf))", RooArgList(firsErg, secdErg, fullErg,comPdf), RooArgList(frFrst, frScnd, frFull));//,frBKG) );
 	
   if(opt == "chi2"){ //binned chi2 fit
     RooFitResult *fitRes = fitFun.chi2FitTo(chSpec, Range(48,115.2),Hesse(kTRUE),Minos(kTRUE), Strategy(1),MaxCalls(10000),PrintLevel(1),Save());//,Extended(true),Hesse(kTRUE),Minos(kTRUE)
     fitRes->Print("v");
-    minimiserstatus = fitRes->status();
-   }    
-      
+   }  
   if(opt == "nll"){ //binned nll fit
     RooAbsReal* nll = fitFun.createNLL(chSpec, Range(48,115.2));
     RooMinimizer m(*nll);
@@ -86,31 +91,13 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
     //m.setMaxIterations(2000);
     m.migrad();
     m.hesse();
-    m.minos();
-    m.setStrategy(1);
-    m.setMaxIterations(10000);
-    m.setPrintLevel(1); 
     RooFitResult *fitRes = m.save();
     fitRes->Print("v");
-
   }
   // plot components
   chSpec.plotOn(chFrame, MarkerColor(kBlack), LineColor(kBlack), MarkerSize(0.5), Name("chSpec"));
   fitFun.plotOn(chFrame, LineColor(kRed), LineStyle(1), Name("fit"));
-  int params = fitFun.getParameters(chSpec)->selectByAttrib("Constant",kFALSE)->getSize();
-  int nbins = h_spec->GetSize();
-  chiSq = chFrame->chiSquare();
-  int unreduced_chisq = (chiSq*(nbins-params));
-  int ndf = (nbins-params);
-  std::cout << "unreduced chi2 " << unreduced_chisq <<  std::endl;
-  std::cout << "ndof " << ndf <<  std::endl;
-  pvalue = Prob(unreduced_chisq,(nbins-params));
-  
-  RooChi2Var test("chi2","chi2",fitFun,chSpec, Extended(true));
-  int testchi2 = test.getVal();
-  std::cout << "testchi2 " << testchi2 <<  std::endl;
-  
-  
+  chiSq = chFrame->chiSquare(11);
   fitFun.plotOn(chFrame, Components(fullErg), LineColor(kOrange), LineStyle(5), Name("main"));
   fitFun.plotOn(chFrame, Components(firsErg), LineColor(kViolet), LineStyle(5), Name("fescape"));
   fitFun.plotOn(chFrame, Components(secdErg), LineColor(kCyan), LineStyle(5), Name("sescape"));
@@ -134,6 +121,7 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   scdResparam = scdRes.getVal();
   comCnstparam = comCnst.getVal();
   combetaparam = combeta.getVal();
+
   frFullparam = frFull.getVal();///nEvents;
   frFrstparam = frFrst.getVal();///nEvents;
   frScndparam = frScnd.getVal();///nEvents;
@@ -166,15 +154,7 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   pchi2 -> SetTextColor(kBlack);
   pchi2 -> SetFillColor(kWhite);
   chFrame -> addObject(pchi2);
-  TPaveLabel *pval = new TPaveLabel(0.15, 0.65, 0.25, 0.65, Form("p-value = %4.4f", pvalue), "brNDC");
-  pval -> SetFillStyle(0);
-  pval -> SetBorderSize(0);
-  pval -> SetTextSize(0.4);
-  pval -> SetTextFont(42);
-  pval -> SetTextColor(kBlack);
-  pval -> SetFillColor(kWhite);
-  chFrame -> addObject(pval);
-  TPaveLabel *fpk = new TPaveLabel(0.15, 0.55, 0.25, 0.55, Form("#mu_{main} = %.2f#pm%.2f", fpeak, dpeak), "brNDC");
+  TPaveLabel *fpk = new TPaveLabel(0.15, 0.65, 0.25, 0.55, Form("#mu_{main} = %.2f#pm%.2f", fpeak, dpeak), "brNDC");
   fpk -> SetFillStyle(0);
   fpk -> SetBorderSize(0);
   fpk -> SetTextSize(0.4);
@@ -190,7 +170,7 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   fsg -> SetTextColor(kBlack);
   fsg -> SetFillColor(kWhite);
   chFrame -> addObject(fsg);
-  std::cout << "chi2: " << chiSq << "; Probability: " << Prob(chiSq, 151) <<"; pvalue: " << pvalue << std::endl;
+  std::cout << "chi2: " << chiSq << "; Probability: " << Prob(chiSq, 151) << std::endl;
   
   chFrame -> SetYTitle("Events per 25 keV");
   chFrame -> GetYaxis()->SetTitleOffset(1.0);
