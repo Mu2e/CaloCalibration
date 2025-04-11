@@ -5,7 +5,7 @@ using namespace std::chrono;
 using namespace CaloSourceCalib;
 
 /* function to make global plots of the fit outputs*/
-void SourcePlotter::ParamPlots(TTree* inputTree, TFile *inputFile, TFile *outputFile) {
+void SourcePlotter::ParamPlots(TTree* inputTree, TFile *inputFile, TFile *outputFile) {//add param as plot range
     float crystalNo, Peak, ChiSq, PeakErr;
     int nEvents;    
     inputTree-> SetBranchAddress("crystalNo", &crystalNo);
