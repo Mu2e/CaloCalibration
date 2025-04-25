@@ -17,10 +17,13 @@ This runs an analyzer which will loop over the simulated events and analyze the 
 
 ## MakeAnalysisTree
 
-To accumulate all the events for a give crystal run the MakeAnalysisTree program as follows:
-
+To accumulate all the events for a given crystal the command line would look like this:
 ```
-bash-5.1$ ./build/al9-prof-e28-p057/CaloCalibration/bin/MakeAnalysisTree 674 1348 "nll"
+./build/al9-prof-e28-p056/CaloCalibration/bin/MakeAnalysisTree start_crystalnumber end_crystalnumber "minimisation_method" disk number
+```
+For example you can run the MakeAnalysisTree program as follows:
+```
+bash-5.1$  ./build/al9-prof-e28-p056/CaloCalibration/bin/MakeAnalysisTree 0 674 "chi2" 0
 ========== Welcome to the Mu2e Source Calibration Analysis ==========
 crystal to be analyzed (int) : 
 1322
