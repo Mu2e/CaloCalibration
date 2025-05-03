@@ -43,7 +43,7 @@
 #include "RooAbsReal.h"
 #include "RooFormulaVar.h"
 #include "RooAddition.h"
-#include "RooChi2Var.h" //included to add minimiser alternations
+//#include "RooChi2Var.h" //included to add minimiser alternations
 using namespace std;
 using namespace TMath;
 using namespace RooFit;
