@@ -10,7 +10,7 @@
 #include "Production/JobConfig/digitize/prolog.fcl"
 #include "CaloCalibration/SourceCalib/fcl/prolog.fcl"
 
-process_name: SourceCalibSimAna
+process_name: SourceCalibSimDigiAna
 
 source: {
    module_type: EmptyEvent
