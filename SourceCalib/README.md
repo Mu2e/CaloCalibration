@@ -52,12 +52,20 @@ This will produce a set of histograms (one per sipm or crystal) in a file with a
 
 # The Analysis
 
+Now you have a file containing one histogram per crystal or sipm. The number of entries in these histograms is the number of events. To extract the calibration constants for each crystal or sim we muse run our analysis code. The analysis code is stored in "MakeAnalysisTree". This is the main script which applies the ROOFIT based maximum likelihood or chi2 fit to the crystal histograms to extract the constants.
+
 ## MakeAnalysisTree
 
-To accumulate all the events for a give crystal run the MakeAnalysisTree program as follows:
+To run the analysis code you need to build the CaloCalibration package locally. The executable for MakeAnalysisTree will then be accessible:
 
 ```
-bash-5.1$ ./build/al9-prof-e28-p057/CaloCalibration/bin/MakeAnalysisTree 674 1348 "nll"
+./build/al9-prof-e29-p076/CaloCalibration/bin/MakeAnalysisTree start_crystalnumber end_crystalnumber "minimisation_method" disk number
+```
+
+For example:
+
+```
+bash-5.1$ ./build/al9-prof-e29-p076/CaloCalibration/bin/MakeAnalysisTree 674 1348 "chi" 0
 ========== Welcome to the Mu2e Source Calibration Analysis ==========
 crystal to be analyzed (int) : 
 1322
@@ -69,26 +77,20 @@ Running pre-processing .....
 Finished pre-processing ...
 
 ```
-The arguments are the crystal ranges you want to fit to.
+The arguments are the crystal ranges you want to fit to. This is followed by the method of minimization (nll or chi2) and the disk number.
 
-## Fitting
+## Understanding bad fits
 
-Once you have the per crystal ntuples you can fit the RooFit code these. The SourceFitter class utilizes RooFit to fit an individual crystal. The user can chose between an nll or chi2 fit by setting the  third input arg to either "nll" or "chi2".
+The SourcePlotter class outputs useful histograms that can identify crystals that are significantly worse (or odd) compared to the mean and std dev of the whole calorimeter. This can be used to diagnose issues with the fits and eventually bad sipms or degraded crystals.
 
-The code is currently setup to loop over the chosen crystals, fitting to each one and storing the resulting fit parameters. An intermediate .root file is created. In theory, this would be our archive table.
+# The Tables
 
-We then use the SourcePlotter class to plot the overall distribution of constants and other features over all the crystals fitted. This allows us to look for trends and possible sources of bad fits.
+The current code outputs the results of the fit in a ROOT TTree called arXivTable.root. This will eventually be replaced with a text output in a structure that can be easily input into the archive calibration table for the sourc system.
 
-# The Tables TODO
+# Combinations
 
-Our Proditions Entity, <NAME> will call upon the calibration constants in our CalEnergyCalib reco table. There is one constant per SiPM, totalling 2*1348.
-
-The reco table values must average over all calibration modes including energy calibration from source, cosmic and laser modes.
-
-This code currently takes the input for the source, cosmic and laser from fake datatables which are in the same format as the archive tables from real data will be.
-
-It makes a simple linear assumption and just averages the constants. The final values are passed to the reco table.
+In order to utilize an updated source calibration constant it must be input in a reco table and called by the digi code. This reco table uses information from both the source and cosmic tables. The exact algorithm for combining the two inputs is stored in the CaloCalibration/Combinations directory.
 
 # Development
-Current code underdevelopment by Sophie Middleton and Huma Jafree
+Current code underdevelopment by Sophie Middleton (SourceCalib+Combinations), Huma Jafree (Fitting Code) and Sam Zhou (Combinations)
 
