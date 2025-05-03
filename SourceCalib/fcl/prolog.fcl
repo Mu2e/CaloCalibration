@@ -15,7 +15,7 @@ CaloSourceAna :
             digiSampling        : @local::HitMakerDigiSampling
             ProtonBunchTimeTag  : "EWMProducer"
             maxChi2Cut          : 2.0
-            diagLevel           : 1
+            diagLevel           : 0
             ratioCut            : 0.8
             timeCut             : 20
         }
