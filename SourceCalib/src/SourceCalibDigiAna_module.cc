@@ -169,6 +169,7 @@ namespace mu2e {
       std::vector<double> total_energy_in_sipm(nsipms, 0);
       for (const auto& caloDigi : caloDigis)
       {
+          std::cout<<"sipm id"<<caloDigi.SiPMID()<<std::endl;
           int    SiPMID   = caloDigi.SiPMID();
           double t0       = caloDigi.t0();
           time.push_back(t0);
