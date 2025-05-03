@@ -110,7 +110,7 @@ namespace mu2e {
 
       // Reconstructed carystal hit info (from CaloHitCollection):
       Ntup_->Branch("calhitRecoEtot",      &cryEtot_ ,     "calhitRecoEtot/F");
-      Ntup_->Branch("ncalhitHit",         &ncalhitHit_ ,       "ncalhitHit/I");
+      Ntup_->Branch("ncrystals",         &ncalhitHit_ ,       "ncalhitHit/I");
       Ntup_->Branch("cryId",        &cryId_ ,       "cryId[ncalhitHit]/I");
       Ntup_->Branch("crySectionId", &crySectionId_, "crySectionId[ncalhitHit]/I");
       Ntup_->Branch("calhitRecoPosX",      &calhitRecoPosX_ ,     "calhitRecoPosX[ncalhitHit]/F");
@@ -128,9 +128,9 @@ namespace mu2e {
 
       // Truth crystal hit info (from CaloHitMCCollection):
       Ntup_->Branch("calhitMCEtot",      &truetotalEnergyDep_ ,     "calhitMCEtot/F");
-      Ntup_->Branch("crycalhitMCIdx",    &crycalhitMCIdx_ ,   "crycalhitMCIdx[ncalhitMC]/I");
-      Ntup_->Branch("crySimLen",    &crySimLen_ ,   "crySimLen[nCry]/I");
       Ntup_->Branch("ncalhitMC",         &ncalhitMCHit_ ,     "ncalhitMC/I");
+      Ntup_->Branch("crycalhitMCIdx",    &crycalhitMCIdx_ ,   "crycalhitMCIdx[ncalhitMC]/I");
+      Ntup_->Branch("crySimLen",    &crySimLen_ ,   "crySimLen[ncalhitMC]/I");
       Ntup_->Branch("calhitMCId",        &crycalhitMCId_ ,    "calhitMCId[ncalhitMC]/I");
       Ntup_->Branch("calhitMCPdgId",     &crycalhitMCPdgId_ , "calhitMCPdgId[ncalhitMC]/I");
       Ntup_->Branch("calhitMCCrCode",    &crycalhitMCCrCode_ ,"calhitMCCrCode[ncalhitMC]/I");

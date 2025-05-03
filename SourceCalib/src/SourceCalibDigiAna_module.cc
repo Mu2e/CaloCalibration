@@ -25,6 +25,7 @@
 
 constexpr int ncrystals = 1348;
 constexpr int nsipms = 2696;
+
 int Contains(std::vector<int> v, int x)
 {
   return std::count(v.begin(), v.end(), x);

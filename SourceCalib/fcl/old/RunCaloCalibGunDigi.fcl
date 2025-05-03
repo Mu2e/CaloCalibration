@@ -30,8 +30,8 @@ physics: {
         cosmax :  1.0
         phimin :  0.0
         phimax : 2.0
-        tmin  :  500.
-        tmax : 1694.//TODO - shouldnt need this time
+        tmin  :  0.
+        tmax : 10//Off-spill
         nDisk : 0 //Change me to run over other disk
       }
 

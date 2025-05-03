@@ -7,11 +7,48 @@ Since we do not have real data from the current system, we base our work on Simu
 
 To configure this simulation use the CaloCalibration/SourceCalib/fcl/Run*.fcl files.
 
+First we run the generator, producing detector steps e.g.
+
 ```
-mu2e -c CaloCalibration/SourceCalib/fcl/RunCaloCalibGunDigi.fcl
+mu2e -c CaloCalibration/SourceCalib/fcl/RunCaloCalibGun-sim.fcl --nevts=1000
+
 ```
 
-This runs an analyzer which will loop over the simulated events and analyze the digis. The output is a file of N_crys histograms, these can be taken as input into the analysis.
+This configures to CaloCalibGun:
+
+```
+generate: {
+  module_type : CaloCalibGun
+  cosmin :  -1.0
+  cosmax :  1.0
+  phimin :  0.0
+  phimax : 2.0
+  tmin  :  500.
+  tmax : 100000.//Off-spill
+  nDisk : 0 //Change me to run over other disk
+}
+
+```
+
+Currently the generator must be ran one disk at a time, the last parameter chooses the disk (0 or 1).
+
+This stage produces a file with a prefix ``dts" (detector steps). To digitize this file:
+
+```
+mu2e -c CaloCalibration/SourceCalib/fcl/RunCaloCalibGun-digi.fcl dts.owner.name.version.sequencer.art
+
+```
+
+where dts.owner.name.version.sequencer.art is the file from the preceeding stage. This stage produces a file prefixed ``dig" meaning it contains digitizaed calo data (as would come from the ROC during data-taking).
+
+To analyze and perform our calibration we must run the SourceCalibAna module on this digitized ``data":
+
+```
+mu2e -c CaloCalibration/SourceCalib/fcl/RunCaloCalibGun-ana.fcl dig.owner.name.version.sequencer.art
+
+```
+
+This will produce a set of histograms (one per sipm or crystal) in a file with an ``nts" prefix.
 
 # The Analysis
 
