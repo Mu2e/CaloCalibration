@@ -56,16 +56,14 @@ Now you have a file containing one histogram per crystal or sipm. The number of 
 
 ## MakeAnalysisTree
 
-To run the analysis code you need to build the CaloCalibration package locally. The executable for MakeAnalysisTree will then be accessible:
 
+To accumulate all the events for a given crystal the command line would look like this:
 ```
-./build/al9-prof-e29-p076/CaloCalibration/bin/MakeAnalysisTree start_crystalnumber end_crystalnumber "minimisation_method" disk number
+./build/al9-prof-e28-p056/CaloCalibration/bin/MakeAnalysisTree start_crystalnumber end_crystalnumber "minimisation_method" disk number
 ```
-
-For example:
-
+For example you can run the MakeAnalysisTree program as follows:
 ```
-bash-5.1$ ./build/al9-prof-e29-p076/CaloCalibration/bin/MakeAnalysisTree 674 1348 "chi" 0
+bash-5.1$  ./build/al9-prof-e28-p056/CaloCalibration/bin/MakeAnalysisTree 0 674 "chi2" 0
 ========== Welcome to the Mu2e Source Calibration Analysis ==========
 crystal to be analyzed (int) : 
 1322
