@@ -23,8 +23,8 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   TString title = "Crystal " + cryNum;
 
   // obtain the two initial values for the parameters
-  double par1 = 2500;
-  double par2 = 50;
+  //double par1 = 2500;
+  //double par2 = 50;
   //double ADC_conv = 0.0625;
 
   //parameters
