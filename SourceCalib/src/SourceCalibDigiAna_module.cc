@@ -169,7 +169,6 @@ namespace mu2e {
       std::vector<double> total_energy_in_sipm(nsipms, 0);
       for (const auto& caloDigi : caloDigis)
       {
-          std::cout<<"sipm id"<<caloDigi.SiPMID()<<std::endl;
           int    SiPMID   = caloDigi.SiPMID();
           double t0       = caloDigi.t0();
           time.push_back(t0);
@@ -255,12 +254,12 @@ namespace mu2e {
         difTime_sipm = time.back() - time.front();
       }
       for(const auto& id : sipms_in_event){
-        /*float edepTarget = 0.0;
+        float edepTarget = 0.0;
         float edepOthers   = 0.0;
         for(const auto& id2 : sipms_in_event){
           if(id == id2) edepTarget += total_energy_in_sipm[id];
           else edepOthers += total_energy_in_sipm[id];
-        }*/
+        }
         if(difTime_sipm > timeCut_){
           passes_time_sipm = false;
         }
