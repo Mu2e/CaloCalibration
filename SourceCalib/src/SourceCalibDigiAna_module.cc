@@ -121,6 +121,7 @@ namespace mu2e {
   void SourceCalibDigiAna::analyze(const art::Event& event)
   {
       if (diagLevel_ > 0) std::cout<<"[SourceCalibDigiAna::analyze] begin"<<std::endl;
+      std::cout<<"================="<<std::endl;
       const auto& caloDigisH = event.getValidHandle(caloDigisToken_);
       auto pbtH = event.getValidHandle(pbttoken_);
       const ProtonBunchTime& pbt(*pbtH);
@@ -202,15 +203,14 @@ namespace mu2e {
                   total_energy_in_crystal[SiPMID/2]+= eDep;
                 }
               } else crystals_in_event.push_back(SiPMID/2);
-              //list_of_hists[SiPMID/2]->Fill(waveformProcessor_->amplitude(i));
-              if(sipms_in_event.size() !=0 ) {
-                if (Contains(sipms_in_event, SiPMID) == 0) {
-                  sipms_in_event.push_back(SiPMID);
-                  total_energy_in_sipm[SiPMID] = eDep;
-                } else{ 
-                  total_energy_in_sipm[SiPMID]+= eDep;
+                
+                if (Contains(sipms_in_event, caloDigi.SiPMID()) == 0) {
+                  sipms_in_event.push_back(caloDigi.SiPMID());
+                  total_energy_in_sipm[caloDigi.SiPMID()] = eDep;
+                } else{
+                  total_energy_in_sipm[caloDigi.SiPMID()]+= eDep;
                 }
-              } else sipms_in_event.push_back(SiPMID);
+                sipms_in_event.push_back(caloDigi.SiPMID());
           }
       }
 
@@ -248,10 +248,10 @@ namespace mu2e {
       // For SiPMs
       bool passes_time_sipm = true; 
       bool passes_ratio_sipm = true;
-      double difTime_sipm = 0;
+      //double difTime_sipm = 0;
       if(time.size() !=0) {
         sort(time.begin(), time.end());
-        difTime_sipm = time.back() - time.front();
+        //difTime_sipm = time.back() - time.front();
       }
       for(const auto& id : sipms_in_event){
         float edepTarget = 0.0;
@@ -260,15 +260,16 @@ namespace mu2e {
           if(id == id2) edepTarget += total_energy_in_sipm[id];
           else edepOthers += total_energy_in_sipm[id];
         }
-        if(difTime_sipm > timeCut_){
+        /*if(difTime_sipm > timeCut_){
           passes_time_sipm = false;
-        }
+        }*/
 
         /*if(edepTarget / (edepTarget + edepOthers) < ratioCut_){//FIXME - what does this mean for SiPMs? perhaps apply this at crystal level?
           passes_ratio_sipm = false;
         }*/
         if(passes_time_sipm and passes_ratio_sipm and total_energy_in_sipm[id]!=0){
           list_of_sipm_hists[id]->Fill(total_energy_in_sipm[id]);
+          std::cout<<"ID "<<id<<" energy "<<total_energy_in_sipm[id]<<std::endl;
         }
       }
       if (diagLevel_ > 1) std::cout<<"[SourceCalibDigiAna] Total energy reco "<<totEnergyReco <<std::endl;

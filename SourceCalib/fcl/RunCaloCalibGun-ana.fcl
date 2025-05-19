@@ -30,6 +30,7 @@ physics: {
    e1: [SourceAna]
 
     end_paths:     [e1]
+    trigger_paths: []
 }
 
 
