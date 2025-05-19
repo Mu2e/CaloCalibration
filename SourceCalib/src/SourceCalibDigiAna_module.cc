@@ -202,15 +202,14 @@ namespace mu2e {
                   total_energy_in_crystal[SiPMID/2]+= eDep;
                 }
               } else crystals_in_event.push_back(SiPMID/2);
-              //list_of_hists[SiPMID/2]->Fill(waveformProcessor_->amplitude(i));
-              if(sipms_in_event.size() !=0 ) {
-                if (Contains(sipms_in_event, SiPMID) == 0) {
-                  sipms_in_event.push_back(SiPMID);
-                  total_energy_in_sipm[SiPMID] = eDep;
-                } else{ 
-                  total_energy_in_sipm[SiPMID]+= eDep;
+                
+                if (Contains(sipms_in_event, caloDigi.SiPMID()) == 0) {
+                  sipms_in_event.push_back(caloDigi.SiPMID());
+                  total_energy_in_sipm[caloDigi.SiPMID()] = eDep;
+                } else{
+                  total_energy_in_sipm[caloDigi.SiPMID()]+= eDep;
                 }
-              } else sipms_in_event.push_back(SiPMID);
+                sipms_in_event.push_back(caloDigi.SiPMID());
           }
       }
 
@@ -226,6 +225,8 @@ namespace mu2e {
       for(const auto& id : crystals_in_event){
         float edepTarget = 0.0;
         float edepOthers   = 0.0;
+        int id_sipm1 = id*2;
+        int id_sipm2 = id*2+1;
         for(const auto& id2 : crystals_in_event){
           if(id == id2) edepTarget += total_energy_in_crystal[id];
           else edepOthers += total_energy_in_crystal[id];
@@ -239,6 +240,8 @@ namespace mu2e {
         }
         if( (passes_time_cry and passes_ratio_cry)){
           list_of_crys_hists[id]->Fill(total_energy_in_crystal[id]);
+          if(total_energy_in_sipm[id_sipm1]!=0) list_of_sipm_hists[id_sipm1]->Fill(total_energy_in_sipm[id_sipm1]);
+          if(total_energy_in_sipm[id_sipm2]!=0) list_of_sipm_hists[id_sipm2]->Fill(total_energy_in_sipm[id_sipm2]);
         }
         /*if (passes_time and passes_ratio and Contains(badcrys, id) == 1) { 
           badfile<<id<<","<<passes_time<<","<<passes_ratio<<","<<total_energy_in_crystal[id]<<std::endl;
@@ -246,7 +249,7 @@ namespace mu2e {
       }
       
       // For SiPMs
-      bool passes_time_sipm = true; 
+      /*bool passes_time_sipm = true; 
       bool passes_ratio_sipm = true;
       double difTime_sipm = 0;
       if(time.size() !=0) {
@@ -264,13 +267,11 @@ namespace mu2e {
           passes_time_sipm = false;
         }
 
-        /*if(edepTarget / (edepTarget + edepOthers) < ratioCut_){//FIXME - what does this mean for SiPMs? perhaps apply this at crystal level?
-          passes_ratio_sipm = false;
-        }*/
         if(passes_time_sipm and passes_ratio_sipm and total_energy_in_sipm[id]!=0){
-          list_of_sipm_hists[id]->Fill(total_energy_in_sipm[id]);
+          //list_of_sipm_hists[id]->Fill(total_energy_in_sipm[id]);
+          std::cout<<"ID "<<id<<" energy "<<total_energy_in_sipm[id]<<std::endl;
         }
-      }
+      }*/
       if (diagLevel_ > 1) std::cout<<"[SourceCalibDigiAna] Total energy reco "<<totEnergyReco <<std::endl;
   }
 }
