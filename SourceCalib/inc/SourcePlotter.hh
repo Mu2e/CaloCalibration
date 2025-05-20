@@ -14,11 +14,16 @@
 #include "TMath.h"
 #include "TGraph.h"
 #include "TLine.h"
+#include "TLegend.h"
 #include "TGraphErrors.h"
 #include "TAxis.h"
 #include <Riostream.h>
 #include <vector>
 
+#include "TPaveText.h"
+#include "TLegend.h"
+#include "TPaveLabel.h"
+#include "TAttFill.h"
 using namespace std;
 using namespace TMath;
 using namespace RooFit;
