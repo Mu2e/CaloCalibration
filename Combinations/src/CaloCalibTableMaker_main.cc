@@ -33,7 +33,6 @@ ArchiveTable inputTable(const char *ArchiveFile, const char *tag){
 	  sigmas.push_back(sigma);
 	  errsigmas.push_back(errsigma);
 	  Nhits.push_back(nhits);
-	  std::cout<<roid<<","<<peak<<","<<errpeak<<","<<width<<","<<errwidth<<","<<sigma<<","<<errsigma<<","<<chisq<<","<<nhits<<std::endl;
   }
   
 	fclose(fC);
