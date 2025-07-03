@@ -4,7 +4,7 @@ using namespace TMath;
 using namespace RooFit;
 using namespace CaloSourceCalib;
 
-void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *covar, Int_t &nEvents, Float_t &fpeak, Float_t &dpeak, Float_t &fsigma, Float_t &chiSq, Float_t &fstpeak,Float_t &fstsigma, Float_t &scdpeak,Float_t &scdsigma,Float_t &fcbalphaparam,Float_t &fcbndegparam,Float_t &Aparam,Float_t &Bparam, Float_t &Cparam, Float_t &fullResparam, Float_t &fstResparam,Float_t &scdResparam,Float_t &comCnstparam, Float_t &combetaparam, Float_t &frFullparam, Float_t &frFrstparam,Float_t &frScndparam,Float_t &crystalNoparam,Float_t &frBKGparam){//Float_t &frBKGparam
+void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *covar, Int_t &nEvents, Float_t &fpeak, Float_t &dpeak, Float_t &fsigma, Float_t &chiSq, Float_t &fstpeak,Float_t &fstsigma, Float_t &scdpeak,Float_t &scdsigma,Float_t &fcbalphaparam,Float_t &fcbndegparam,Float_t &Aparam,Float_t &Bparam, Float_t &Cparam, Float_t &fullResparam, Float_t &fstResparam,Float_t &scdResparam,Float_t &comCnstparam, Float_t &combetaparam, Float_t &frFullparam, Float_t &frFrstparam,Float_t &frScndparam,Float_t &crystalNoparam,Float_t &frBKGparam, Float_t &convergencestatus,Float_t &errbar){//Float_t &frBKGparam
     
   // set stlye optionsr
   gStyle -> SetOptFit(1111);
@@ -20,7 +20,7 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   can -> Draw();
   TString cryNum = to_string(crystalNo);
   TString oName = "mu2e_simu_fitSpec_"+ opt+"_" + cryNum + ".root";
-  TString title = "Crystal " + cryNum;
+  TString title = "SiPM " + cryNum;
 
   // obtain the two initial values for the parameters
   //double par1 = 2500;
@@ -28,7 +28,7 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   //double ADC_conv = 0.0625;
 
   //parameters
-  RooRealVar crysADC("crysADC", "ADC[counts]", 48, 120);
+  RooRealVar crysADC("crysADC", "ADC[counts]", 20, 120);//48
   RooRealVar ergElec("ergElec", "electron energy in ADC", 8.176);
 
 	RooRealVar fcbalpha("fcbalpha", "fcbalpha",0.5, 0.1, 5);
@@ -83,12 +83,11 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   if(opt == "chi2"){ //binned chi2 fit
     RooFitResult *fitRes = fitFun.chi2FitTo(chSpec, Range(48,115.2),Hesse(kTRUE),Minos(kTRUE), Strategy(1),MaxCalls(10000),PrintLevel(1),Save());//,Extended(true),Hesse(kTRUE),Minos(kTRUE)
     fitRes->Print("v");
+		convergencestatus =fitRes->status();
    }  
   if(opt == "nll"){ //binned nll fit
     RooAbsReal* nll = fitFun.createNLL(chSpec, Range(48,115.2));
     RooMinimizer m(*nll);
-    //m.setEps(100);
-    //m.setMaxIterations(2000);
     m.migrad();
     m.hesse();
     RooFitResult *fitRes = m.save();
@@ -121,14 +120,13 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   scdResparam = scdRes.getVal();
   comCnstparam = comCnst.getVal();
   combetaparam = combeta.getVal();
-
   frFullparam = frFull.getVal();///nEvents;
   frFrstparam = frFrst.getVal();///nEvents;
   frScndparam = frScnd.getVal();///nEvents;
   frBKGparam= 1-(frFullparam+frFrstparam+frScndparam);
   //frBKGparam= frBKG.getVal();///nEvents;
   crystalNoparam = crystalNo;
-
+  errbar = (1/(fpeak/6.13))*(dpeak/fpeak);
   //make pretty plots
   TPaveLabel *ptitle = new TPaveLabel(0.80, 0.90, 0.85, 0.80, Form("Mu2e Simulation"), "brNDC");
   ptitle -> SetFillStyle(0);
@@ -184,6 +182,9 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   legend->AddEntry("background", "background", "L");
   legend->Draw();
   can -> SaveAs(oName); 
+  can->Close();  // Close the associated file
+  delete can;    // Delete the object
+  can = nullptr; // Safety (optional)
 
   covar->Fill();
 }
