@@ -8,14 +8,17 @@ using namespace CaloSourceCalib;
 
 /* function to make global plots of the fit outputs*/
 void SourcePlotter::ParamPlots(TTree* inputTree, TFile *inputFile, TFile *outputFile,int cry_start, int cry_end) {//add param as plot range
-    float crystalNo, Peak, ChiSq, PeakErr;
+    float crystalNo, Peak, ChiSq, PeakErr,h_means,h_stds,kspval;
     int nEvents;    
     inputTree-> SetBranchAddress("crystalNo", &crystalNo);
     inputTree-> SetBranchAddress("Peak", &Peak);
     inputTree-> SetBranchAddress("PeakErr", &PeakErr);
     inputTree-> SetBranchAddress("ChiSq", &ChiSq);
     inputTree-> SetBranchAddress("nEvents", &nEvents); 
-    std::vector<Double_t> crystalNos, Peaks, PeakErrs, ChiSqs, EventsErr, Events;
+    inputTree-> SetBranchAddress("h_means", &h_means); 
+    inputTree-> SetBranchAddress("h_stds", &h_stds); 
+    inputTree-> SetBranchAddress("kspval", &kspval); 
+    std::vector<Double_t> crystalNos, Peaks, PeakErrs, ChiSqs, EventsErr, Events,h_means_vec,h_stds_vec,kspvals;
      
     // Fill the vectors with data from the TTree
     Long64_t nEntries = inputTree->GetEntries();
@@ -23,10 +26,14 @@ void SourcePlotter::ParamPlots(TTree* inputTree, TFile *inputFile, TFile *output
         inputTree->GetEntry(entry);
         crystalNos.push_back(crystalNo);
         Peaks.push_back(1/(Peak/6.13));
+        //add anothe rplot of the un changed version of peakerr
         PeakErrs.push_back((1/(Peak/6.13))*(PeakErr/Peak));
         ChiSqs.push_back(ChiSq);
         Events.push_back(nEvents);
         EventsErr.push_back(sqrt(nEvents));       
+        h_means_vec.push_back(h_means);       
+        h_stds_vec.push_back(h_stds);       
+        kspvals.push_back(kspval);               
     }
 		double Peaks_sum = std::accumulate(Peaks.begin(), Peaks.end(),0.0);
  		double Peaks_avg = Peaks_sum / Peaks.size();
@@ -45,7 +52,6 @@ for (size_t i = 0; i < PeakErrs.size(); ++i) {
     }
 }
 std::cout << "Number of PeakErrs > 2 stdev " << countHighPeakErrs << std::endl;
-
  		std::cout<<" ------------ "<<std::endl;
  		double ChiSqs_sum = std::accumulate(ChiSqs.begin(), ChiSqs.end(),0.0);
  		double ChiSqs_avg = ChiSqs_sum / ChiSqs.size();
@@ -61,6 +67,7 @@ std::cout << "Number of PeakErrs > 2 stdev " << countHighPeakErrs << std::endl;
     TGraphErrors grpeaks(crystalNos.size(), &crystalNos[0], &Peaks[0], nullptr, &PeakErrs[0]);
     TGraph grchi2(crystalNos.size(), &crystalNos[0], &ChiSqs[0]);
     TGraphErrors grN(crystalNos.size(), &crystalNos[0], &Events[0], nullptr, &EventsErr[0]);
+    TGraph grpeakerrs(crystalNos.size(), &crystalNos[0], &PeakErrs[0]);
     
     // Customize the plot
     grpeaks.SetTitle("Cry Number vs MeV/ADC;Crystal Number;MeV/ADC");
@@ -73,7 +80,9 @@ std::cout << "Number of PeakErrs > 2 stdev " << countHighPeakErrs << std::endl;
     TLine *stddevpeak_abv = new TLine(cry_start,Peaks_avg+2*Peaks_stddev,cry_end,Peaks_avg+2*Peaks_stddev);    
     TLine *stddevpeak_blw = new TLine(cry_start,Peaks_avg-2*Peaks_stddev,cry_end,Peaks_avg-2*Peaks_stddev);		
     TCanvas canvas("canvas", "Scatter Plot", 800, 600);
-    grpeaks.Draw("AP"); // A for axis, P for points    
+    grpeaks.Draw("AP"); // A for axis, P for points  
+    canvas.Update();  // Must update to get access to Y axis
+    grpeaks.GetYaxis()->SetRangeUser(0.05, 0.08);  // Y-axis limits  
     TPaveText *avg = new TPaveText(0.15, 0.75, 0.35, 0.65, "brNDC");
    	avg -> SetFillStyle(0);
    	avg -> SetBorderSize(0);
@@ -181,6 +190,25 @@ std::cout << "Number of PeakErrs > 2 stdev " << countHighPeakErrs << std::endl;
     grN.Write("nEvents");
     canvas3.SaveAs("nEvents.root");    
     
+    //drawing peakerrs
+    grpeakerrs.SetTitle("Cry Number vs Peak Errors;Crystal Number;Peak Errors");
+    grpeakerrs.SetMarkerSize(0.8);
+    grpeakerrs.SetMarkerColor(kGreen);
+    grpeakerrs.SetLineColor(kGreen);        
+    TCanvas canvas4("canvas", "Scatter Plot", 800, 600);
+    grpeakerrs.Draw("AP"); // A for axis, P for points
+    outputFile->cd();
+    grpeakerrs.Write("peakerrs");
+    canvas4.SaveAs("peakerrs.root");
+    
+    grpeakerrs.Draw("AP"); // A for axis, P for points
+    outputFile->cd();
+    grpeakerrs.Write("PeaksErrors");
+
+    
+ 
+    
+    
 // ---- Build SiPM pair maps by crystalNo using crystalNo parity (even/odd logic) ----
 std::map<int, std::map<int, double>> sipm_peaks_by_crystal;
 
@@ -234,6 +262,10 @@ double min_peak = std::min(*std::min_element(sipm0_peaks.begin(), sipm0_peaks.en
                            *std::min_element(sipm1_peaks.begin(), sipm1_peaks.end()));
 double max_peak = std::max(*std::max_element(sipm0_peaks.begin(), sipm0_peaks.end()),
                            *std::max_element(sipm1_peaks.begin(), sipm1_peaks.end()));
+
+// --- Set axis limits ---
+canvasScatter.Update();  // Must update to get access to Y axis
+grScatter.GetYaxis()->SetRangeUser(0.6, 0.68);  // Y-axis limits
 
 TLine identity(min_peak, min_peak, max_peak, max_peak);
 identity.SetLineColor(kRed);
@@ -307,5 +339,105 @@ hDiff->Write("PeakDiff_Histogram");
 gausFit->Write("PeakDiff_GaussianFit");
 canvasHist.SaveAs("PeakDiff_Histogram.root");
 
+
+//plots for data histogram means
+std::map<int, std::map<int, double>> sipm_hmeans_by_crystal;
+std::map<int, std::map<int, double>> sipm_hstds_by_crystal;
+
+for (size_t i = 0; i < crystalNos.size(); ++i) {
+    int sipm = static_cast<int>(crystalNos[i]);
+    int crystal = sipm / 2;
+    int sipm_in_pair = sipm % 2;
+
+    sipm_hmeans_by_crystal[crystal][sipm_in_pair] = h_means_vec[i];
+    sipm_hstds_by_crystal[crystal][sipm_in_pair] = h_stds_vec[i];
+}
+std::vector<Double_t> sipm0_hmeans, sipm1_hmeans;
+std::vector<Double_t> sipm0_hstds, sipm1_hstds;
+
+for (const auto& [crystal, map_means] : sipm_hmeans_by_crystal) {
+    if (map_means.size() != 2) continue;
+    if (map_means.count(0) == 0 || map_means.count(1) == 0) continue;
+    sipm0_hmeans.push_back(map_means.at(0));
+    sipm1_hmeans.push_back(map_means.at(1));
+    crystal_ids.push_back(crystal);
+}
+
+for (const auto& [crystal, map_stds] : sipm_hstds_by_crystal) {
+    if (map_stds.size() != 2) continue;
+    if (map_stds.count(0) == 0 || map_stds.count(1) == 0) continue;
+    sipm0_hstds.push_back(map_stds.at(0));
+    sipm1_hstds.push_back(map_stds.at(1));
+}
+// For h_means
+TGraph grHMeans(sipm0_hmeans.size(), &sipm0_hmeans[0], &sipm1_hmeans[0]);
+grHMeans.SetTitle("SiPM Pair h_means;SiPM 0 h_mean;SiPM 1 h_mean");
+grHMeans.SetMarkerStyle(20);
+grHMeans.SetMarkerColor(kBlue);
+grHMeans.SetMarkerSize(0.9);
+
+TCanvas canvasHMeans("canvasHMeans", "h_means Scatter", 800, 600);
+grHMeans.Draw("AP");
+
+double min_hmean = std::min(*std::min_element(sipm0_hmeans.begin(), sipm0_hmeans.end()),
+                           *std::min_element(sipm1_hmeans.begin(), sipm1_hmeans.end()));
+double max_hmean = std::max(*std::max_element(sipm0_hmeans.begin(), sipm0_hmeans.end()),
+                           *std::max_element(sipm1_hmeans.begin(), sipm1_hmeans.end()));
+
+TLine identityHMean(min_hmean, min_hmean, max_hmean, max_hmean);
+identityHMean.SetLineColor(kRed);
+identityHMean.SetLineStyle(2);
+identityHMean.Draw("same");
+
+outputFile->cd();
+grHMeans.Write("SiPM_hmeans_Scatter");
+canvasHMeans.SaveAs("SiPM_hmeans_Scatter.root");
+
+// Similarly for h_stds
+TGraph grHStds(sipm0_hstds.size(), &sipm0_hstds[0], &sipm1_hstds[0]);
+grHStds.SetTitle("SiPM Pair h_stds;SiPM 0 h_std;SiPM 1 h_std");
+grHStds.SetMarkerStyle(20);
+grHStds.SetMarkerColor(kBlue);
+grHStds.SetMarkerSize(0.9);
+
+TCanvas canvasHStds("canvasHStds", "h_stds Scatter", 800, 600);
+grHStds.Draw("AP");
+
+double min_hstd = std::min(*std::min_element(sipm0_hstds.begin(), sipm0_hstds.end()),
+                           *std::min_element(sipm1_hstds.begin(), sipm1_hstds.end()));
+double max_hstd = std::max(*std::max_element(sipm0_hstds.begin(), sipm0_hstds.end()),
+                           *std::max_element(sipm1_hstds.begin(), sipm1_hstds.end()));
+
+TLine identityHStd(min_hstd, min_hstd, max_hstd, max_hstd);
+identityHStd.SetLineColor(kRed);
+identityHStd.SetLineStyle(2);
+identityHStd.Draw("same");
+
+outputFile->cd();
+grHStds.Write("SiPM_hstds_Scatter");
+canvasHStds.SaveAs("SiPM_hstds_Scatter.root");
+
+   // ====================== KS TEST PLOT ======================
+    TH1F* h_kspvals = new TH1F("h_kspvals",
+                               "KS Test p-value vs Crystal;Crystal Number;KS p-value",
+                               cry_end - cry_start, cry_start, cry_end);
+
+    // Fill histogram
+    for (size_t i = 0; i < crystalNos.size(); ++i) {
+        int cryNum = static_cast<int>(crystalNos[i]);
+        double ks  = kspvals[i];
+        h_kspvals->SetBinContent(cryNum - cry_start + 1, ks);
+    }
+
+// After filling the histogram h_kspvals:
+
+outputFile->cd();
+h_kspvals->Write("KS_pval_vs_Crystal");
+
+// Create a canvas to save the plot as a standalone ROOT file
+TCanvas* canvasKSpval = new TCanvas("canvasKSpval", "KS p-value vs Crystal", 800, 600);
+h_kspvals->Draw("HIST");
+canvasKSpval->SaveAs("KS_pval_vs_Crystal.root");
+delete canvasKSpval;  // clean up
 
 }

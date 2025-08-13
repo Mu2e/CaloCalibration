@@ -4,14 +4,13 @@ using namespace TMath;
 using namespace RooFit;
 using namespace CaloSourceCalib;
 
-void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *covar, Int_t &nEvents, Float_t &fpeak, Float_t &dpeak, Float_t &fsigma, Float_t &chiSq, Float_t &fstpeak,Float_t &fstsigma, Float_t &scdpeak,Float_t &scdsigma,Float_t &fcbalphaparam,Float_t &fcbndegparam,Float_t &Aparam,Float_t &Bparam, Float_t &Cparam, Float_t &fullResparam, Float_t &fstResparam,Float_t &scdResparam,Float_t &comCnstparam, Float_t &combetaparam, Float_t &frFullparam, Float_t &frFrstparam,Float_t &frScndparam,Float_t &crystalNoparam,Float_t &frBKGparam, Float_t &convergencestatus,Float_t &errbar){//Float_t &frBKGparam
+void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *covar, Int_t &nEvents, Float_t &fpeak, Float_t &dpeak, Float_t &fsigma, Float_t &chiSq, Float_t &fstpeak,Float_t &fstsigma, Float_t &scdpeak,Float_t &scdsigma,Float_t &fcbalphaparam,Float_t &fcbndegparam,Float_t &Aparam,Float_t &Bparam, Float_t &Cparam, Float_t &fullResparam, Float_t &fstResparam,Float_t &scdResparam,Float_t &comCnstparam, Float_t &combetaparam, Float_t &frFullparam, Float_t &frFrstparam,Float_t &frScndparam,Float_t &crystalNoparam,Float_t &frBKGparam, Float_t &convergencestatus,Float_t &errbar, Float_t &pval,Float_t &kspval){//Float_t &frBKGparam
     
   // set stlye optionsr
   gStyle -> SetOptFit(1111);
   gStyle -> SetOptStat(0);
   gStyle -> SetPadBottomMargin(0.125);
   gStyle -> SetPadTopMargin(0.075);
-  gStyle -> SetPadRightMargin(0.05);
   gStyle -> SetPadLeftMargin(0.15);
   gStyle -> SetTitleOffset(1.0, "x");
   gStyle -> SetTitleOffset(1.75, "y");
@@ -76,17 +75,18 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   //preparing RooPlot
   RooPlot *chFrame = crysADC.frame(Title(title));
   RooDataHist chSpec("crysADC","crysADC", crysADC, h_spec);
+  
   // combined fit function
 
 	RooAddPdf fitFun("fitFun", "firsErg + (secdErg + (fullErg +comPdf))", RooArgList(firsErg, secdErg, fullErg,comPdf), RooArgList(frFrst, frScnd, frFull));//,frBKG) );
 	
   if(opt == "chi2"){ //binned chi2 fit
-    RooFitResult *fitRes = fitFun.chi2FitTo(chSpec, Range(48,115.2),Hesse(kTRUE),Minos(kTRUE), Strategy(1),MaxCalls(10000),PrintLevel(1),Save());//,Extended(true),Hesse(kTRUE),Minos(kTRUE)
+    RooFitResult *fitRes = fitFun.chi2FitTo(chSpec, Range(40,115.2),Hesse(kTRUE),Minos(kTRUE), Strategy(1),MaxCalls(10000),PrintLevel(1),Save(),DataError(RooAbsData::SumW2));//,Extended(true),Hesse(kTRUE),Minos(kTRUE)
     fitRes->Print("v");
 		convergencestatus =fitRes->status();
    }  
   if(opt == "nll"){ //binned nll fit
-    RooAbsReal* nll = fitFun.createNLL(chSpec, Range(48,115.2));
+    RooAbsReal* nll = fitFun.createNLL(chSpec, Range(40,115.2));
     RooMinimizer m(*nll);
     m.migrad();
     m.hesse();
@@ -126,7 +126,8 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   frBKGparam= 1-(frFullparam+frFrstparam+frScndparam);
   //frBKGparam= frBKG.getVal();///nEvents;
   crystalNoparam = crystalNo;
-  errbar = (1/(fpeak/6.13))*(dpeak/fpeak);
+  errbar = (1/(fpeak/6.13))*(dpeak/fpeak);                   
+  pval = TMath::Prob(chiSq, 11);
   //make pretty plots
   TPaveLabel *ptitle = new TPaveLabel(0.80, 0.90, 0.85, 0.80, Form("Mu2e Simulation"), "brNDC");
   ptitle -> SetFillStyle(0);
@@ -168,10 +169,18 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   fsg -> SetTextColor(kBlack);
   fsg -> SetFillColor(kWhite);
   chFrame -> addObject(fsg);
-  std::cout << "chi2: " << chiSq << "; Probability: " << Prob(chiSq, 151) << std::endl;
-  
+  //std::cout << "chi2: " << chiSq << "; Probability: " << Prob(chiSq, 151) << std::endl;
+  std::cout << "chi2: " << chiSq << "; Probability: " << TMath::Prob(50, 11) << std::endl; 
+  std::cout << "reduced: " << chiSq<< "nonreduced"<<chiSq*11 << "; Probability: " << TMath::Prob(chiSq*11, 11) << std::endl;   
+  //RooHist *hresid = chFrame->residHist();
+  // Create top pad for fit
+	TPad *pad1 = new TPad("pad1", "Top pad", 0, 0.25, 1, 1.0);
+	pad1->SetBottomMargin(0.035);  // no big gap between pads
+	pad1->Draw();
+	pad1->cd();  // switch to top pad
   chFrame -> SetYTitle("Events per 25 keV");
   chFrame -> GetYaxis()->SetTitleOffset(1.0);
+  chFrame -> GetYaxis()->SetRangeUser(0, 5000);
   chFrame -> Draw();
   TLegend* legend = new TLegend(0.5, 0.7);
   legend->SetBorderSize(0);
@@ -181,6 +190,26 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   legend->AddEntry("sescape", "second escape", "L");
   legend->AddEntry("background", "background", "L");
   legend->Draw();
+  // Back to canvas
+	can->cd();
+	// Create bottom pad for residuals
+	TPad *pad2 = new TPad("pad2", "Bottom pad", 0, 0.0, 1, 0.25);
+	pad2->SetTopMargin(0.05);
+	pad2->SetBottomMargin(0.3); // room for X-axis labels
+	pad2->Draw();
+	pad2->cd();
+
+// Make residual histogram
+	RooHist *hpull = chFrame->pullHist();// // (data - fit)/sigma
+	hpull->SetTitle("");
+	hpull->GetYaxis()->SetTitle("Normalised Residuals");
+	hpull->GetYaxis()->SetTitleSize(0.12);
+	hpull->GetYaxis()->SetLabelSize(0.10);
+	hpull->GetXaxis()->SetTitleSize(0.12);
+	hpull->GetXaxis()->SetLabelSize(0.10);
+
+// Draw residuals in bottom pad
+	hpull->Draw("AP");
   can -> SaveAs(oName); 
   can->Close();  // Close the associated file
   delete can;    // Delete the object

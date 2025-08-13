@@ -7,7 +7,7 @@ using namespace std::chrono;
 using namespace CaloSourceCalib;
 
 //TString filepath_disk0 = "/pnfs/mu2e/tape/usr-nts/nts/sophie/SourceCalibSimAna/Disk0/root/9c/e5//nts.sophie.SourceCalibSimAna.Disk0.2.root";
-TString filepath_disk0 = "/exp/mu2e/app/users/sophie/CaloCalib/nts.sophie.SourceCalibSimAna.v2.0.root";
+TString filepath_disk0 = "/exp/mu2e/app/home/mu2epro/sourcecalib/SourceAna1e9.root";
 
 TString filepath_disk1 = "/pnfs/mu2e/tape/usr-nts/nts/sophie/SourceCalibSimAna/Disk1/root/fc/49/nts.sophie.SourceCalibSimAna.Disk1.2.root";
 
@@ -37,8 +37,29 @@ std::pair<TH1F*, TFile*> get_data_histogram(int cryNum, int disk) {
     TFile *f = new TFile(filepath);
     TString crystalNumber = to_string(cryNum);
     TH1F* hist = (TH1F*)f->Get(histPath + crystalNumber); 
-
+		hist->SetDirectory(0);  // Detach from file
     return std::make_pair(hist, f);
+}
+std::pair<double, double> ComputeHistogramStats(TH1F* hist) {
+    double sum = 0;
+    double weightedSum = 0;
+    double weightedSumSq = 0;
+
+    int nBins = hist->GetNbinsX();
+    for (int i = 1; i <= nBins; ++i) {
+        double content = hist->GetBinContent(i);
+        double center = hist->GetBinCenter(i);
+
+        sum += content;
+        weightedSum += content * center;
+        weightedSumSq += content * center * center;
+    }
+
+    double mean = (sum > 0) ? weightedSum / sum : 0;
+    double variance = (sum > 0) ? (weightedSumSq / sum) - (mean * mean) : 0;
+    double stddev = (variance > 0) ? std::sqrt(variance) : 0;
+
+    return std::make_pair(mean, stddev);
 }
 
 /*main function allows a loop over all crystals or a choice of a single crystal*/
@@ -48,11 +69,15 @@ int main(int argc, char* argv[]){
   int anacrys_end = std::atoi(argv[2]); //final crystal//680
   TString alg = argv[3]; // fitting alg (nll=NLL, chi2=chi2 fit)
   int disk = std::atoi(argv[4]); //disk number 0 or 1
+  int nCry = anacrys_end - anacrys_start;  // number of crystals to analyze
+
   TFile *table = new TFile("arXivTable.root", "RECREATE");
   Int_t nEvents;
   Float_t fpeak, dpeak, fsigma, chiSq, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,fullResparam,fstResparam,scdResparam,comCnstparam,
-  combetaparam,frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam, convergencestatus,errbar;//frBKGparam
+  combetaparam,frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam, convergencestatus,errbar,pval,kspval;//frBKGparam
   TTree *covar = new TTree("covar","Covariance Plot");
+	TH1F* h_means = new TH1F("h_means", "Mean of Raw Histograms;Crystal;Mean ADC", nCry, anacrys_start, anacrys_end);
+	TH1F* h_stddevs = new TH1F("h_stddevs", "Width of Raw Histograms;Crystal;Std Dev (ADC)", nCry, anacrys_start, anacrys_end);
   covar->Branch("nEvents", &nEvents,"nEvents/I");
   covar->Branch("Peak", &fpeak,"fpeak/F");
   covar->Branch("PeakErr", &dpeak,"dpeak/F");
@@ -79,6 +104,8 @@ int main(int argc, char* argv[]){
   covar->Branch("crystalNo", &crystalNoparam,"crystalNoparam/F");
   covar->Branch("convgstatus", &convergencestatus,"convergencestatus/F");
   covar->Branch("errorbar", &errbar,"errbar/F");
+  covar->Branch("pval", &pval,"pval/F");
+  covar->Branch("kspval", &kspval, "kspval/F");
   auto start_bin = high_resolution_clock::now();
   /*for(int cryNum=anacrys_start; cryNum<anacrys_end; cryNum++){
     TH1F* h = get_data_histogram(cryNum, disk);
@@ -89,28 +116,49 @@ int main(int argc, char* argv[]){
   };*/
   for(int cryNum=anacrys_start; cryNum<anacrys_end; cryNum++){
     auto [h, file] = get_data_histogram(cryNum, disk); // unpack pair
+    
+    auto [mean, stddev] = ComputeHistogramStats(h);
+		h_means->SetBinContent(cryNum - anacrys_start + 1, mean);
+		h_stddevs->SetBinContent(cryNum - anacrys_start + 1, stddev);
+		std::cout << "cryNum: " << cryNum << ", bin = " << cryNum - anacrys_start + 1 << std::endl;
+
     SourceFitter *fit = new SourceFitter();
     fit->FitCrystal(h, alg, cryNum, covar, nEvents, fpeak, dpeak, fsigma, chiSq, fstpeak, fstsigma, scdpeak, scdsigma,
                     fcbalphaparam, fcbndegparam, Aparam, Bparam, Cparam,
                     fullResparam, fstResparam, scdResparam, comCnstparam, combetaparam,
-                    frFullparam, frFrstparam, frScndparam, crystalNoparam, frBKGparam, 											convergencestatus,errbar);
+                    frFullparam, frFrstparam, frScndparam, crystalNoparam, frBKGparam, convergencestatus,errbar,pval,kspval);
 
 // Example: Compare crystal 1042 (even) and 1043 (odd) from the same disk
-auto [hist_even, file_even] = get_data_histogram(1042, disk);
-auto [hist_odd, file_odd] = get_data_histogram(1043, disk);
+auto [hist_even, file_even] = get_data_histogram(0, disk);
+auto [hist_odd, file_odd] = get_data_histogram(1, disk);
 
+kspval = hist_even->KolmogorovTest(hist_odd, "N");
+  
 // Prepare histograms for overlay
 hist_even->SetLineColor(kBlue);
 hist_even->SetLineWidth(2);
 hist_odd->SetLineColor(kRed);
 hist_odd->SetLineWidth(2);
 
-// Create residual histogram: (odd - even)
+// Create normalized residual histogram
 TH1F* residual = (TH1F*)hist_odd->Clone("residual");
 residual->SetDirectory(0);
-residual->Sumw2();
-residual->Add(hist_even, -1);  // residual = hist_odd - hist_even
-// Don't set residual->SetEntries(...) ? let ROOT handle it
+residual->Reset();  // Clear the bin contents
+
+int nBins = hist_odd->GetNbinsX();
+for (int i = 1; i <= nBins; ++i) {
+    double odd = hist_odd->GetBinContent(i);
+    double even = hist_even->GetBinContent(i);
+    double denom = sqrt(odd + even);
+    double value = (denom > 0) ? (odd - even) / denom : 0;
+    residual->SetBinContent(i, value);
+
+    // Optional: set bin error if useful
+    double err_odd = hist_odd->GetBinError(i);
+    double err_even = hist_even->GetBinError(i);
+    double err = denom > 0 ? sqrt(err_odd*err_odd + err_even*err_even) / denom : 0;
+    residual->SetBinError(i, err);
+}
 
 // Setup canvas
 TCanvas* cOverlay = new TCanvas("cOverlay", "Even/Odd SiPM Overlay with Residual", 800, 800);
@@ -120,11 +168,13 @@ cOverlay->Divide(1, 2, 0, 0);
 cOverlay->cd(1);
 gPad->SetPad(0.0, 0.3, 1.0, 1.0);
 hist_even->Draw("hist");
+hist_even->GetYaxis()->SetRangeUser(0, 5000); 
 hist_odd->Draw("hist same");
+hist_odd->GetYaxis()->SetRangeUser(0, 5000); 
 
 TLegend* leg = new TLegend(0.6, 0.7, 0.88, 0.88);
-leg->AddEntry(hist_even, "Even SiPM (1042)", "l");
-leg->AddEntry(hist_odd, "Odd SiPM (1043)", "l");
+leg->AddEntry(hist_even, "Even SiPM (0)", "l");
+leg->AddEntry(hist_odd, "Odd SiPM (1)", "l");
 leg->Draw();
 
 // Add TPaveText to show entry counts
@@ -143,7 +193,11 @@ gPad->SetPad(0.0, 0.0, 1.0, 0.3);
 gStyle->SetOptStat(1110);
 residual->SetTitle("Residual (Odd - Even)");
 residual->GetXaxis()->SetTitle("ADC");
+residual->GetXaxis()->SetLabelSize(0.06);  
+residual->GetXaxis()->SetTitleSize(0.07);  // X axis title
 residual->GetYaxis()->SetTitle("Counts");
+residual->GetYaxis()->SetLabelSize(0.06);
+residual->GetYaxis()->SetTitleSize(0.07);
 residual->Draw("hist");
 
 gPad->Update();  // Generate stats box
@@ -153,7 +207,7 @@ if (stats) {
     stats->SetX2NDC(0.95);
     stats->SetY1NDC(0.15);
     stats->SetY2NDC(0.45);
-    stats->SetTextSize(0.04);
+    stats->SetTextSize(0.07);
 }
 
 // Save to ROOT file
@@ -182,6 +236,7 @@ delete cOverlay;
   TFile *globalPlots = new TFile("globalPlots.root", "RECREATE");
   SourcePlotter *plot = new SourcePlotter();
   plot->ParamPlots(covar, table, globalPlots, anacrys_start, anacrys_end);//add arguement of crynum
+  table->cd();
   table -> Write();
   table -> Close();
   globalPlots -> Write();
