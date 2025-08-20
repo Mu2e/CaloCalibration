@@ -4,7 +4,7 @@ using namespace TMath;
 using namespace RooFit;
 using namespace CaloSourceCalib;
 
-void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *covar, Int_t &nEvents, Float_t &fpeak, Float_t &dpeak, Float_t &fsigma, Float_t &chiSq, Float_t &fstpeak,Float_t &fstsigma, Float_t &scdpeak,Float_t &scdsigma,Float_t &fcbalphaparam,Float_t &fcbndegparam,Float_t &Aparam,Float_t &Bparam, Float_t &Cparam, Float_t &fullResparam, Float_t &fstResparam,Float_t &scdResparam,Float_t &comCnstparam, Float_t &combetaparam, Float_t &frFullparam, Float_t &frFrstparam,Float_t &frScndparam,Float_t &crystalNoparam,Float_t &frBKGparam, Float_t &convergencestatus,Float_t &errbar, Float_t &pval,Float_t &kspval){//Float_t &frBKGparam
+void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *covar, Int_t &nEvents, Float_t &fpeak, Float_t &dpeak, Float_t &fsigma, Float_t &chiSq, Float_t &fstpeak,Float_t &fstsigma, Float_t &scdpeak,Float_t &scdsigma,Float_t &fcbalphaparam,Float_t &fcbndegparam,Float_t &Aparam,Float_t &Bparam, Float_t &Cparam, Float_t &fullResparam, Float_t &fstResparam,Float_t &scdResparam,Float_t &comCnstparam, Float_t &combetaparam, Float_t &frFullparam, Float_t &frFrstparam,Float_t &frScndparam,Float_t &crystalNoparam,Float_t &frBKGparam, Float_t &convergencestatus,Float_t &errbar, Float_t &pval){//Float_t &frBKGparam
     
   // set stlye optionsr
   gStyle -> SetOptFit(1111);
@@ -127,7 +127,7 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   //frBKGparam= frBKG.getVal();///nEvents;
   crystalNoparam = crystalNo;
   errbar = (1/(fpeak/6.13))*(dpeak/fpeak);                   
-  pval = TMath::Prob(chiSq, 11);
+  pval = TMath::Prob(chiSq*11, 11);
   //make pretty plots
   TPaveLabel *ptitle = new TPaveLabel(0.80, 0.90, 0.85, 0.80, Form("Mu2e Simulation"), "brNDC");
   ptitle -> SetFillStyle(0);
@@ -169,9 +169,7 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   fsg -> SetTextColor(kBlack);
   fsg -> SetFillColor(kWhite);
   chFrame -> addObject(fsg);
-  //std::cout << "chi2: " << chiSq << "; Probability: " << Prob(chiSq, 151) << std::endl;
-  std::cout << "chi2: " << chiSq << "; Probability: " << TMath::Prob(50, 11) << std::endl; 
-  std::cout << "reduced: " << chiSq<< "nonreduced"<<chiSq*11 << "; Probability: " << TMath::Prob(chiSq*11, 11) << std::endl;   
+
   //RooHist *hresid = chFrame->residHist();
   // Create top pad for fit
 	TPad *pad1 = new TPad("pad1", "Top pad", 0, 0.25, 1, 1.0);
@@ -202,7 +200,7 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
 // Make residual histogram
 	RooHist *hpull = chFrame->pullHist();// // (data - fit)/sigma
 	hpull->SetTitle("");
-	hpull->GetYaxis()->SetTitle("Normalised Residuals");
+	hpull->GetYaxis()->SetTitle("Normalised Residuals (Residual / #sqrt{N})");
 	hpull->GetYaxis()->SetTitleSize(0.12);
 	hpull->GetYaxis()->SetLabelSize(0.10);
 	hpull->GetXaxis()->SetTitleSize(0.12);

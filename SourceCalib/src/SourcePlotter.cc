@@ -8,7 +8,7 @@ using namespace CaloSourceCalib;
 
 /* function to make global plots of the fit outputs*/
 void SourcePlotter::ParamPlots(TTree* inputTree, TFile *inputFile, TFile *outputFile,int cry_start, int cry_end) {//add param as plot range
-    float crystalNo, Peak, ChiSq, PeakErr,h_means,h_stds,kspval;
+    float crystalNo, Peak, ChiSq, PeakErr,h_means,h_stds;
     int nEvents;    
     inputTree-> SetBranchAddress("crystalNo", &crystalNo);
     inputTree-> SetBranchAddress("Peak", &Peak);
@@ -17,8 +17,7 @@ void SourcePlotter::ParamPlots(TTree* inputTree, TFile *inputFile, TFile *output
     inputTree-> SetBranchAddress("nEvents", &nEvents); 
     inputTree-> SetBranchAddress("h_means", &h_means); 
     inputTree-> SetBranchAddress("h_stds", &h_stds); 
-    inputTree-> SetBranchAddress("kspval", &kspval); 
-    std::vector<Double_t> crystalNos, Peaks, PeakErrs, ChiSqs, EventsErr, Events,h_means_vec,h_stds_vec,kspvals;
+    std::vector<Double_t> crystalNos, Peaks,ADCPeaks, PeakErrs,ADCPeakErrs, ChiSqs, EventsErr, Events,h_means_vec,h_stds_vec;
      
     // Fill the vectors with data from the TTree
     Long64_t nEntries = inputTree->GetEntries();
@@ -26,14 +25,14 @@ void SourcePlotter::ParamPlots(TTree* inputTree, TFile *inputFile, TFile *output
         inputTree->GetEntry(entry);
         crystalNos.push_back(crystalNo);
         Peaks.push_back(1/(Peak/6.13));
-        //add anothe rplot of the un changed version of peakerr
+        ADCPeaks.push_back(Peak);
+        ADCPeakErrs.push_back(PeakErr);
         PeakErrs.push_back((1/(Peak/6.13))*(PeakErr/Peak));
         ChiSqs.push_back(ChiSq);
         Events.push_back(nEvents);
         EventsErr.push_back(sqrt(nEvents));       
         h_means_vec.push_back(h_means);       
         h_stds_vec.push_back(h_stds);       
-        kspvals.push_back(kspval);               
     }
 		double Peaks_sum = std::accumulate(Peaks.begin(), Peaks.end(),0.0);
  		double Peaks_avg = Peaks_sum / Peaks.size();
@@ -121,7 +120,82 @@ std::cout << "Number of PeakErrs > 2 stdev " << countHighPeakErrs << std::endl;
     grpeaks.Draw("APsame"); // A for axis, P for points
     outputFile->cd();
     grpeaks.Write("Peaks");
-
+//-----ADC Peaks--------
+		double ADCPeaks_sum = std::accumulate(ADCPeaks.begin(), ADCPeaks.end(),0.0);
+ 		double ADCPeaks_avg = ADCPeaks_sum / ADCPeaks.size();
+ 		double ADCPeaks_stddev = TMath::StdDev(ADCPeaks.begin(),ADCPeaks.end());
+ 		double ADCstddev_prcnt = (ADCPeaks_stddev/ADCPeaks_avg)*100;
+ 		std::cout<<" ADC peak 2 std dev "<<ADCPeaks_stddev*2<<std::endl;
+ 		std::cout<<" ADC peak std dev "<<ADCPeaks_stddev<<std::endl;
+ 		std::cout<<" ------------ "<<std::endl; 		
+ 		int ADCcountHighPeakErrs = 0;
+for (size_t i = 0; i < ADCPeakErrs.size(); ++i) {
+    if (ADCPeakErrs[i] > 2 * Peaks_stddev) {
+        ++ADCcountHighPeakErrs;
+        std::cout << "Crystal " << crystalNos[i] 
+                  << " has ADCPeakErr = " << ADCPeakErrs[i] 
+                  << " > 2*ADCPeaks_stddev (" << 2 * ADCPeaks_stddev << ")\n";
+    }
+}
+std::cout << "Number of ADC PeakErrs > 2 stdev " << ADCcountHighPeakErrs << std::endl;
+ 		std::cout<<" ------------ "<<std::endl;
+ 			
+    // Create a TGraph for the scatter plot
+    TGraphErrors ADCgrpeaks(crystalNos.size(), &crystalNos[0], &ADCPeaks[0], nullptr, &ADCPeakErrs[0]);
+    TGraph ADCgrpeakerrs(crystalNos.size(), &crystalNos[0], &ADCPeakErrs[0]);
+    
+    // Customize the plot
+    ADCgrpeaks.SetTitle("Cry Number vs ADC;Crystal Number;ADC");
+    ADCgrpeaks.SetMarkerStyle(20);
+    ADCgrpeaks.SetMarkerSize(0.8);
+    ADCgrpeaks.SetMarkerColor(kBlue);
+    ADCgrpeaks.SetLineColor(kBlue);
+    TLine *ADCavgpeak = new TLine(cry_start,ADCPeaks_avg,cry_end,ADCPeaks_avg);
+    TLine *ADCnominalpeak = new TLine(cry_start,98,cry_end,98); 
+    TLine *ADCstddevpeak_abv = new TLine(cry_start,ADCPeaks_avg+2*ADCPeaks_stddev,cry_end,ADCPeaks_avg+2*ADCPeaks_stddev);    
+    TLine *ADCstddevpeak_blw = new TLine(cry_start,ADCPeaks_avg-2*ADCPeaks_stddev,cry_end,ADCPeaks_avg-2*ADCPeaks_stddev);		
+    TCanvas ADCcanvas("ADCcanvas", "Scatter Plot", 800, 600);
+    ADCgrpeaks.Draw("AP"); // A for axis, P for points  
+    ADCcanvas.Update();  // Must update to get access to Y axis
+    ADCgrpeaks.GetYaxis()->SetRangeUser(122, 77);  // Y-axis limits  
+    TPaveText *ADCavg = new TPaveText(0.15, 0.75, 0.35, 0.65, "brNDC");
+   	ADCavg -> SetFillStyle(0);
+   	ADCavg -> SetBorderSize(0);
+   	ADCavg -> SetTextSize(0.03);
+   	ADCavg -> SetTextColor(kBlack);
+   	ADCavg -> SetTextFont(72);
+   	ADCavg -> SetFillColor(kWhite);
+    ADCavg->AddText(Form("ADC Peaks avg val = %4.8f#pm%.8f", ADCPeaks_avg,ADCPeaks_stddev));
+		ADCavg->AddText(Form("Std Dev = %.2f%%", ADCstddev_prcnt));   
+    ADCavgpeak->SetLineColor(kCyan);
+    ADCavgpeak->SetLineWidth(2);
+    ADCnominalpeak->SetLineColor(kMagenta);
+    ADCnominalpeak->SetLineWidth(2);
+    ADCstddevpeak_abv->SetLineColor(kOrange-3);
+    ADCstddevpeak_blw->SetLineColor(kOrange);        
+    ADCstddevpeak_abv->SetLineWidth(2);    
+    ADCstddevpeak_blw->SetLineColor(kOrange);
+    ADCstddevpeak_blw->SetLineWidth(2);        
+    ADCavgpeak->Draw("same");
+    ADCnominalpeak->Draw("same");
+    ADCstddevpeak_abv->Draw("same");
+    ADCstddevpeak_blw->Draw("same");
+    ADCavg->Draw();
+    auto ADClegend = new TLegend();
+    ADClegend->AddEntry(ADCavgpeak, "Average Value", "L");
+    ADClegend->AddEntry(ADCnominalpeak,"Nominal Value","L");
+    ADClegend->AddEntry(ADCstddevpeak_abv,"Std Dev","L");
+    ADClegend->AddEntry(ADCstddevpeak_blw,"Std Dev","L");
+     //legend->SetTextSize(0.4);
+    ADClegend->Draw();
+    outputFile->cd();
+    ADCgrpeaks.Write("ADCPeaks");
+    ADCcanvas.SaveAs("ADCPeaks.root");
+          
+    //TCanvas canvas("canvas", "Scatter Plot", 800, 600);
+    ADCgrpeaks.Draw("APsame"); // A for axis, P for points
+    outputFile->cd();
+    ADCgrpeaks.Write("ADCPeaks");
     
     grchi2.SetTitle("SiPM Number vs Chisq ;SiPM Number; Chi Square");
     grchi2.SetMarkerStyle(20);
@@ -417,27 +491,5 @@ outputFile->cd();
 grHStds.Write("SiPM_hstds_Scatter");
 canvasHStds.SaveAs("SiPM_hstds_Scatter.root");
 
-   // ====================== KS TEST PLOT ======================
-    TH1F* h_kspvals = new TH1F("h_kspvals",
-                               "KS Test p-value vs Crystal;Crystal Number;KS p-value",
-                               cry_end - cry_start, cry_start, cry_end);
-
-    // Fill histogram
-    for (size_t i = 0; i < crystalNos.size(); ++i) {
-        int cryNum = static_cast<int>(crystalNos[i]);
-        double ks  = kspvals[i];
-        h_kspvals->SetBinContent(cryNum - cry_start + 1, ks);
-    }
-
-// After filling the histogram h_kspvals:
-
-outputFile->cd();
-h_kspvals->Write("KS_pval_vs_Crystal");
-
-// Create a canvas to save the plot as a standalone ROOT file
-TCanvas* canvasKSpval = new TCanvas("canvasKSpval", "KS p-value vs Crystal", 800, 600);
-h_kspvals->Draw("HIST");
-canvasKSpval->SaveAs("KS_pval_vs_Crystal.root");
-delete canvasKSpval;  // clean up
 
 }

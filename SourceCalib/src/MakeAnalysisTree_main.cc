@@ -70,11 +70,16 @@ int main(int argc, char* argv[]){
   TString alg = argv[3]; // fitting alg (nll=NLL, chi2=chi2 fit)
   int disk = std::atoi(argv[4]); //disk number 0 or 1
   int nCry = anacrys_end - anacrys_start;  // number of crystals to analyze
+  // Optional overlay flag (default = false)
+  bool doOverlay = false;
+    if (argc >= 6 && TString(argv[5]) == "overlay") {
+        doOverlay = true;
+    }
 
   TFile *table = new TFile("arXivTable.root", "RECREATE");
   Int_t nEvents;
   Float_t fpeak, dpeak, fsigma, chiSq, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,fullResparam,fstResparam,scdResparam,comCnstparam,
-  combetaparam,frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam, convergencestatus,errbar,pval,kspval;//frBKGparam
+  combetaparam,frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam, convergencestatus,errbar,pval;//frBKGparam
   TTree *covar = new TTree("covar","Covariance Plot");
 	TH1F* h_means = new TH1F("h_means", "Mean of Raw Histograms;Crystal;Mean ADC", nCry, anacrys_start, anacrys_end);
 	TH1F* h_stddevs = new TH1F("h_stddevs", "Width of Raw Histograms;Crystal;Std Dev (ADC)", nCry, anacrys_start, anacrys_end);
@@ -105,7 +110,6 @@ int main(int argc, char* argv[]){
   covar->Branch("convgstatus", &convergencestatus,"convergencestatus/F");
   covar->Branch("errorbar", &errbar,"errbar/F");
   covar->Branch("pval", &pval,"pval/F");
-  covar->Branch("kspval", &kspval, "kspval/F");
   auto start_bin = high_resolution_clock::now();
   /*for(int cryNum=anacrys_start; cryNum<anacrys_end; cryNum++){
     TH1F* h = get_data_histogram(cryNum, disk);
@@ -126,108 +130,119 @@ int main(int argc, char* argv[]){
     fit->FitCrystal(h, alg, cryNum, covar, nEvents, fpeak, dpeak, fsigma, chiSq, fstpeak, fstsigma, scdpeak, scdsigma,
                     fcbalphaparam, fcbndegparam, Aparam, Bparam, Cparam,
                     fullResparam, fstResparam, scdResparam, comCnstparam, combetaparam,
-                    frFullparam, frFrstparam, frScndparam, crystalNoparam, frBKGparam, convergencestatus,errbar,pval,kspval);
+                    frFullparam, frFrstparam, frScndparam, crystalNoparam, frBKGparam, convergencestatus,errbar,pval);
 
-// Example: Compare crystal 1042 (even) and 1043 (odd) from the same disk
-auto [hist_even, file_even] = get_data_histogram(0, disk);
-auto [hist_odd, file_odd] = get_data_histogram(1, disk);
-
-kspval = hist_even->KolmogorovTest(hist_odd, "N");
-  
-// Prepare histograms for overlay
-hist_even->SetLineColor(kBlue);
-hist_even->SetLineWidth(2);
-hist_odd->SetLineColor(kRed);
-hist_odd->SetLineWidth(2);
-
-// Create normalized residual histogram
-TH1F* residual = (TH1F*)hist_odd->Clone("residual");
-residual->SetDirectory(0);
-residual->Reset();  // Clear the bin contents
-
-int nBins = hist_odd->GetNbinsX();
-for (int i = 1; i <= nBins; ++i) {
-    double odd = hist_odd->GetBinContent(i);
-    double even = hist_even->GetBinContent(i);
-    double denom = sqrt(odd + even);
-    double value = (denom > 0) ? (odd - even) / denom : 0;
-    residual->SetBinContent(i, value);
-
-    // Optional: set bin error if useful
-    double err_odd = hist_odd->GetBinError(i);
-    double err_even = hist_even->GetBinError(i);
-    double err = denom > 0 ? sqrt(err_odd*err_odd + err_even*err_even) / denom : 0;
-    residual->SetBinError(i, err);
-}
-
-// Setup canvas
-TCanvas* cOverlay = new TCanvas("cOverlay", "Even/Odd SiPM Overlay with Residual", 800, 800);
-cOverlay->Divide(1, 2, 0, 0);
-
-// ???????????????? Top pad: Overlay ????????????????
-cOverlay->cd(1);
-gPad->SetPad(0.0, 0.3, 1.0, 1.0);
-hist_even->Draw("hist");
-hist_even->GetYaxis()->SetRangeUser(0, 5000); 
-hist_odd->Draw("hist same");
-hist_odd->GetYaxis()->SetRangeUser(0, 5000); 
-
-TLegend* leg = new TLegend(0.6, 0.7, 0.88, 0.88);
-leg->AddEntry(hist_even, "Even SiPM (0)", "l");
-leg->AddEntry(hist_odd, "Odd SiPM (1)", "l");
-leg->Draw();
-
-// Add TPaveText to show entry counts
-TPaveText* statsText = new TPaveText(0.15, 0.7, 0.4, 0.88, "NDC");
-statsText->SetFillColor(0);
-statsText->SetTextSize(0.03);
-statsText->AddText(Form("Even Entries: %.0f", hist_even->GetEntries()));
-statsText->AddText(Form("Odd Entries: %.0f", hist_odd->GetEntries()));
-statsText->Draw();
-
-// ???????????????? Bottom pad: Residual ????????????????
-cOverlay->cd(2);
-gPad->SetPad(0.0, 0.0, 1.0, 0.3);
-
-// Show stat box and style it
-gStyle->SetOptStat(1110);
-residual->SetTitle("Residual (Odd - Even)");
-residual->GetXaxis()->SetTitle("ADC");
-residual->GetXaxis()->SetLabelSize(0.06);  
-residual->GetXaxis()->SetTitleSize(0.07);  // X axis title
-residual->GetYaxis()->SetTitle("Counts");
-residual->GetYaxis()->SetLabelSize(0.06);
-residual->GetYaxis()->SetTitleSize(0.07);
-residual->Draw("hist");
-
-gPad->Update();  // Generate stats box
-TPaveStats* stats = (TPaveStats*)residual->FindObject("stats");
-if (stats) {
-    stats->SetX1NDC(0.7);
-    stats->SetX2NDC(0.95);
-    stats->SetY1NDC(0.15);
-    stats->SetY2NDC(0.45);
-    stats->SetTextSize(0.07);
-}
-
-// Save to ROOT file
-TFile* outputFile = new TFile("EvenOddOverlay.root", "RECREATE");
-cOverlay->Write("cOverlay");
-outputFile->Close();
-delete outputFile;
-
-// Cleanup
-file_even->Close();
-file_odd->Close();
-delete file_even;
-delete file_odd;
-delete cOverlay;
-
-                    
     file->Close();    // ? closes input file for current crystal
     delete file;      // ? avoids memory leak
     delete fit;       // (optional cleanup)
-};
+    delete h;
+}
+if (doOverlay) {
+	for (int cryNum = anacrys_start; cryNum + 1 < anacrys_end; cryNum += 2) {
+
+    auto [hist_even, file_even] = get_data_histogram(cryNum, disk);
+    auto [hist_odd, file_odd]  = get_data_histogram(cryNum + 1, disk);
+    hist_even->SetDirectory(0);
+		hist_odd->SetDirectory(0);
+
+
+    // Style histograms
+    hist_even->SetLineColor(kBlue);
+    hist_even->SetLineWidth(2);
+    hist_odd->SetLineColor(kRed);
+    hist_odd->SetLineWidth(2);
+
+    // Create residual histogram
+    TH1F* residual = (TH1F*)hist_odd->Clone(Form("residual_%d_%d", cryNum, cryNum+1));
+    residual->SetDirectory(0);
+    residual->Reset();
+
+    int nBins = hist_odd->GetNbinsX();
+    	for (int i = 1; i <= nBins; ++i) {
+        double odd   = hist_odd->GetBinContent(i);
+        double even  = hist_even->GetBinContent(i);
+        double denom = sqrt(odd + even);
+        double value = (denom > 0) ? (odd - even) / denom : 0;
+        residual->SetBinContent(i, value);
+
+        double err_odd  = hist_odd->GetBinError(i);
+        double err_even = hist_even->GetBinError(i);
+        double err = denom > 0 ? sqrt(err_odd*err_odd + err_even*err_even) / denom : 0;
+        residual->SetBinError(i, err);
+    }
+
+    // Create canvas for this pair
+    TCanvas* cOverlay = new TCanvas(Form("cOverlay_%d_%d", cryNum, cryNum+1),
+                                    Form("Even/Odd Overlay %d & %d", cryNum, cryNum+1),
+                                    800, 800);
+    cOverlay->Divide(1, 2, 0, 0);
+
+    // --- Top pad: overlay ---
+    cOverlay->cd(1);
+    gPad->SetPad(0.0, 0.3, 1.0, 1.0);
+    hist_even->Draw("hist");
+    hist_even->GetYaxis()->SetRangeUser(0, 5000);
+    hist_odd->Draw("hist same");
+    hist_odd->GetYaxis()->SetRangeUser(0, 5000);
+
+    TLegend* leg = new TLegend(0.6, 0.7, 0.88, 0.88);
+    leg->AddEntry(hist_even, Form("Even SiPM (%d)", cryNum), "l");
+    leg->AddEntry(hist_odd, Form("Odd SiPM (%d)", cryNum+1), "l");
+    leg->Draw();
+
+    TPaveText* statsText = new TPaveText(0.15, 0.7, 0.4, 0.88, "NDC");
+    statsText->SetFillColor(0);
+    statsText->SetTextSize(0.03);
+    statsText->AddText(Form("Even Entries: %.0f", hist_even->GetEntries()));
+    statsText->AddText(Form("Odd Entries: %.0f", hist_odd->GetEntries()));
+    statsText->Draw();
+
+    // --- Bottom pad: residual ---
+    cOverlay->cd(2);
+    gPad->SetPad(0.0, 0.0, 1.0, 0.3);
+    residual->SetTitle("Normalised Residual (Residual / sqrt(Bin Count))");
+    residual->GetXaxis()->SetTitle("ADC");
+    residual->GetXaxis()->SetLabelSize(0.06);
+    residual->GetXaxis()->SetTitleSize(0.07);
+    residual->GetYaxis()->SetTitle("Counts");
+    residual->GetYaxis()->SetLabelSize(0.06);
+    residual->GetYaxis()->SetTitleSize(0.07);
+    residual->Draw("hist");
+
+    gPad->Update();
+    if (auto stats = (TPaveStats*)residual->FindObject("stats")) {
+        stats->SetX1NDC(0.7);
+        stats->SetX2NDC(0.95);
+        stats->SetY1NDC(0.15);
+        stats->SetY2NDC(0.45);
+        stats->SetTextSize(0.07);
+    }
+
+    // --- Save to a unique ROOT file ---
+		TString oName = "mu2e_simu_hist_" + std::to_string(cryNum) + "_" + std::to_string(cryNum+1) + ".root";
+    TFile* outputFile = new TFile(oName, "RECREATE");
+    cOverlay->Write();
+    outputFile->Close();
+    delete outputFile;
+
+    // Cleanup
+    file_even->Close();
+    file_odd->Close();
+    delete file_even;
+    delete file_odd;
+    delete cOverlay;
+    delete residual;
+		delete leg;
+		delete statsText;
+		delete hist_even;
+		delete hist_odd;
+		}
+}      
+    //file->Close();    // ? closes input file for current crystal
+    //delete file;      // ? avoids memory leak
+    //delete fit;       // (optional cleanup)
+    //delete h;
+//};
 
 
   auto end_bin = high_resolution_clock::now();
