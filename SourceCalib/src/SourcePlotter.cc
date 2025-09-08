@@ -8,7 +8,7 @@ using namespace CaloSourceCalib;
 
 /* function to make global plots of the fit outputs*/
 void SourcePlotter::ParamPlots(TTree* inputTree, TFile *inputFile, TFile *outputFile,int cry_start, int cry_end) {//add param as plot range
-    float crystalNo, Peak, ChiSq, PeakErr,h_means,h_stds;
+    float crystalNo, Peak, ChiSq, PeakErr,h_means,h_stds,frFull,frFrst,frScnd,convgstatus,firstPeak,secondPeak;
     int nEvents;    
     inputTree-> SetBranchAddress("crystalNo", &crystalNo);
     inputTree-> SetBranchAddress("Peak", &Peak);
@@ -17,7 +17,13 @@ void SourcePlotter::ParamPlots(TTree* inputTree, TFile *inputFile, TFile *output
     inputTree-> SetBranchAddress("nEvents", &nEvents); 
     inputTree-> SetBranchAddress("h_means", &h_means); 
     inputTree-> SetBranchAddress("h_stds", &h_stds); 
-    std::vector<Double_t> crystalNos, Peaks,ADCPeaks, PeakErrs,ADCPeakErrs, ChiSqs, EventsErr, Events,h_means_vec,h_stds_vec;
+    inputTree-> SetBranchAddress("frFull", &frFull);
+    inputTree-> SetBranchAddress("frFrst", &frFrst);
+    inputTree-> SetBranchAddress("frScnd", &frScnd); 
+    inputTree-> SetBranchAddress("convgstatus", &convgstatus); 
+    inputTree-> SetBranchAddress("1stPeak", &firstPeak); 
+    inputTree-> SetBranchAddress("2ndPeak", &secondPeak); 
+    std::vector<Double_t> crystalNos, Peaks,ADCPeaks, PeakErrs,ADCPeakErrs, ChiSqs, EventsErr, Events,h_means_vec,h_stds_vec,frFull_vec,frFrst_vec,frScnd_vec,convgstatus_vec,firstPeak_vec,secondPeak_vec;
      
     // Fill the vectors with data from the TTree
     Long64_t nEntries = inputTree->GetEntries();
@@ -32,15 +38,23 @@ void SourcePlotter::ParamPlots(TTree* inputTree, TFile *inputFile, TFile *output
         Events.push_back(nEvents);
         EventsErr.push_back(sqrt(nEvents));       
         h_means_vec.push_back(h_means);       
-        h_stds_vec.push_back(h_stds);       
+        h_stds_vec.push_back(h_stds); 
+        frFull_vec.push_back(frFull);
+        frFrst_vec.push_back(frFrst);
+        frScnd_vec.push_back(frScnd);
+        convgstatus_vec.push_back(convgstatus);
+        firstPeak_vec.push_back(firstPeak);
+        secondPeak_vec.push_back(secondPeak);
     }
+//----create value of avg and std dev for tlines for plots---
 		double Peaks_sum = std::accumulate(Peaks.begin(), Peaks.end(),0.0);
  		double Peaks_avg = Peaks_sum / Peaks.size();
  		double Peaks_stddev = TMath::StdDev(Peaks.begin(),Peaks.end());
  		double stddev_prcnt = (Peaks_stddev/Peaks_avg)*100;
  		std::cout<<" peak 2 std dev "<<Peaks_stddev*2<<std::endl;
  		std::cout<<" peak std dev "<<Peaks_stddev<<std::endl;
- 		std::cout<<" ------------ "<<std::endl; 		
+ 		std::cout<<" ------------ "<<std::endl; 
+//----create loop to count and print how many crys/sipms have pear error larger than 2 stdev----		
  		int countHighPeakErrs = 0;
 for (size_t i = 0; i < PeakErrs.size(); ++i) {
     if (PeakErrs[i] > 2 * Peaks_stddev) {
@@ -52,6 +66,7 @@ for (size_t i = 0; i < PeakErrs.size(); ++i) {
 }
 std::cout << "Number of PeakErrs > 2 stdev " << countHighPeakErrs << std::endl;
  		std::cout<<" ------------ "<<std::endl;
+//----resume creating values of avg and std dev for tlines for plots-----
  		double ChiSqs_sum = std::accumulate(ChiSqs.begin(), ChiSqs.end(),0.0);
  		double ChiSqs_avg = ChiSqs_sum / ChiSqs.size();
  		double ChiSqs_stddev = TMath::StdDev(ChiSqs.begin(),ChiSqs.end());
@@ -67,7 +82,8 @@ std::cout << "Number of PeakErrs > 2 stdev " << countHighPeakErrs << std::endl;
     TGraph grchi2(crystalNos.size(), &crystalNos[0], &ChiSqs[0]);
     TGraphErrors grN(crystalNos.size(), &crystalNos[0], &Events[0], nullptr, &EventsErr[0]);
     TGraph grpeakerrs(crystalNos.size(), &crystalNos[0], &PeakErrs[0]);
-    
+    TGraph grconvstatus(convgstatus_vec.size(), &convgstatus_vec[0], &PeakErrs[0]);
+
     // Customize the plot
     grpeaks.SetTitle("Cry Number vs MeV/ADC;Crystal Number;MeV/ADC");
     grpeaks.SetMarkerStyle(20);
@@ -120,7 +136,7 @@ std::cout << "Number of PeakErrs > 2 stdev " << countHighPeakErrs << std::endl;
     grpeaks.Draw("APsame"); // A for axis, P for points
     outputFile->cd();
     grpeaks.Write("Peaks");
-//-----ADC Peaks--------
+//-----ADC Peaks graph that represent the full peak in ADC--------
 		double ADCPeaks_sum = std::accumulate(ADCPeaks.begin(), ADCPeaks.end(),0.0);
  		double ADCPeaks_avg = ADCPeaks_sum / ADCPeaks.size();
  		double ADCPeaks_stddev = TMath::StdDev(ADCPeaks.begin(),ADCPeaks.end());
@@ -196,7 +212,8 @@ std::cout << "Number of ADC PeakErrs > 2 stdev " << ADCcountHighPeakErrs << std:
     ADCgrpeaks.Draw("APsame"); // A for axis, P for points
     outputFile->cd();
     ADCgrpeaks.Write("ADCPeaks");
-    
+  
+//----Chi2 plot-----    
     grchi2.SetTitle("SiPM Number vs Chisq ;SiPM Number; Chi Square");
     grchi2.SetMarkerStyle(20);
     grchi2.SetMarkerSize(0.8);
@@ -264,9 +281,10 @@ std::cout << "Number of ADC PeakErrs > 2 stdev " << ADCcountHighPeakErrs << std:
     grN.Write("nEvents");
     canvas3.SaveAs("nEvents.root");    
     
-    //drawing peakerrs
+//----PeakErrors plot that represents the errors from the fit in MeV/ADC-----
     grpeakerrs.SetTitle("Cry Number vs Peak Errors;Crystal Number;Peak Errors");
-    grpeakerrs.SetMarkerSize(0.8);
+	grpeakerrs.SetMarkerStyle(20);   // full circle (visible marker)
+	grpeakerrs.SetMarkerSize(7.0);   // make points bigger
     grpeakerrs.SetMarkerColor(kGreen);
     grpeakerrs.SetLineColor(kGreen);        
     TCanvas canvas4("canvas", "Scatter Plot", 800, 600);
@@ -279,11 +297,20 @@ std::cout << "Number of ADC PeakErrs > 2 stdev " << ADCcountHighPeakErrs << std:
     outputFile->cd();
     grpeakerrs.Write("PeaksErrors");
 
-    
- 
-    
-    
-// ---- Build SiPM pair maps by crystalNo using crystalNo parity (even/odd logic) ----
+//-----convergence status plots that come from the nll fit function-------- 
+    grconvstatus.SetTitle("Peak Error vs Convg Status ;Convergence Status; PeakError");
+    grconvstatus.SetMarkerStyle(20);
+    grconvstatus.SetMarkerSize(0.8);
+    grconvstatus.SetMarkerColor(kRed);
+    grconvstatus.SetLineColor(kRed);
+    TCanvas canvas_conv("canvas", "Scatter Plot", 800, 600);
+    grconvstatus.Draw("AP"); // A for axis, P for points
+    outputFile->cd();
+    grconvstatus.Write("Convstatus");
+    canvas_conv.SaveAs("convstatusvspeakerrs.root");  
+   
+// ---- Scatter plot of calib consts of sipm pairs laid agaisnt each other (i.e even on x axis odd on y axis)-----
+//Build SiPM pair maps by crystalNo using crystalNo parity (even/odd logic) 
 std::map<int, std::map<int, double>> sipm_peaks_by_crystal;
 
 for (size_t i = 0; i < crystalNos.size(); ++i) {
@@ -338,8 +365,10 @@ double max_peak = std::max(*std::max_element(sipm0_peaks.begin(), sipm0_peaks.en
                            *std::max_element(sipm1_peaks.begin(), sipm1_peaks.end()));
 
 // --- Set axis limits ---
-canvasScatter.Update();  // Must update to get access to Y axis
-grScatter.GetYaxis()->SetRangeUser(0.6, 0.68);  // Y-axis limits
+canvasScatter.Update();
+grScatter.GetXaxis()->SetLimits(min_peak, max_peak); // set X range
+grScatter.GetYaxis()->SetRangeUser(min_peak, max_peak); // set Y range
+
 
 TLine identity(min_peak, min_peak, max_peak, max_peak);
 identity.SetLineColor(kRed);
@@ -414,7 +443,7 @@ gausFit->Write("PeakDiff_GaussianFit");
 canvasHist.SaveAs("PeakDiff_Histogram.root");
 
 
-//plots for data histogram means
+//----Plots for means and std devs of the histrogrammed data----
 std::map<int, std::map<int, double>> sipm_hmeans_by_crystal;
 std::map<int, std::map<int, double>> sipm_hstds_by_crystal;
 
@@ -467,29 +496,217 @@ outputFile->cd();
 grHMeans.Write("SiPM_hmeans_Scatter");
 canvasHMeans.SaveAs("SiPM_hmeans_Scatter.root");
 
-// Similarly for h_stds
-TGraph grHStds(sipm0_hstds.size(), &sipm0_hstds[0], &sipm1_hstds[0]);
-grHStds.SetTitle("SiPM Pair h_stds;SiPM 0 h_std;SiPM 1 h_std");
-grHStds.SetMarkerStyle(20);
-grHStds.SetMarkerColor(kBlue);
-grHStds.SetMarkerSize(0.9);
+// for h_stds
+if (!sipm0_hstds.empty() && !sipm1_hstds.empty()) {
+	TGraph grHStds(sipm0_hstds.size(), &sipm0_hstds[0], &sipm1_hstds[0]);
+	grHStds.SetTitle("SiPM Pair h_stds;SiPM 0 h_std;SiPM 1 h_std");
+	grHStds.SetMarkerStyle(20);
+	grHStds.SetMarkerColor(kBlue);
+	grHStds.SetMarkerSize(0.9);
 
-TCanvas canvasHStds("canvasHStds", "h_stds Scatter", 800, 600);
-grHStds.Draw("AP");
+	TCanvas canvasHStds("canvasHStds", "h_stds Scatter", 800, 600);
+	grHStds.Draw("AP");
 
-double min_hstd = std::min(*std::min_element(sipm0_hstds.begin(), sipm0_hstds.end()),
+	double min_hstd = std::min(*std::min_element(sipm0_hstds.begin(), sipm0_hstds.end()),
                            *std::min_element(sipm1_hstds.begin(), sipm1_hstds.end()));
-double max_hstd = std::max(*std::max_element(sipm0_hstds.begin(), sipm0_hstds.end()),
+	double max_hstd = std::max(*std::max_element(sipm0_hstds.begin(), sipm0_hstds.end()),
                            *std::max_element(sipm1_hstds.begin(), sipm1_hstds.end()));
 
-TLine identityHStd(min_hstd, min_hstd, max_hstd, max_hstd);
-identityHStd.SetLineColor(kRed);
-identityHStd.SetLineStyle(2);
-identityHStd.Draw("same");
+	TLine identityHStd(min_hstd, min_hstd, max_hstd, max_hstd);
+	identityHStd.SetLineColor(kRed);
+	identityHStd.SetLineStyle(2);
+	identityHStd.Draw("same");
 
+	outputFile->cd();
+	grHStds.Write("SiPM_hstds_Scatter");
+	canvasHStds.SaveAs("SiPM_hstds_Scatter.root");
+}else {
+    std::cout << "?? No h_stds data available for plotting!" << std::endl;
+}
+
+// ---- Scatter plot of full, first & scnd fractions of sipm pairs laid agaisnt each other (i.e even on x axis odd on y axis)-----
+//Build SiPM pair maps for frFull, frFrst, frScnd 
+std::map<int, std::map<int, double>> sipm_frFull_by_crystal;
+std::map<int, std::map<int, double>> sipm_frFrst_by_crystal;
+std::map<int, std::map<int, double>> sipm_frScnd_by_crystal;
+
+for (size_t i = 0; i < crystalNos.size(); ++i) {
+    int sipm = static_cast<int>(crystalNos[i]);
+    int crystal = sipm / 2;       // assumes sipm 2n and 2n+1 belong to same crystal
+    int sipm_in_pair = sipm % 2;  // 0 or 1
+
+    sipm_frFull_by_crystal[crystal][sipm_in_pair] = frFull_vec[i];
+    sipm_frFrst_by_crystal[crystal][sipm_in_pair] = frFrst_vec[i];
+    sipm_frScnd_by_crystal[crystal][sipm_in_pair] = frScnd_vec[i];
+}
+
+// Prepare data vectors
+std::vector<Double_t> sipm0_frFull, sipm1_frFull;
+std::vector<Double_t> sipm0_frFrst, sipm1_frFrst;
+std::vector<Double_t> sipm0_frScnd, sipm1_frScnd;
+
+for (const auto& kv : sipm_frFull_by_crystal) {
+    const auto& m = kv.second;
+    if (m.count(0) && m.count(1)) {  // robust check
+        sipm0_frFull.push_back(m.at(0));
+        sipm1_frFull.push_back(m.at(1));
+    }
+}
+for (const auto& kv : sipm_frFrst_by_crystal) {
+    const auto& m = kv.second;
+    if (m.count(0) && m.count(1)) {
+        sipm0_frFrst.push_back(m.at(0));
+        sipm1_frFrst.push_back(m.at(1));
+    }
+}
+for (const auto& kv : sipm_frScnd_by_crystal) {
+    const auto& m = kv.second;
+    if (m.count(0) && m.count(1)) {
+        sipm0_frScnd.push_back(m.at(0));
+        sipm1_frScnd.push_back(m.at(1));
+    }
+}
+
+    // Build graphs (graphs can be empty; that?s OK)
+    TGraph grFrFull(sipm0_frFull.size(), sipm0_frFull.data(), sipm1_frFull.data());
+    grFrFull.SetMarkerStyle(20);
+    grFrFull.SetMarkerColor(kBlue+1);
+    grFrFull.SetMarkerSize(1.0);
+
+    TGraph grFrFrst(sipm0_frFrst.size(), sipm0_frFrst.data(), sipm1_frFrst.data());
+    grFrFrst.SetMarkerStyle(24); // open circle for visibility
+    grFrFrst.SetMarkerColor(kGreen+2);
+    grFrFrst.SetMarkerSize(1.0);
+
+    TGraph grFrScnd(sipm0_frScnd.size(), sipm0_frScnd.data(), sipm1_frScnd.data());
+    grFrScnd.SetMarkerStyle(22); // triangle
+    grFrScnd.SetMarkerColor(kMagenta+1);
+    grFrScnd.SetMarkerSize(1.0);
+
+    // Compute combined axis limits across ALL datasets (skip NaN/Inf)
+    auto upd = [](double v, double& mn, double& mx) {
+        if (std::isfinite(v)) { mn = std::min(mn, v); mx = std::max(mx, v); }
+    };
+    double xmin = +std::numeric_limits<double>::infinity();
+    double xmax = -std::numeric_limits<double>::infinity();
+    double ymin = +std::numeric_limits<double>::infinity();
+    double ymax = -std::numeric_limits<double>::infinity();
+
+    for (size_t i=0;i<sipm0_frFull.size(); ++i){ upd(sipm0_frFull[i], xmin, xmax); upd(sipm1_frFull[i], ymin, ymax); }
+    for (size_t i=0;i<sipm0_frFrst.size(); ++i){ upd(sipm0_frFrst[i], xmin, xmax); upd(sipm1_frFrst[i], ymin, ymax); }
+    for (size_t i=0;i<sipm0_frScnd.size(); ++i){ upd(sipm0_frScnd[i], xmin, xmax); upd(sipm1_frScnd[i], ymin, ymax); }
+
+    // Fallback if one axis was totally empty
+    if (!std::isfinite(xmin) || !std::isfinite(xmax)) { xmin = 0.; xmax = 1.; }
+    if (!std::isfinite(ymin) || !std::isfinite(ymax)) { ymin = 0.; ymax = 1.; }
+
+    // Add a small margin
+    const double dx = (xmax - xmin) > 0 ? 0.05*(xmax - xmin) : 0.05;
+    const double dy = (ymax - ymin) > 0 ? 0.05*(ymax - ymin) : 0.05;
+    xmin -= dx; xmax += dx; ymin -= dy; ymax += dy;
+
+    // Draw on a fixed frame so the later graphs cannot be clipped
+    TCanvas canvasFrac("canvasFrac", "SiPM Fractions Scatter", 800, 600);
+    TH1F* frame = gPad->DrawFrame(xmin, ymin, xmax, ymax);
+    frame->SetTitle("SiPM Pair Fractions;SiPM 0;SiPM 1");
+
+    // Identity line
+    double lmin = std::min(xmin, ymin);
+    double lmax = std::max(xmax, ymax);
+    TLine identityFrac(lmin, lmin, lmax, lmax);
+    identityFrac.SetLineColor(kRed);
+    identityFrac.SetLineStyle(2);
+
+    // Draw graphs
+    grFrFull.Draw("P SAME");
+    grFrFrst.Draw("P SAME");
+    grFrScnd.Draw("P SAME");
+    identityFrac.Draw("SAME");
+
+    // Legend (only add entries that have points)
+    TLegend frlegend(0.15, 0.75, 0.45, 0.9);
+    if (grFrFull.GetN() > 0)  frlegend.AddEntry(&grFrFull, "frFull", "p");
+    if (grFrFrst.GetN() > 0)  frlegend.AddEntry(&grFrFrst, "frFrst", "p");
+    if (grFrScnd.GetN() > 0)  frlegend.AddEntry(&grFrScnd, "frScnd", "p");
+    frlegend.Draw();
+
+    outputFile->cd();
+    grFrFull.Write("SiPM_FrFull_Scatter");
+    grFrFrst.Write("SiPM_FrFrst_Scatter");
+    grFrScnd.Write("SiPM_FrScnd_Scatter");
+    canvasFrac.SaveAs("SiPM_Fractions_Scatter.root");
+
+// --- Overlay plot: ADC Peak, 1stPeak, 2ndPeak vs Crystal Number ---
+TGraph grADC(crystalNos.size(), &crystalNos[0], &ADCPeaks[0]);
+TGraph gr1st(crystalNos.size(), &crystalNos[0], &firstPeak_vec[0]);
+TGraph gr2nd(crystalNos.size(), &crystalNos[0], &secondPeak_vec[0]);
+
+// Style
+grADC.SetMarkerStyle(20); // filled circle
+grADC.SetMarkerColor(kBlue);
+grADC.SetLineColor(kBlue);
+grADC.SetMarkerSize(0.9);
+
+gr1st.SetMarkerStyle(21); // square
+gr1st.SetMarkerColor(kRed);
+gr1st.SetLineColor(kRed);
+gr1st.SetMarkerSize(0.9);
+
+gr2nd.SetMarkerStyle(22); // triangle
+gr2nd.SetMarkerColor(kGreen+2);
+gr2nd.SetLineColor(kGreen+2);
+gr2nd.SetMarkerSize(0.9);
+
+// Canvas
+TCanvas cADC1st2nd("cADC1st2nd", "ADC, 1st, and 2nd Peaks", 800, 600);
+
+// Compute combined y-range 
+double ymin = std::numeric_limits<double>::infinity();
+double ymax = -std::numeric_limits<double>::infinity();
+auto updateMinMax = [&](const TGraph& g) {
+    for (int i = 0; i < g.GetN(); ++i) {
+        double x, y;
+        g.GetPoint(i, x, y);
+        if (std::isfinite(y)) {
+            ymin = std::min(ymin, y);
+            ymax = std::max(ymax, y);
+        }
+    }
+};
+updateMinMax(grADC);
+updateMinMax(gr1st);
+updateMinMax(gr2nd);
+
+// Add margin
+double dy = (ymax - ymin) * 0.05;
+if (dy <= 0) dy = 1.0; // fallback
+ymin -= dy;
+ymax += dy;
+
+// Draw empty frame first with full range
+TH1F* frame = cADC1st2nd.DrawFrame(
+    crystalNos.front(), ymin,
+    crystalNos.back(), ymax
+);
+frame->SetTitle("Peak Locations;Crystal Number;ADC / Peak Value");
+
+// Draw graphs
+grADC.Draw("P SAME");
+gr1st.Draw("P SAME");
+gr2nd.Draw("P SAME");
+
+// Legend
+auto legADC = new TLegend(0.15, 0.75, 0.45, 0.9);
+legADC->AddEntry(&grADC, "ADC Peak", "p");
+legADC->AddEntry(&gr1st, "1st Peak", "p");
+legADC->AddEntry(&gr2nd, "2nd Peak", "p");
+legADC->Draw();
+
+// Save
 outputFile->cd();
-grHStds.Write("SiPM_hstds_Scatter");
-canvasHStds.SaveAs("SiPM_hstds_Scatter.root");
-
+grADC.Write("ADC_vs_Crystal");
+gr1st.Write("FirstPeak_vs_Crystal");
+gr2nd.Write("SecondPeak_vs_Crystal");
+cADC1st2nd.SaveAs("ADC_1st_2nd_Peaks.root");
 
 }

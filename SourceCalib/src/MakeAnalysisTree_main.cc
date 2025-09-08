@@ -6,11 +6,10 @@ using namespace std::chrono;
 
 using namespace CaloSourceCalib;
 
-//TString filepath_disk0 = "/pnfs/mu2e/tape/usr-nts/nts/sophie/SourceCalibSimAna/Disk0/root/9c/e5//nts.sophie.SourceCalibSimAna.Disk0.2.root";
-TString filepath_disk0 = "/exp/mu2e/app/home/mu2epro/sourcecalib/SourceAna1e9.root";
 
-TString filepath_disk1 = "/pnfs/mu2e/tape/usr-nts/nts/sophie/SourceCalibSimAna/Disk1/root/fc/49/nts.sophie.SourceCalibSimAna.Disk1.2.root";
+TString filepath_disk0 = "/exp/mu2e/app/home/mu2epro/sourcecalib/disk0/SourceAna1e9.root";
 
+TString filepath_disk1 = "/exp/mu2e/app/home/mu2epro/sourcecalib/disk1/nts.mu2e.SourceCalibAna1e9.0.root";
 
 /*function to extract the TTree from the SourceCalibAna output*/
 /*std::pair<TH1F*, TFile*> get_data_histogram(int cryNum, int disk) {
@@ -69,7 +68,7 @@ int main(int argc, char* argv[]){
   int anacrys_end = std::atoi(argv[2]); //final crystal//680
   TString alg = argv[3]; // fitting alg (nll=NLL, chi2=chi2 fit)
   int disk = std::atoi(argv[4]); //disk number 0 or 1
-  int nCry = anacrys_end - anacrys_start;  // number of crystals to analyze
+  //int nCry = anacrys_end - anacrys_start;  // number of crystals to analyze
   // Optional overlay flag (default = false)
   bool doOverlay = false;
     if (argc >= 6 && TString(argv[5]) == "overlay") {
@@ -79,10 +78,10 @@ int main(int argc, char* argv[]){
   TFile *table = new TFile("arXivTable.root", "RECREATE");
   Int_t nEvents;
   Float_t fpeak, dpeak, fsigma, chiSq, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,fullResparam,fstResparam,scdResparam,comCnstparam,
-  combetaparam,frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam, convergencestatus,errbar,pval;//frBKGparam
+  combetaparam,frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam, convergencestatus,errbar,pval,h_means,h_stddevs;//frBKGparam
   TTree *covar = new TTree("covar","Covariance Plot");
-	TH1F* h_means = new TH1F("h_means", "Mean of Raw Histograms;Crystal;Mean ADC", nCry, anacrys_start, anacrys_end);
-	TH1F* h_stddevs = new TH1F("h_stddevs", "Width of Raw Histograms;Crystal;Std Dev (ADC)", nCry, anacrys_start, anacrys_end);
+	//TH1F* h_means = new TH1F("h_means", "Mean of Raw Histograms;Crystal;Mean ADC", nCry, anacrys_start, anacrys_end);
+	//TH1F* h_stddevs = new TH1F("h_stddevs", "Width of Raw Histograms;Crystal;Std Dev (ADC)", nCry, anacrys_start, anacrys_end);
   covar->Branch("nEvents", &nEvents,"nEvents/I");
   covar->Branch("Peak", &fpeak,"fpeak/F");
   covar->Branch("PeakErr", &dpeak,"dpeak/F");
@@ -110,6 +109,8 @@ int main(int argc, char* argv[]){
   covar->Branch("convgstatus", &convergencestatus,"convergencestatus/F");
   covar->Branch("errorbar", &errbar,"errbar/F");
   covar->Branch("pval", &pval,"pval/F");
+  covar->Branch("h_means", &h_means,"h_means/F");
+  covar->Branch("h_stddevs", &h_stddevs,"h_stddevs/F");
   auto start_bin = high_resolution_clock::now();
   /*for(int cryNum=anacrys_start; cryNum<anacrys_end; cryNum++){
     TH1F* h = get_data_histogram(cryNum, disk);
@@ -122,15 +123,18 @@ int main(int argc, char* argv[]){
     auto [h, file] = get_data_histogram(cryNum, disk); // unpack pair
     
     auto [mean, stddev] = ComputeHistogramStats(h);
-		h_means->SetBinContent(cryNum - anacrys_start + 1, mean);
-		h_stddevs->SetBinContent(cryNum - anacrys_start + 1, stddev);
-		std::cout << "cryNum: " << cryNum << ", bin = " << cryNum - anacrys_start + 1 << std::endl;
+		//h_means->SetBinContent(cryNum - anacrys_start + 1, mean);
+		//h_stddevs->SetBinContent(cryNum - anacrys_start + 1, stddev);
+		//std::cout << "cryNum: " << cryNum << ", bin = " << cryNum - anacrys_start + 1 << std::endl;
+		h_means   = mean;
+		h_stddevs = stddev;
+
 
     SourceFitter *fit = new SourceFitter();
     fit->FitCrystal(h, alg, cryNum, covar, nEvents, fpeak, dpeak, fsigma, chiSq, fstpeak, fstsigma, scdpeak, scdsigma,
                     fcbalphaparam, fcbndegparam, Aparam, Bparam, Cparam,
                     fullResparam, fstResparam, scdResparam, comCnstparam, combetaparam,
-                    frFullparam, frFrstparam, frScndparam, crystalNoparam, frBKGparam, convergencestatus,errbar,pval);
+                    frFullparam, frFrstparam, frScndparam, crystalNoparam, frBKGparam, convergencestatus,errbar,pval,h_means,h_stddevs);
 
     file->Close();    // ? closes input file for current crystal
     delete file;      // ? avoids memory leak

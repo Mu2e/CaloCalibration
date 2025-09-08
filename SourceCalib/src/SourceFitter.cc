@@ -4,7 +4,7 @@ using namespace TMath;
 using namespace RooFit;
 using namespace CaloSourceCalib;
 
-void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *covar, Int_t &nEvents, Float_t &fpeak, Float_t &dpeak, Float_t &fsigma, Float_t &chiSq, Float_t &fstpeak,Float_t &fstsigma, Float_t &scdpeak,Float_t &scdsigma,Float_t &fcbalphaparam,Float_t &fcbndegparam,Float_t &Aparam,Float_t &Bparam, Float_t &Cparam, Float_t &fullResparam, Float_t &fstResparam,Float_t &scdResparam,Float_t &comCnstparam, Float_t &combetaparam, Float_t &frFullparam, Float_t &frFrstparam,Float_t &frScndparam,Float_t &crystalNoparam,Float_t &frBKGparam, Float_t &convergencestatus,Float_t &errbar, Float_t &pval){//Float_t &frBKGparam
+void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *covar, Int_t &nEvents, Float_t &fpeak, Float_t &dpeak, Float_t &fsigma, Float_t &chiSq, Float_t &fstpeak,Float_t &fstsigma, Float_t &scdpeak,Float_t &scdsigma,Float_t &fcbalphaparam,Float_t &fcbndegparam,Float_t &Aparam,Float_t &Bparam, Float_t &Cparam, Float_t &fullResparam, Float_t &fstResparam,Float_t &scdResparam,Float_t &comCnstparam, Float_t &combetaparam, Float_t &frFullparam, Float_t &frFrstparam,Float_t &frScndparam,Float_t &crystalNoparam,Float_t &frBKGparam, Float_t &convergencestatus,Float_t &errbar, Float_t &pval,Float_t &h_means,Float_t &h_stddevs){//Float_t &frBKGparam
     
   // set stlye optionsr
   gStyle -> SetOptFit(1111);
@@ -28,7 +28,7 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
 
   //parameters
   RooRealVar crysADC("crysADC", "ADC[counts]", 20, 120);//48
-  RooRealVar ergElec("ergElec", "electron energy in ADC", 8.176);
+  RooRealVar ergElec("ergElec", "electron energy in ADC", 8.176);//0.511
 
 	RooRealVar fcbalpha("fcbalpha", "fcbalpha",0.5, 0.1, 5);
   RooRealVar fcbndeg("fcbndeg", "fcbndeg",10, 1, 40);
@@ -37,7 +37,7 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   RooRealVar C("C", "const C",0.0027,0.0001,3);//Electronic noise in MeV 
   
   //Full peak:
-  RooRealVar fullPeak("fullPeak", "full peak", 96.8, 80, 108);
+  RooRealVar fullPeak("fullPeak", "full peak", 96.8, 80, 108);//6.13
   RooFormulaVar fullRes("fullRes","full peak resolution","0.98650796*sqrt(pow(A/pow(fullPeak/1000,0.25),2)+pow(B/0.0625,2)+pow(C/(fullPeak/1000),2))", RooArgSet(A,B,C,fullPeak));    
   RooFormulaVar fullWidth("fullWidth", "width of the full peak", "fullPeak*fullRes",RooArgSet(fullPeak, fullRes));
   
@@ -61,14 +61,9 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   RooRealVar combeta("combeta", "combeta",50, 4, 480);//par2, 4, 480);
   RooGenericPdf comPdf("comPdf", "logistic", "1.0/(1.0+exp((crysADC-comCnst)/combeta))",
              RooArgSet(crysADC, comCnst, combeta));
-  
-   /* // Number of events in each peak
-  RooRealVar frFull("NumFull", "Number of full peak", h_spec->GetEntries(), 0, h_spec->GetEntries());
-  RooRealVar frFrst("NumFrst", "Number of first escape peak", h_spec->GetEntries(), 0, h_spec->GetEntries());
-  RooRealVar frScnd("NumScnd", "Number of second escape peak", h_spec->GetEntries(), 0, h_spec->GetEntries());
-  RooRealVar frBKG("NumBKG", "Number of background events", h_spec->GetEntries(), 0, h_spec->GetEntries());*/
-  // Fraction of events in each peak
-  RooRealVar frFull("frFull", "Fraction of full peak",0.3,0.25, 1);
+
+  // Fraction of events in each peak-- fraction is used instead of number of events bc # of events gave issues in the fit
+  RooRealVar frFull("frFull", "Fraction of full peak",0.3,0.1, 1);
   RooRealVar frFrst("frFrst", "Fraction of first escape peak",0.5,0.1, 1);
   RooRealVar frScnd("frScnd", "Fraction of second escape peak", 0.1, 0.1, 1);
 
@@ -77,13 +72,11 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   RooDataHist chSpec("crysADC","crysADC", crysADC, h_spec);
   
   // combined fit function
-
 	RooAddPdf fitFun("fitFun", "firsErg + (secdErg + (fullErg +comPdf))", RooArgList(firsErg, secdErg, fullErg,comPdf), RooArgList(frFrst, frScnd, frFull));//,frBKG) );
 	
   if(opt == "chi2"){ //binned chi2 fit
-    RooFitResult *fitRes = fitFun.chi2FitTo(chSpec, Range(40,115.2),Hesse(kTRUE),Minos(kTRUE), Strategy(1),MaxCalls(10000),PrintLevel(1),Save(),DataError(RooAbsData::SumW2));//,Extended(true),Hesse(kTRUE),Minos(kTRUE)
+    RooFitResult *fitRes = fitFun.chi2FitTo(chSpec, Range(40,115.2),Hesse(kTRUE),Minos(kTRUE), Strategy(1),MaxCalls(10000),PrintLevel(1),Save(),DataError(RooAbsData::SumW2));
     fitRes->Print("v");
-		convergencestatus =fitRes->status();
    }  
   if(opt == "nll"){ //binned nll fit
     RooAbsReal* nll = fitFun.createNLL(chSpec, Range(40,115.2));
@@ -92,6 +85,7 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
     m.hesse();
     RooFitResult *fitRes = m.save();
     fitRes->Print("v");
+	convergencestatus =fitRes->status();    
   }
   // plot components
   chSpec.plotOn(chFrame, MarkerColor(kBlack), LineColor(kBlack), MarkerSize(0.5), Name("chSpec"));
@@ -120,11 +114,10 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   scdResparam = scdRes.getVal();
   comCnstparam = comCnst.getVal();
   combetaparam = combeta.getVal();
-  frFullparam = frFull.getVal();///nEvents;
-  frFrstparam = frFrst.getVal();///nEvents;
-  frScndparam = frScnd.getVal();///nEvents;
+  frFullparam = frFull.getVal();
+  frFrstparam = frFrst.getVal();
+  frScndparam = frScnd.getVal();
   frBKGparam= 1-(frFullparam+frFrstparam+frScndparam);
-  //frBKGparam= frBKG.getVal();///nEvents;
   crystalNoparam = crystalNo;
   errbar = (1/(fpeak/6.13))*(dpeak/fpeak);                   
   pval = TMath::Prob(chiSq*11, 11);
@@ -170,7 +163,6 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   fsg -> SetFillColor(kWhite);
   chFrame -> addObject(fsg);
 
-  //RooHist *hresid = chFrame->residHist();
   // Create top pad for fit
 	TPad *pad1 = new TPad("pad1", "Top pad", 0, 0.25, 1, 1.0);
 	pad1->SetBottomMargin(0.035);  // no big gap between pads
