@@ -283,8 +283,8 @@ std::cout << "Number of ADC PeakErrs > 2 stdev " << ADCcountHighPeakErrs << std:
     
 //----PeakErrors plot that represents the errors from the fit in MeV/ADC-----
     grpeakerrs.SetTitle("Cry Number vs Peak Errors;Crystal Number;Peak Errors");
-	grpeakerrs.SetMarkerStyle(20);   // full circle (visible marker)
-	grpeakerrs.SetMarkerSize(7.0);   // make points bigger
+	grpeakerrs.SetMarkerStyle(30);   // full circle (visible marker)
+	grpeakerrs.SetMarkerSize(10.0);   // make points bigger
     grpeakerrs.SetMarkerColor(kGreen);
     grpeakerrs.SetLineColor(kGreen);        
     TCanvas canvas4("canvas", "Scatter Plot", 800, 600);
@@ -661,15 +661,15 @@ gr2nd.SetMarkerSize(0.9);
 TCanvas cADC1st2nd("cADC1st2nd", "ADC, 1st, and 2nd Peaks", 800, 600);
 
 // Compute combined y-range 
-double ymin = std::numeric_limits<double>::infinity();
-double ymax = -std::numeric_limits<double>::infinity();
+double ymin_adc = std::numeric_limits<double>::infinity();
+double ymax_adc = -std::numeric_limits<double>::infinity();
 auto updateMinMax = [&](const TGraph& g) {
     for (int i = 0; i < g.GetN(); ++i) {
         double x, y;
         g.GetPoint(i, x, y);
         if (std::isfinite(y)) {
-            ymin = std::min(ymin, y);
-            ymax = std::max(ymax, y);
+            ymin_adc = std::min(ymin_adc, y);
+            ymax_adc = std::max(ymax_adc, y);
         }
     }
 };
@@ -678,17 +678,17 @@ updateMinMax(gr1st);
 updateMinMax(gr2nd);
 
 // Add margin
-double dy = (ymax - ymin) * 0.05;
-if (dy <= 0) dy = 1.0; // fallback
-ymin -= dy;
-ymax += dy;
+double dy_adc = (ymax_adc - ymin_adc) * 0.05;
+if (dy_adc <= 0) dy_adc = 1.0; // fallback
+ymin_adc -= dy_adc;
+ymax_adc += dy_adc;
 
 // Draw empty frame first with full range
-TH1F* frame = cADC1st2nd.DrawFrame(
-    crystalNos.front(), ymin,
-    crystalNos.back(), ymax
+TH1F* frame_adc = cADC1st2nd.DrawFrame(
+    crystalNos.front(), ymin_adc,
+    crystalNos.back(), ymax_adc
 );
-frame->SetTitle("Peak Locations;Crystal Number;ADC / Peak Value");
+frame_adc->SetTitle("Peak Locations;Crystal Number;ADC / Peak Value");
 
 // Draw graphs
 grADC.Draw("P SAME");
