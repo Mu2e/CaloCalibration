@@ -48,7 +48,8 @@ mu2e -c CaloCalibration/SourceCalib/fcl/RunCaloCalibGun-ana.fcl dig.owner.name.v
 
 ```
 
-This will produce a set of histograms (one per sipm or crystal) in a file with an ``nts" prefix.
+This runs an analyzer which will loop over the simulated events and analyze the digis. The output is a file of N_crys histograms, these can be taken as input into the analysis. Additionally, the file can also run overlay plots of the histogrammed data of a sipm pair. This will generate an extra plot, for the start and end cry/sipm number, with normalised residuals. This is optional and will take more time to run.
+
 
 # The Analysis
 
@@ -60,6 +61,10 @@ Now you have a file containing one histogram per crystal or sipm. The number of 
 To accumulate all the events for a given crystal the command line would look like this:
 ```
 ./build/al9-prof-e28-p056/CaloCalibration/bin/MakeAnalysisTree start_crystalnumber end_crystalnumber "minimisation_method" disk number
+```
+To add the data comparision plots, you must add  "overlay" at the end of the command:
+```
+./build/al9-prof-e28-p056/CaloCalibration/bin/MakeAnalysisTree start_crystalnumber end_crystalnumber "minimisation_method" disk number overlay
 ```
 For example you can run the MakeAnalysisTree program as follows:
 ```
