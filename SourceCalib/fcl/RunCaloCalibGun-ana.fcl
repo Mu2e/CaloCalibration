@@ -1,0 +1,37 @@
+// Driver FCL for the calocalibration (Reconstruct and truth)
+#include "Offline/fcl/minimalMessageService.fcl"
+#include "Offline/fcl/standardProducers.fcl"
+#include "Offline/fcl/standardServices.fcl"
+#include "Offline/CaloMC/fcl/prolog.fcl"
+#include "Offline/CaloReco/fcl/prolog.fcl"
+#include "Offline/CaloCluster/fcl/prolog.fcl"
+#include "Offline/CommonMC/fcl/prolog.fcl"
+#include "Offline/EventGenerator/fcl/prolog.fcl"
+#include "Production/JobConfig/digitize/prolog.fcl"
+#include "CaloCalibration/SourceCalib/fcl/prolog.fcl"
+
+process_name: SourceCalibAna
+
+source: {
+   module_type: RootInput
+}
+
+
+services : @local::Services.SimAndReco
+services.TFileService : { fileName : "nts.owner.SourceCalibSimAna.version.sequencer.root"}
+services.SeedService.baseSeed : 99
+services.SeedService.maxUniqueEngines : 20
+source.firstRun: 1201
+physics: {
+    analyzers: {
+      @table::SourceCalib.analyzers
+    }
+
+   e1: [SourceAna]
+
+    end_paths:     [e1]
+    trigger_paths: []
+}
+
+
+

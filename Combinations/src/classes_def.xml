@@ -1,5 +1,6 @@
 <lcgdict>
   <class name="CaloSourceCalib::MakeAnalysisTree" />
+  <class name="CaloSourceCalib::TableMaker" />
   <class name="CaloSourceCalib::SourceFitter" />
   <class name="CaloSourceCalib::SourcePlotter" />
 </lcgdict>
