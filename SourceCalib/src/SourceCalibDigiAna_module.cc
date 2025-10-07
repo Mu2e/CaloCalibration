@@ -11,6 +11,7 @@
 #include "Offline/ProditionsService/inc/ProditionsHandle.hh"
 #include "Offline/RecoDataProducts/inc/CaloDigi.hh"
 #include "Offline/RecoDataProducts/inc/CaloRecoDigi.hh"
+#include "Offline/MCDataProducts/inc/CaloShowerSim.hh"
 #include "Offline/RecoDataProducts/inc/ProtonBunchTime.hh"
 #include "Offline/CaloReco/inc/CaloWaveformProcessor.hh"
 #include "Offline/CaloReco/inc/CaloTemplateWFProcessor.hh"
@@ -46,6 +47,7 @@ namespace mu2e {
            fhicl::Table<mu2e::CaloRawWFProcessor::Config>      proc_raw_conf       { Name("RawProcessor"),        Comment("Raw processor config") };
            fhicl::Table<mu2e::CaloTemplateWFProcessor::Config> proc_templ_conf     { Name("TemplateProcessor"),   Comment("Log normal fit processor config") };
            fhicl::Atom<art::InputTag>                          caloDigiCollection  { Name("caloDigiCollection"),  Comment("Calo Digi module label") };
+           fhicl::Atom<art::InputTag>                          caloShowerSimCollection  { Name("caloShowerSimCollection"),  Comment("Calo Sim module label") };
            fhicl::Atom<art::InputTag>                          pbttoken            { Name("ProtonBunchTimeTag"),  Comment("ProtonBunchTime producer")};
            fhicl::Atom<std::string>                            processorStrategy   { Name("processorStrategy"),   Comment("Digi reco processor name") };
            fhicl::Atom<double>                                 digiSampling        { Name("digiSampling"),        Comment("Calo ADC sampling time (ns)") };
@@ -60,6 +62,7 @@ namespace mu2e {
         explicit SourceCalibDigiAna(const art::EDAnalyzer::Table<Config>& config) :
            EDAnalyzer{config},
            caloDigisToken_    {consumes<CaloDigiCollection>(config().caloDigiCollection())},
+           caloShowerSimToken_ {consumes<CaloShowerSimCollection>(config().caloShowerSimCollection())},
            pbttoken_          {consumes<ProtonBunchTime>(config().pbttoken())},
            processorStrategy_ (config().processorStrategy()),
            digiSampling_      (config().digiSampling()),
@@ -100,9 +103,10 @@ namespace mu2e {
      private:
         //std::ofstream badfile;
         //std::ofstream goodfile;
-        void extractRecoDigi(const art::ValidHandle<CaloDigiCollection>&, double );
+        void extractRecoDigi(const art::ValidHandle<CaloDigiCollection>&, const art::ValidHandle<CaloShowerSimCollection>&,double );
 
         const  art::ProductToken<CaloDigiCollection> caloDigisToken_;
+        const  art::ProductToken<CaloShowerSimCollection> caloShowerSimToken_;
         const  art::ProductToken<ProtonBunchTime>    pbttoken_;
         const  std::string                           processorStrategy_;
         double                                       digiSampling_;
@@ -115,6 +119,7 @@ namespace mu2e {
         std::unique_ptr<CaloWaveformProcessor>       waveformProcessor_;
         TH1F* list_of_crys_hists[ncrystals];
         TH1F* list_of_sipm_hists[nsipms];
+        TH1F* list_of_crys_hists_truth[ncrystals];
   };
 
   
@@ -122,24 +127,27 @@ namespace mu2e {
   {
       if (diagLevel_ > 0) std::cout<<"[SourceCalibDigiAna::analyze] begin"<<std::endl;
       const auto& caloDigisH = event.getValidHandle(caloDigisToken_);
+      const auto& caloSimH = event.getValidHandle(caloShowerSimToken_);
       auto pbtH = event.getValidHandle(pbttoken_);
       const ProtonBunchTime& pbt(*pbtH);
       double pbtOffset = pbt.pbtime_;
-      extractRecoDigi(caloDigisH,  pbtOffset);
+      extractRecoDigi(caloDigisH, caloSimH,  pbtOffset);
       if (diagLevel_ > 0) std::cout<<"[SourceCalibDigiAna::analyze] end"<<std::endl;
   }
 
   void SourceCalibDigiAna::beginJob(){
       art::ServiceHandle<art::TFileService> tfs;
       art::TFileDirectory crydir = tfs->mkdir( "crystals_ADC" );
+      art::TFileDirectory crytruedir = tfs->mkdir( "crystals_edep_truth" );
       art::TFileDirectory sipmdir = tfs->mkdir( "sipm_ADC" );
       for(int i = 0; i < ncrystals ; i++){
         TString histname = "cry_"+std::to_string(i);
-        list_of_crys_hists[i] = crydir.make<TH1F>( histname , histname, 300, 0.0, endBin_);
+        list_of_crys_hists[i] = crydir.make<TH1F>( histname , histname, 150, 0.0, endBin_);
+        list_of_crys_hists_truth[i] = crytruedir.make<TH1F>( histname , histname, 150, 0.0, 10.0); //assume MeV
       }
       for(int i = 0; i < nsipms ; i++){
         TString histname = "sipm_"+std::to_string(i);
-        list_of_sipm_hists[i] = sipmdir.make<TH1F>( histname , histname, 300, 0.0, endBin_);
+        list_of_sipm_hists[i] = sipmdir.make<TH1F>( histname , histname, 150, 0.0, endBin_);
       }
       //badfile.open("badcrys.csv");
       //goodfile.open("goodcrys.csv");
@@ -152,16 +160,17 @@ namespace mu2e {
   }
 
   //------------------------------------------------------------------------------------------------------------
-  void SourceCalibDigiAna::extractRecoDigi(const art::ValidHandle<CaloDigiCollection>& caloDigisHandle, double pbtOffset)
+  void SourceCalibDigiAna::extractRecoDigi(const art::ValidHandle<CaloDigiCollection>& caloDigisHandle, const art::ValidHandle<CaloShowerSimCollection>& caloSimHandle,double pbtOffset)
   {
       
       const auto& caloDigis = *caloDigisHandle;
+      const auto& caloSims = *caloSimHandle;
       ConditionsHandle<CalorimeterCalibrations> calorimeterCalibrations("ignored");
 
       double totEnergyReco(0);
       std::vector<double> x{},y{};
       
-
+      // for reco
       std::vector<int> crystals_in_event;
       std::vector<int> sipms_in_event;
       std::vector<double> time;
@@ -212,8 +221,31 @@ namespace mu2e {
                 sipms_in_event.push_back(caloDigi.SiPMID());
           }
       }
+      //for truth:
+      /*std::vector<int> true_crystals_in_event;
+      std::vector<double> true_time;
+      std::vector<double> true_total_energy_in_crystal(ncrystals, 0);
+      std::vector<double> true_total_energy_in_sipm(nsipms, 0);
+      for (const auto& caloSim : caloSims)
+      { 
+          int    cryID   = caloSim.crystalID();
+          double eDep       = caloSim.energyDepG4();
+          //std::cout<<"cryID"<<cryID<<" edep "<<edep<<std::endl;
+          //list_of_crys_hists_truth[cryID]->Fill(edep);
+          true_time.push_back(t0);
 
-      // For crystals:
+          if(true_crystals_in_event.size() !=0 ) {
+            if (Contains(true_crystals_in_event, cryID) == 0) {
+              true_crystals_in_event.push_back(cryID);
+              true_total_energy_in_crystal[cryID] = eDep;
+            } else{ 
+              true_total_energy_in_crystal[cryID]+= eDep;
+            }
+          } else true_crystals_in_event.push_back(cryID);
+        }
+      */
+
+      // For crystals cuts, Reco
       bool passes_time_cry = true; 
       bool passes_ratio_cry = true;
       
@@ -242,11 +274,19 @@ namespace mu2e {
           list_of_crys_hists[id]->Fill(total_energy_in_crystal[id]);
           if(total_energy_in_sipm[id_sipm1]!=0) list_of_sipm_hists[id_sipm1]->Fill(total_energy_in_sipm[id_sipm1]);
           if(total_energy_in_sipm[id_sipm2]!=0) list_of_sipm_hists[id_sipm2]->Fill(total_energy_in_sipm[id_sipm2]);
+          for (const auto& caloSim : caloSims)
+          { 
+              int    cryID   = caloSim.crystalID();
+              double eDep       = caloSim.energyDepG4();
+              if(id_sipm1/2 == cryID) list_of_crys_hists_truth[id_sipm1/2]->Fill(eDep);
+          }
         }
         /*if (passes_time and passes_ratio and Contains(badcrys, id) == 1) { 
           badfile<<id<<","<<passes_time<<","<<passes_ratio<<","<<total_energy_in_crystal[id]<<std::endl;
         }*/
       }
+      
+     
       
       // For SiPMs
       /*bool passes_time_sipm = true; 
