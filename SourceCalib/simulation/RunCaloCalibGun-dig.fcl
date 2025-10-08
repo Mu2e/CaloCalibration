@@ -32,7 +32,7 @@ physics: {
       @table::Digitize.filters
     }
 
-    p1: [ @sequence::CaloMC.DigiSim]
+    p1: [ @sequence::CaloMC.DigiSim, @sequence::CaloMC.StepSim]
 
 
     trigger_paths: [p1]
@@ -44,9 +44,14 @@ outputs:{
   CalibOutput : {
     module_type : RootOutput
     fileName    : "dig.owner.SourceCalib.version.sequencer.art"
-    outputCommands : [ "drop mu2e::TriggerInfo_*_*_*", "keep mu2e::CaloDigis_*_*_*","keep mu2e::EventWindowMarker_*_*_*","keep mu2e::ProtonBunchTime_*_*_*","keep mu2e::CaloEDepMC_*_*_*"]
+    outputCommands : [ "drop mu2e::TriggerInfo_*_*_*", "keep mu2e::*_*_*_*"]
   }
 }
 
 physics.EndPath : [CalibOutput]
 physics.end_paths: [EndPath]
+
+
+
+physics.producers.FindMCPrimary.PrimaryProcess : "mu2eCaloCalib"
+
