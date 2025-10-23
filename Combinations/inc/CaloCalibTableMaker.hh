@@ -5,6 +5,8 @@
 #include <utility>
 #include <tuple>
 #include <fstream>
+#include <sstream>
+#include <string>
 using namespace std;
 
 struct ArchiveTable{
