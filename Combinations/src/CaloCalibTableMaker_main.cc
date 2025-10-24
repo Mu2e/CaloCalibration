@@ -131,7 +131,7 @@ RecoTable combineAlg(std::vector<ArchiveTable> tables){
         average_peak += tables[i].peak_[id]; //assumes source is already ADC2MeV
       }
     }
-    if(id > 2692) peaks.push_back(1);
+    if(id > 2695) peaks.push_back(1);
     else peaks.push_back(average_peak/tables.size());
   }
    
