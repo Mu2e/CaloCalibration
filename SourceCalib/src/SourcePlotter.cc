@@ -8,8 +8,8 @@ using namespace CaloSourceCalib;
 
 /* function to make global plots of the fit outputs*/
 void SourcePlotter::ParamPlots(TTree* inputTree, TFile *inputFile, TFile *outputFile,int cry_start, int cry_end) {//add param as plot range
-    float crystalNo, Peak, ChiSq, PeakErr,h_means,h_stds,frFull,frFrst,frScnd,convgstatus,firstPeak,secondPeak;
-    int nEvents;    
+    float crystalNo, Peak, ChiSq, PeakErr,h_means,h_stds,frFull,frFrst,frScnd,firstPeak,secondPeak,Width,WidthErr,unreducedchi2;
+    int nEvents,convgstatus,ndof;    
     inputTree-> SetBranchAddress("crystalNo", &crystalNo);
     inputTree-> SetBranchAddress("Peak", &Peak);
     inputTree-> SetBranchAddress("PeakErr", &PeakErr);
@@ -23,7 +23,11 @@ void SourcePlotter::ParamPlots(TTree* inputTree, TFile *inputFile, TFile *output
     inputTree-> SetBranchAddress("convgstatus", &convgstatus); 
     inputTree-> SetBranchAddress("1stPeak", &firstPeak); 
     inputTree-> SetBranchAddress("2ndPeak", &secondPeak); 
-    std::vector<Double_t> crystalNos, Peaks,ADCPeaks, PeakErrs,ADCPeakErrs, ChiSqs, EventsErr, Events,h_means_vec,h_stds_vec,frFull_vec,frFrst_vec,frScnd_vec,convgstatus_vec,firstPeak_vec,secondPeak_vec;
+    inputTree-> SetBranchAddress("Width", &Width); 
+    inputTree-> SetBranchAddress("WidthErr", &WidthErr); 
+    inputTree-> SetBranchAddress("unreducedchi2", &unreducedchi2); 
+    inputTree-> SetBranchAddress("ndof", &ndof); 
+    std::vector<Double_t> crystalNos, Peaks,ADCPeaks, PeakErrs,ADCPeakErrs, ChiSqs, EventsErr, Events,h_means_vec,h_stds_vec,frFull_vec,frFrst_vec,frScnd_vec,convgstatus_vec,firstPeak_vec,secondPeak_vec,Widths,WidthErrs,unreducedchi2s,ndofs;
      
     // Fill the vectors with data from the TTree
     Long64_t nEntries = inputTree->GetEntries();
@@ -45,6 +49,10 @@ void SourcePlotter::ParamPlots(TTree* inputTree, TFile *inputFile, TFile *output
         convgstatus_vec.push_back(convgstatus);
         firstPeak_vec.push_back(firstPeak);
         secondPeak_vec.push_back(secondPeak);
+        Widths.push_back(Width);
+        WidthErrs.push_back(WidthErr);
+        unreducedchi2s.push_back(unreducedchi2);
+        ndofs.push_back(ndof);
     }
 //----create value of avg and std dev for tlines for plots---
 		double Peaks_sum = std::accumulate(Peaks.begin(), Peaks.end(),0.0);
@@ -83,7 +91,7 @@ std::cout << "Number of PeakErrs > 2 stdev " << countHighPeakErrs << std::endl;
     TGraphErrors grN(crystalNos.size(), &crystalNos[0], &Events[0], nullptr, &EventsErr[0]);
     TGraph grpeakerrs(crystalNos.size(), &crystalNos[0], &PeakErrs[0]);
     TGraph grconvstatus(convgstatus_vec.size(), &convgstatus_vec[0], &PeakErrs[0]);
-
+    TGraph grconvvschi2(convgstatus_vec.size(), &convgstatus_vec[0], &ChiSqs[0]);
     // Customize the plot
     grpeaks.SetTitle("Cry Number vs MeV/ADC;Crystal Number;MeV/ADC");
     grpeaks.SetMarkerStyle(20);
@@ -136,6 +144,28 @@ std::cout << "Number of PeakErrs > 2 stdev " << countHighPeakErrs << std::endl;
     grpeaks.Draw("APsame"); // A for axis, P for points
     outputFile->cd();
     grpeaks.Write("Peaks");
+    // ---- save peaks and errors into a txt file ----
+std::ofstream outFile("SiPM_FitParameters.txt");
+if (outFile.is_open()) {
+    outFile << "#SiPMNo\tPeak(MeV/ADC)\tPeakErr\tunredChi2\tndof\tnEvents\tWidth\tWidthErr\tChi2\n";
+    for (size_t i = 0; i < crystalNos.size(); ++i) {
+        outFile << std::fixed << std::setprecision(6)
+                << crystalNos[i] << "\t"
+                << Peaks[i]      << "\t"
+                << PeakErrs[i]   << "\t"
+                << unreducedchi2s[i]<< "\t"
+                << ndofs[i]<< "\t"
+                << Events[i] << "\t"
+                << Widths[i] << "\t"    // Width
+                << WidthErrs[i] << "\t"    // WidthError
+                << ChiSqs[i] << "\t"
+                << Events[i] << "\n";
+    }
+    outFile.close();
+    std::cout << "All fit parameters written to SiPM_FitParameters.txt" << std::endl;
+} else {
+    std::cerr << "Error: could not open SiPM_FitParameters.txt for writing." << std::endl;
+}
 //-----ADC Peaks graph that represent the full peak in ADC--------
 		double ADCPeaks_sum = std::accumulate(ADCPeaks.begin(), ADCPeaks.end(),0.0);
  		double ADCPeaks_avg = ADCPeaks_sum / ADCPeaks.size();
@@ -146,15 +176,13 @@ std::cout << "Number of PeakErrs > 2 stdev " << countHighPeakErrs << std::endl;
  		std::cout<<" ------------ "<<std::endl; 		
  		int ADCcountHighPeakErrs = 0;
 for (size_t i = 0; i < ADCPeakErrs.size(); ++i) {
-    if (ADCPeakErrs[i] > 2 * Peaks_stddev) {
+    if (ADCPeakErrs[i] > 2 * ADCPeaks_stddev) {
         ++ADCcountHighPeakErrs;
-        std::cout << "Crystal " << crystalNos[i] 
-                  << " has ADCPeakErr = " << ADCPeakErrs[i] 
-                  << " > 2*ADCPeaks_stddev (" << 2 * ADCPeaks_stddev << ")\n";
     }
 }
 std::cout << "Number of ADC PeakErrs > 2 stdev " << ADCcountHighPeakErrs << std::endl;
  		std::cout<<" ------------ "<<std::endl;
+
  			
     // Create a TGraph for the scatter plot
     TGraphErrors ADCgrpeaks(crystalNos.size(), &crystalNos[0], &ADCPeaks[0], nullptr, &ADCPeakErrs[0]);
@@ -212,6 +240,36 @@ std::cout << "Number of ADC PeakErrs > 2 stdev " << ADCcountHighPeakErrs << std:
     ADCgrpeaks.Draw("APsame"); // A for axis, P for points
     outputFile->cd();
     ADCgrpeaks.Write("ADCPeaks");
+//create print out statment of convergance status percentages:
+int total = convgstatus_vec.size();
+int count0 = 0,count1=0,count2=0,count3=0,count4=0,count5=0,countx=0;
+for (auto s:convgstatus_vec){
+	if (s == 0) count0++;
+	else if (s == 1) count1++;
+	else if (s == 2) count2++;
+	else if (s == 3) count3++;	
+	else if (s == 4) count4++;			
+	else if (s == 5) count5++;
+	else if (s>5) countx++;
+	}
+if (total == 0) {
+    std::cout << "No SiPMs in convgstatus_vec!" << std::endl;
+} else {
+double perc0 =100*(static_cast<double>(count0) /total);
+double perc1 =100*(static_cast<double>(count1) /total);
+double perc2 =100*(static_cast<double>(count2) /total);
+double perc3 =100*(static_cast<double>(count3) /total);
+double perc4 =100*(static_cast<double>(count4) /total);
+double perc5 =100*(static_cast<double>(count5) /total);
+double percx =100*(static_cast<double>(countx) /total);
+std::cout << std::fixed << std::setprecision(2);
+std::cout<< "% of sipms with convg status 0 ="<<perc0 <<std::endl;
+std::cout<< "% of sipms with convg status 1 ="<< perc1<<std::endl;
+std::cout<< "% of sipms with convg status 2 ="<< perc2<<std::endl;
+std::cout<< "% of sipms with convg status 3 ="<< perc3<<std::endl;
+std::cout<< "% of sipms with convg status 4 ="<< perc4<<std::endl;
+std::cout<< "% of sipms with convg status 5 ="<< perc5<<std::endl;
+std::cout<< "% of sipms with convg status unknown ="<< percx<<std::endl;}
   
 //----Chi2 plot-----    
     grchi2.SetTitle("SiPM Number vs Chisq ;SiPM Number; Chi Square");
@@ -283,8 +341,8 @@ std::cout << "Number of ADC PeakErrs > 2 stdev " << ADCcountHighPeakErrs << std:
     
 //----PeakErrors plot that represents the errors from the fit in MeV/ADC-----
     grpeakerrs.SetTitle("Cry Number vs Peak Errors;Crystal Number;Peak Errors");
-	grpeakerrs.SetMarkerStyle(30);   // full circle (visible marker)
-	grpeakerrs.SetMarkerSize(10.0);   // make points bigger
+	grpeakerrs.SetMarkerStyle(20);   // full circle (visible marker)
+	grpeakerrs.SetMarkerSize(1.2);   // make points bigger
     grpeakerrs.SetMarkerColor(kGreen);
     grpeakerrs.SetLineColor(kGreen);        
     TCanvas canvas4("canvas", "Scatter Plot", 800, 600);
@@ -297,7 +355,7 @@ std::cout << "Number of ADC PeakErrs > 2 stdev " << ADCcountHighPeakErrs << std:
     outputFile->cd();
     grpeakerrs.Write("PeaksErrors");
 
-//-----convergence status plots that come from the nll fit function-------- 
+//-----convergence status plots that come from the nll fit function vs peak error-------- 
     grconvstatus.SetTitle("Peak Error vs Convg Status ;Convergence Status; PeakError");
     grconvstatus.SetMarkerStyle(20);
     grconvstatus.SetMarkerSize(0.8);
@@ -308,6 +366,18 @@ std::cout << "Number of ADC PeakErrs > 2 stdev " << ADCcountHighPeakErrs << std:
     outputFile->cd();
     grconvstatus.Write("Convstatus");
     canvas_conv.SaveAs("convstatusvspeakerrs.root");  
+    
+//-----convergence status vs chi2 plots-------- 
+    grconvvschi2.SetTitle("Peak Error vs Convg Status ;Convergence Status; Chi2");
+    grconvvschi2.SetMarkerStyle(20);
+    grconvvschi2.SetMarkerSize(0.8);
+    grconvvschi2.SetMarkerColor(kRed);
+    grconvvschi2.SetLineColor(kRed);
+    TCanvas canvas_convvschi2("canvas", "Scatter Plot", 800, 600);
+    grconvvschi2.Draw("AP"); // A for axis, P for points
+    outputFile->cd();
+    grconvvschi2.Write("Convstatusvschi2");
+    canvas_convvschi2.SaveAs("convstatusvschi2.root");  
    
 // ---- Scatter plot of calib consts of sipm pairs laid agaisnt each other (i.e even on x axis odd on y axis)-----
 //Build SiPM pair maps by crystalNo using crystalNo parity (even/odd logic) 
@@ -708,5 +778,92 @@ grADC.Write("ADC_vs_Crystal");
 gr1st.Write("FirstPeak_vs_Crystal");
 gr2nd.Write("SecondPeak_vs_Crystal");
 cADC1st2nd.SaveAs("ADC_1st_2nd_Peaks.root");
+
+// ---- Combined Fraction Plot: frFull, frFrst, frScnd ----
+
+// Histogram settings
+int nbins_frac = 50;
+double frac_min = 0.0;
+double frac_max = 1.0;
+
+// Create histograms
+TH1D* hFrFull = new TH1D("hFrFull", "SiPM Fraction Distributions;Fraction;Number of SiPMs", nbins_frac, frac_min, frac_max);
+TH1D* hFrFrst = new TH1D("hFrFrst", "SiPM Fraction Distributions;Fraction;Number of SiPMs", nbins_frac, frac_min, frac_max);
+TH1D* hFrScnd = new TH1D("hFrScnd", "SiPM Fraction Distributions;Fraction;Number of SiPMs", nbins_frac, frac_min, frac_max);
+//;Normalized Density
+
+// Fill histograms
+for (double v : frFull_vec) hFrFull->Fill(v);
+for (double v : frFrst_vec) hFrFrst->Fill(v);
+for (double v : frScnd_vec) hFrScnd->Fill(v);
+
+// Normalize all histograms together (so areas show relative fractions)
+/*double totalIntegral = hFrFull->Integral("width") + hFrFrst->Integral("width") + hFrScnd->Integral("width");
+if (totalIntegral > 0) {
+    hFrFull->Scale(1.0 / totalIntegral);
+    hFrFrst->Scale(1.0 / totalIntegral);
+    hFrScnd->Scale(1.0 / totalIntegral);
+}*/
+
+// ---- Overlay Plot ----
+TCanvas* cOverlay = new TCanvas("cOverlay", "Overlay of SiPM Fraction Distributions", 800, 600);
+
+hFrFull->SetLineColor(kBlue);
+hFrFull->SetLineWidth(2);
+
+hFrFrst->SetLineColor(kGreen + 2);
+hFrFrst->SetLineWidth(2);
+
+hFrScnd->SetLineColor(kMagenta + 1);
+hFrScnd->SetLineWidth(2);
+
+// Compute global max among all three histograms
+double maxY = std::max({hFrFull->GetMaximum(), hFrFrst->GetMaximum(), hFrScnd->GetMaximum()});
+
+// Apply it to the one drawn first (defines the axes)
+hFrFull->SetMaximum(1.1 * maxY);  // add ~10% headroom
+hFrFull->SetMinimum(0);
+
+// Draw first and overlay others
+hFrFull->Draw("HIST");
+hFrFrst->Draw("HIST SAME");
+hFrScnd->Draw("HIST SAME");
+
+// Legend
+TLegend* legOverlay = new TLegend(0.65, 0.7, 0.9, 0.9);
+legOverlay->AddEntry(hFrFull, "frFull (Peak 1)", "l");
+legOverlay->AddEntry(hFrFrst, "frFrst (Peak 2)", "l");
+legOverlay->AddEntry(hFrScnd, "frScnd (Peak 3)", "l");
+legOverlay->Draw();
+
+// Save overlay plot
+cOverlay->SaveAs("SiPM_Fractions_Overlay.root");
+
+// ---- Stacked Plot ----
+THStack* hStack = new THStack("hStack", "Stacked SiPM Fractions;Fraction; Number of SiPMs");
+
+hFrFull->SetFillColor(kBlue - 9);
+hFrFrst->SetFillColor(kGreen - 7);
+hFrScnd->SetFillColor(kMagenta - 9);
+
+hStack->Add(hFrFull);
+hStack->Add(hFrFrst);
+hStack->Add(hFrScnd);
+
+TCanvas* cStack = new TCanvas("cStack", "Stacked SiPM Fractions", 800, 600);
+hStack->Draw("HIST");
+
+TLegend* legStack = new TLegend(0.65, 0.7, 0.9, 0.9);
+legStack->AddEntry(hFrFull, "frFull (Peak 1)", "f");
+legStack->AddEntry(hFrFrst, "frFrst (Peak 2)", "f");
+legStack->AddEntry(hFrScnd, "frScnd (Peak 3)", "f");
+legStack->Draw();
+
+// ---- Save Histograms to Output File ----
+outputFile->cd();
+hFrFull->Write("SiPM_FrFull_Hist");
+hFrFrst->Write("SiPM_FrFrst_Hist");
+hFrScnd->Write("SiPM_FrScnd_Hist");
+cStack->SaveAs("SiPM_Fractions_Hist.root");
 
 }

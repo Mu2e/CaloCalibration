@@ -5,13 +5,26 @@
 using namespace std::chrono;
 
 using namespace CaloSourceCalib;
-
-
+double GetTreeMean(TTree* t, const char* branchName) {
+    if (!t->GetBranch(branchName)) {
+        std::cerr << "ERROR: Branch " << branchName << " not found in tree!\n";
+        return -1;
+    }
+    t->Draw(branchName, "", "goff");
+    Long64_t n = t->GetSelectedRows();
+    if (n <= 0) return -1;
+    return TMath::Mean(n, t->GetV1());
+}
+//method with one big root file
 TString filepath_disk0 = "/exp/mu2e/app/home/mu2epro/sourcecalib/disk0/SourceAna1e9.root";
 
+
+
 TString filepath_disk1 = "/exp/mu2e/app/home/mu2epro/sourcecalib/disk1/nts.mu2e.SourceCalibAna1e9.0.root";
+//TString filepath_disk1 = "/exp/mu2e/app/users/hjafree/SourceFitDir/combined_disk1.root";
 
 /*function to extract the TTree from the SourceCalibAna output*/
+//original method to read sipms without cry option
 /*std::pair<TH1F*, TFile*> get_data_histogram(int cryNum, int disk) {
     TString filepath;
     TString histPath;
@@ -22,6 +35,40 @@ TString filepath_disk1 = "/exp/mu2e/app/home/mu2epro/sourcecalib/disk1/nts.mu2e.
     TH1F* hist = (TH1F*)f->Get("SourceAna/sipm_ADC/sipm_" + crystalNumber); 
     return std::make_pair(hist, f);*/
     
+//method to loop over several files
+/*std::vector<std::string> ImportFileList(const char* filelist) {
+    std::ifstream files(filelist);
+    std::vector<std::string> fileNames;
+    std::string line;
+    while (std::getline(files, line)) {
+        if (!line.empty()) fileNames.push_back(line);
+    }
+    return fileNames;
+}
+struct DiskConfig {
+    std::vector<std::string> files;
+    TString subdir; // "sipm_ADC" or "crystals_ADC"
+    TString histPrefix; // e.g. "sipm_" or "cry_"
+};
+DiskConfig SetupFilesAndFolder(int disk) {
+    DiskConfig cfg;
+    // choose filelist file name and histogram folder/prefix depending on disk
+    if (disk == 0 || disk == 2) {
+        cfg.files = ImportFileList("disk0_files.txt");
+        if (disk == 0) { cfg.subdir = "sipm_ADC"; cfg.histPrefix = "sipm_"; }
+        else           { cfg.subdir = "crystals_ADC"; cfg.histPrefix = "cry_"; }
+    } else if (disk == 1 || disk == 3) {
+        cfg.files = ImportFileList("disk1_files.txt");
+        if (disk == 1) { cfg.subdir = "sipm_ADC"; cfg.histPrefix = "sipm_"; }
+        else           { cfg.subdir = "crystals_ADC"; cfg.histPrefix = "cry_"; }
+    } else {
+        throw std::runtime_error("Invalid disk number");
+    }
+    if (cfg.files.empty()) {
+        std::cerr << "[SetupFilesAndFolder] WARNING: file list is empty for disk " << disk << "\n";
+    }
+    return cfg;
+}   */
 std::pair<TH1F*, TFile*> get_data_histogram(int cryNum, int disk) {
     TString filepath;
     TString histPath;
@@ -32,7 +79,32 @@ std::pair<TH1F*, TFile*> get_data_histogram(int cryNum, int disk) {
         filepath = filepath_disk1;
         histPath = (disk == 1) ? "SourceAna/sipm_ADC/sipm_" : "SourceAna/crystals_ADC/cry_";
     }
+ 
 
+// Example: collect every histogram in SourceAna/sipm_ADC
+/*TH1F* SumHistogramAcrossFiles(const std::vector<std::string>& files, const TString& fullPath, const char* cloneName = nullptr) {
+    TH1F* hSum = nullptr;
+    for (const auto& fname : files) {
+        TFile f(fname.c_str());
+        if (f.IsZombie()) {
+            std::cerr << "[SumHistogramAcrossFiles] cannot open: " << fname << "\n";
+            continue;
+        }
+        TH1F* hTmp = (TH1F*)f.Get(fullPath);
+        if (!hTmp) continue;
+        if (!hSum) {
+            // clone first found histogram (gives an independent object)
+            if (cloneName)
+                hSum = (TH1F*)hTmp->Clone(cloneName);
+            else
+                hSum = (TH1F*)hTmp->Clone(Form("sum_%s", fullPath.Data()));
+            hSum->SetDirectory(0); // detach from file
+        } else {
+            hSum->Add(hTmp);
+        }
+    }
+    return hSum;
+}*/
     TFile *f = new TFile(filepath);
     TString crystalNumber = to_string(cryNum);
     TH1F* hist = (TH1F*)f->Get(histPath + crystalNumber); 
@@ -68,24 +140,28 @@ int main(int argc, char* argv[]){
   int anacrys_end = std::atoi(argv[2]); //final crystal//680
   TString alg = argv[3]; // fitting alg (nll=NLL, chi2=chi2 fit)
   int disk = std::atoi(argv[4]); //disk number 0 or 1
-  //int nCry = anacrys_end - anacrys_start;  // number of crystals to analyze
-  // Optional overlay flag (default = false)
   bool doOverlay = false;
     if (argc >= 6 && TString(argv[5]) == "overlay") {
         doOverlay = true;
     }
+    // Read list of ROOT files (one per line)
+ // Setup file list and which histogram folder/prefix to use
+    //DiskConfig cfg = SetupFilesAndFolder(disk);
+    //auto& files = cfg.files; // alias
 
   TFile *table = new TFile("arXivTable.root", "RECREATE");
   Int_t nEvents;
+  Int_t convergencestatus;
   Float_t fpeak, dpeak, fsigma, chiSq, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,fullResparam,fstResparam,scdResparam,comCnstparam,
-  combetaparam,frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam, convergencestatus,errbar,pval,h_means,h_stddevs;//frBKGparam
+  combetaparam,frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam
+  ,errbar,pval,h_means,h_stddevs,unreducedchi2,fval,mparam,etaparam,dsigma;//frBKGparam
+  Int_t ndof;
   TTree *covar = new TTree("covar","Covariance Plot");
-	//TH1F* h_means = new TH1F("h_means", "Mean of Raw Histograms;Crystal;Mean ADC", nCry, anacrys_start, anacrys_end);
-	//TH1F* h_stddevs = new TH1F("h_stddevs", "Width of Raw Histograms;Crystal;Std Dev (ADC)", nCry, anacrys_start, anacrys_end);
   covar->Branch("nEvents", &nEvents,"nEvents/I");
   covar->Branch("Peak", &fpeak,"fpeak/F");
   covar->Branch("PeakErr", &dpeak,"dpeak/F");
   covar->Branch("Width", &fsigma,"fsigma/F");
+  covar->Branch("WidthErr", &dsigma,"dsigma/F");
   covar->Branch("ChiSq", &chiSq,"chiSq/F");
   covar->Branch("1stPeak", &fstpeak,"fstpeak/F");
   covar->Branch("1stWidth", &fstsigma,"fstsigma/F");
@@ -106,11 +182,17 @@ int main(int argc, char* argv[]){
   covar->Branch("frScnd", &frScndparam,"frScndparam/F");
   covar->Branch("frBKG", &frBKGparam,"frBKGparam/F");
   covar->Branch("crystalNo", &crystalNoparam,"crystalNoparam/F");
-  covar->Branch("convgstatus", &convergencestatus,"convergencestatus/F");
+  covar->Branch("convgstatus", &convergencestatus,"convergencestatus/I");
   covar->Branch("errorbar", &errbar,"errbar/F");
   covar->Branch("pval", &pval,"pval/F");
   covar->Branch("h_means", &h_means,"h_means/F");
   covar->Branch("h_stddevs", &h_stddevs,"h_stddevs/F");
+  covar->Branch("unreducedchi2", &unreducedchi2,"unreducedchi2/F");
+  covar->Branch("fval", &fval,"fval/F");
+  covar->Branch("m", &mparam,"mparam/F");
+  covar->Branch("eta", &etaparam,"etaparam/F");
+  covar->Branch("ndof", &ndof,"ndof/I");
+
   auto start_bin = high_resolution_clock::now();
   /*for(int cryNum=anacrys_start; cryNum<anacrys_end; cryNum++){
     TH1F* h = get_data_histogram(cryNum, disk);
@@ -119,48 +201,75 @@ int main(int argc, char* argv[]){
     fullResparam,fstResparam,scdResparam,comCnstparam,combetaparam,
     frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam);
   };*/
+
+
   for(int cryNum=anacrys_start; cryNum<anacrys_end; cryNum++){
-    auto [h, file] = get_data_histogram(cryNum, disk); // unpack pair
-    
-    auto [mean, stddev] = ComputeHistogramStats(h);
-		//h_means->SetBinContent(cryNum - anacrys_start + 1, mean);
-		//h_stddevs->SetBinContent(cryNum - anacrys_start + 1, stddev);
-		//std::cout << "cryNum: " << cryNum << ", bin = " << cryNum - anacrys_start + 1 << std::endl;
+    auto [hSum, file] = get_data_histogram(cryNum, disk); // unpack pair    
+    auto [mean, stddev] = ComputeHistogramStats(hSum);
 		h_means   = mean;
 		h_stddevs = stddev;
-
-
     SourceFitter *fit = new SourceFitter();
-    fit->FitCrystal(h, alg, cryNum, covar, nEvents, fpeak, dpeak, fsigma, chiSq, fstpeak, fstsigma, scdpeak, scdsigma,
+    fit->FitCrystal(hSum, alg, cryNum, covar, nEvents,convergencestatus, fpeak, dpeak, 
+                    fsigma,dsigma, chiSq, fstpeak, fstsigma, scdpeak, scdsigma,
                     fcbalphaparam, fcbndegparam, Aparam, Bparam, Cparam,
                     fullResparam, fstResparam, scdResparam, comCnstparam, combetaparam,
-                    frFullparam, frFrstparam, frScndparam, crystalNoparam, frBKGparam, convergencestatus,errbar,pval,h_means,h_stddevs);
+                    frFullparam, frFrstparam, frScndparam, crystalNoparam, frBKGparam
+                    ,errbar,pval,h_means,h_stddevs,unreducedchi2,fval,mparam,etaparam,ndof);//migrad_status,hesse_status,minos_status
+   bool need_refit = (convergencestatus > 0);
+   double nEventsMean   = GetTreeMean(covar, "nEvents");
+   double newPeakGuess   = GetTreeMean(covar, "Peak");
+   double newSigmaGuess  = GetTreeMean(covar, "Width");
+   double newAlphaGuess  = GetTreeMean(covar, "Alpha");
+   double newCombetaGuess  = GetTreeMean(covar, "combeta");
+   double newevtsFullGuess  = (GetTreeMean(covar, "frFull"))*nEventsMean;
+   double newevtsFstGuess  = (GetTreeMean(covar, "frFrst"))*nEventsMean;
+   double newevtsScndGuess  = (GetTreeMean(covar, "frScnd"))*nEventsMean;
+   double newevtsBkgGuess  = (GetTreeMean(covar, "frBKG"))*nEventsMean;
+   std::cout << "newPeakGuess = " << newPeakGuess << std::endl;
+   std::cout << "newsigmaguess = " << newSigmaGuess << std::endl;
+   std::cout << "newAlphaGuess = " << newAlphaGuess << std::endl;
+   std::cout << "newCombetaGuess = " << newCombetaGuess << std::endl;
+   std::cout << "newevtsFullGuess = " << newevtsFullGuess << std::endl;
+   std::cout << "newevtsFstGuess = " << newevtsFstGuess << std::endl;
+   std::cout << "newevtsScndGuess = " << newevtsScndGuess << std::endl;
+   std::cout << "newevtsBkgGuess = " << newevtsBkgGuess << std::endl;
+   std::cout << "nEventsMean = " << nEventsMean << std::endl;
+   
+   if (need_refit) {             
+   fit->SetInitialGuesses(newPeakGuess, newSigmaGuess,newAlphaGuess,newCombetaGuess,newevtsFullGuess,newevtsFstGuess,newevtsScndGuess,newevtsBkgGuess);
+   fit->FitCrystal(hSum, alg, cryNum, covar, nEvents, convergencestatus,
+                    fpeak, dpeak, fsigma, dsigma, chiSq,
+                    fstpeak, fstsigma, scdpeak, scdsigma,
+                    fcbalphaparam, fcbndegparam, Aparam, Bparam, Cparam,
+                    fullResparam, fstResparam, scdResparam,
+                    comCnstparam, combetaparam,
+                    frFullparam, frFrstparam, frScndparam,
+                    crystalNoparam, frBKGparam,
+                    errbar, pval, h_means, h_stddevs,
+                    unreducedchi2, fval, mparam, etaparam,ndof);
+}
 
-    file->Close();    // ? closes input file for current crystal
-    delete file;      // ? avoids memory leak
-    delete fit;       // (optional cleanup)
-    delete h;
+    file->Close();    
+    delete file;     
+    delete fit;      
+    delete hSum;
 }
 if (doOverlay) {
 	for (int cryNum = anacrys_start; cryNum + 1 < anacrys_end; cryNum += 2) {
 
     auto [hist_even, file_even] = get_data_histogram(cryNum, disk);
-    auto [hist_odd, file_odd]  = get_data_histogram(cryNum + 1, disk);
-    hist_even->SetDirectory(0);
-		hist_odd->SetDirectory(0);
-
-
+    auto [hist_odd, file_odd]  = get_data_histogram(cryNum + 1, disk);	 
+     hist_even->SetDirectory(0);
+     hist_odd->SetDirectory(0);
     // Style histograms
     hist_even->SetLineColor(kBlue);
     hist_even->SetLineWidth(2);
     hist_odd->SetLineColor(kRed);
     hist_odd->SetLineWidth(2);
-
     // Create residual histogram
     TH1F* residual = (TH1F*)hist_odd->Clone(Form("residual_%d_%d", cryNum, cryNum+1));
     residual->SetDirectory(0);
     residual->Reset();
-
     int nBins = hist_odd->GetNbinsX();
     	for (int i = 1; i <= nBins; ++i) {
         double odd   = hist_odd->GetBinContent(i);
@@ -174,13 +283,11 @@ if (doOverlay) {
         double err = denom > 0 ? sqrt(err_odd*err_odd + err_even*err_even) / denom : 0;
         residual->SetBinError(i, err);
     }
-
     // Create canvas for this pair
     TCanvas* cOverlay = new TCanvas(Form("cOverlay_%d_%d", cryNum, cryNum+1),
                                     Form("Even/Odd Overlay %d & %d", cryNum, cryNum+1),
                                     800, 800);
     cOverlay->Divide(1, 2, 0, 0);
-
     // --- Top pad: overlay ---
     cOverlay->cd(1);
     gPad->SetPad(0.0, 0.3, 1.0, 1.0);
@@ -221,19 +328,12 @@ if (doOverlay) {
         stats->SetY2NDC(0.45);
         stats->SetTextSize(0.07);
     }
-
     // --- Save to a unique ROOT file ---
 		TString oName = "mu2e_simu_hist_" + std::to_string(cryNum) + "_" + std::to_string(cryNum+1) + ".root";
     TFile* outputFile = new TFile(oName, "RECREATE");
     cOverlay->Write();
     outputFile->Close();
     delete outputFile;
-
-    // Cleanup
-    file_even->Close();
-    file_odd->Close();
-    delete file_even;
-    delete file_odd;
     delete cOverlay;
     delete residual;
 		delete leg;
@@ -242,19 +342,12 @@ if (doOverlay) {
 		delete hist_odd;
 		}
 }      
-    //file->Close();    // ? closes input file for current crystal
-    //delete file;      // ? avoids memory leak
-    //delete fit;       // (optional cleanup)
-    //delete h;
-//};
-
-
   auto end_bin = high_resolution_clock::now();
   std::cout<<" ******** Av. Time take to fit crystal: "<<duration_cast<seconds>((end_bin - start_bin)/(anacrys_end-anacrys_start))<<std::endl;
   
   TFile *globalPlots = new TFile("globalPlots.root", "RECREATE");
   SourcePlotter *plot = new SourcePlotter();
-  plot->ParamPlots(covar, table, globalPlots, anacrys_start, anacrys_end);//add arguement of crynum
+  plot->ParamPlots(covar, table, globalPlots, anacrys_start, anacrys_end);
   table->cd();
   table -> Write();
   table -> Close();

@@ -10,11 +10,15 @@
 #include "TH1.h"
 
 #include "TF1.h"
+#include "TH2.h"
 #include "TMath.h"
 #include "TTree.h"
 #include "TCanvas.h"
 #include "TPad.h"
 #include "TMath.h"
+#include "TMarker.h"
+#include "TLine.h"
+#include "TLegend.h"
 #include <Riostream.h>
 
 #include "TPaveStats.h"
@@ -56,9 +60,20 @@ namespace CaloSourceCalib{
         SourceFitter& operator = (const SourceFitter &);
         virtual ~SourceFitter() = default;
         #ifndef __CINT__
-        void FitCrystal(TH1F* histogram, TString opt, int cryNum, TTree* covar, Int_t &nEvents, Float_t &fpeak, Float_t &dpeak, Float_t &fsigma, Float_t &chiSq, Float_t &fstpeak, Float_t &fstsigma, Float_t &scdpeak,Float_t &scdsigma,Float_t &fcbalphaparam,Float_t &fcbndegparam,Float_t &Aparam,Float_t &Bparam, Float_t &Cparam, Float_t &fullResparam, Float_t &fstResparam,Float_t &scdResparam,Float_t &comCnstparam, Float_t &combetaparam, Float_t &frFullparam, Float_t &frFrstparam,Float_t &frScndparam,Float_t &crystalNoparam,Float_t &frBKGparam,Float_t &convergencestatus,Float_t &errbar, Float_t &pval,Float_t &h_means,Float_t &h_stddevs);//Float_t &frBKGparam
+        void SetInitialGuesses(double peak, double width,double alpha,double beta,double evtsfull,double evtsfst,double evtsscd,double evtsbkg);
+        void FitCrystal(TH1F* histogram, TString opt, int cryNum, TTree* covar, Int_t &nEvents,Int_t &convergencestatus, Float_t &fpeak, Float_t &dpeak, Float_t &fsigma,Float_t &dsigma, Float_t &chiSq, Float_t &fstpeak, Float_t &fstsigma, Float_t &scdpeak,Float_t &scdsigma,Float_t &fcbalphaparam,Float_t &fcbndegparam,Float_t &Aparam,Float_t &Bparam, Float_t &Cparam, Float_t &fullResparam, Float_t &fstResparam,Float_t &scdResparam,Float_t &comCnstparam, Float_t &combetaparam, Float_t &frFullparam, Float_t &frFrstparam,Float_t &frScndparam,Float_t &crystalNoparam,Float_t &frBKGparam,Float_t &errbar, Float_t &pval,Float_t &h_means,Float_t &h_stddevs,Float_t &unreducedchi2,Float_t &fval,Float_t &mparam,Float_t &etaparam,Int_t &ndof );//Float_t &frBKGparam Int_t &migrad_status,Int_t &hesse_status,Int_t &minos_status
         void MCFitCrystal(int crystalNo, TString opt);
         #endif
+      private:
+        double overridePeak_  = -999;   // negative means "use defaults"
+        double overrideWidth_ = -999;
+        double overrideAlpha_ = -999;
+        double overridebeta_ = -999;
+        double overrideevtsfull_ = -999;
+        double overrideevtsfst_ = -999;
+        double overrideevtsscd_ = -999;
+        double overrideevtsbkg_ = -999;
+
         ClassDef (SourceFitter,1);
     };
 }

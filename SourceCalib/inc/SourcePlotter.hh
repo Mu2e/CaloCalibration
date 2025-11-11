@@ -19,6 +19,9 @@
 #include "TAxis.h"
 #include <Riostream.h>
 #include <vector>
+#include "THStack.h"
+#include "TStyle.h"
+
 
 #include "TPaveText.h"
 #include "TLegend.h"
