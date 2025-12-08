@@ -32,7 +32,7 @@ physics: {
       @table::Digitize.filters
     }
 
-    p1: [ @sequence::CaloMC.DigiSim, @sequence::CaloMC.StepSim]
+    p1: [ @sequence::CaloMC.DigiSim]
 
 
     trigger_paths: [p1]
