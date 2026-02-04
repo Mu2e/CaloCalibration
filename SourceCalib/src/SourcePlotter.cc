@@ -2,17 +2,19 @@
 #include <chrono>
 #include <numeric>
 #include "TF1.h"
-
+#include "TH2.h"
+#include "TProfile.h"
 using namespace std::chrono;
 using namespace CaloSourceCalib;
 
 /* function to make global plots of the fit outputs*/
 void SourcePlotter::ParamPlots(TTree* inputTree, TFile *inputFile, TFile *outputFile,int cry_start, int cry_end) {//add param as plot range
-    float crystalNo, Peak, ChiSq, PeakErr,h_means,h_stds,frFull,frFrst,frScnd,firstPeak,secondPeak,Width,WidthErr,unreducedchi2;
+    float crystalNo, Peak, ChiSq, PeakErrHigh,PeakErrLo,h_means,h_stds,frFull,frFrst,frScnd,firstPeak,secondPeak,Width,WidthErrHigh,WidthErrLo,unreducedchi2;
     int nEvents,convgstatus,ndof;    
     inputTree-> SetBranchAddress("crystalNo", &crystalNo);
     inputTree-> SetBranchAddress("Peak", &Peak);
-    inputTree-> SetBranchAddress("PeakErr", &PeakErr);
+    inputTree-> SetBranchAddress("PeakErrLo", &PeakErrLo);
+    inputTree-> SetBranchAddress("PeakErrHigh", &PeakErrHigh);
     inputTree-> SetBranchAddress("ChiSq", &ChiSq);
     inputTree-> SetBranchAddress("nEvents", &nEvents); 
     inputTree-> SetBranchAddress("h_means", &h_means); 
@@ -24,10 +26,14 @@ void SourcePlotter::ParamPlots(TTree* inputTree, TFile *inputFile, TFile *output
     inputTree-> SetBranchAddress("1stPeak", &firstPeak); 
     inputTree-> SetBranchAddress("2ndPeak", &secondPeak); 
     inputTree-> SetBranchAddress("Width", &Width); 
-    inputTree-> SetBranchAddress("WidthErr", &WidthErr); 
+    inputTree-> SetBranchAddress("WidthErrHigh", &WidthErrHigh); 
+    inputTree-> SetBranchAddress("WidthErrLo", &WidthErrLo); 
     inputTree-> SetBranchAddress("unreducedchi2", &unreducedchi2); 
     inputTree-> SetBranchAddress("ndof", &ndof); 
-    std::vector<Double_t> crystalNos, Peaks,ADCPeaks, PeakErrs,ADCPeakErrs, ChiSqs, EventsErr, Events,h_means_vec,h_stds_vec,frFull_vec,frFrst_vec,frScnd_vec,convgstatus_vec,firstPeak_vec,secondPeak_vec,Widths,WidthErrs,unreducedchi2s,ndofs;
+    
+
+    std::vector<Double_t> crystalNos, Peaks,ADCPeaks, PeakErrLos,PeakErrHighs,ADCPeakErrHighs,ADCPeakErrLos, ChiSqs, EventsErr, Events,h_means_vec,h_stds_vec,frFull_vec,frFrst_vec,frScnd_vec,convgstatus_vec,
+firstPeak_vec,secondPeak_vec,Widths,WidthErrHighs,WidthErrLos,unreducedchi2s,ndofs;
      
     // Fill the vectors with data from the TTree
     Long64_t nEntries = inputTree->GetEntries();
@@ -36,8 +42,10 @@ void SourcePlotter::ParamPlots(TTree* inputTree, TFile *inputFile, TFile *output
         crystalNos.push_back(crystalNo);
         Peaks.push_back(1/(Peak/6.13));
         ADCPeaks.push_back(Peak);
-        ADCPeakErrs.push_back(PeakErr);
-        PeakErrs.push_back((1/(Peak/6.13))*(PeakErr/Peak));
+        ADCPeakErrHighs.push_back(fabs(PeakErrHigh));
+        ADCPeakErrLos.push_back(fabs(PeakErrLo));
+        PeakErrLos.push_back(fabs((6.13/Peak)*(PeakErrLo/Peak)));
+        PeakErrHighs.push_back(fabs((6.13/Peak)*(PeakErrHigh/Peak)));
         ChiSqs.push_back(ChiSq);
         Events.push_back(nEvents);
         EventsErr.push_back(sqrt(nEvents));       
@@ -50,96 +58,375 @@ void SourcePlotter::ParamPlots(TTree* inputTree, TFile *inputFile, TFile *output
         firstPeak_vec.push_back(firstPeak);
         secondPeak_vec.push_back(secondPeak);
         Widths.push_back(Width);
-        WidthErrs.push_back(WidthErr);
+        WidthErrHighs.push_back(WidthErrHigh);
+        WidthErrLos.push_back(WidthErrLo);
         unreducedchi2s.push_back(unreducedchi2);
         ndofs.push_back(ndof);
+
     }
 //----create value of avg and std dev for tlines for plots---
-		double Peaks_sum = std::accumulate(Peaks.begin(), Peaks.end(),0.0);
- 		double Peaks_avg = Peaks_sum / Peaks.size();
- 		double Peaks_stddev = TMath::StdDev(Peaks.begin(),Peaks.end());
- 		double stddev_prcnt = (Peaks_stddev/Peaks_avg)*100;
- 		std::cout<<" peak 2 std dev "<<Peaks_stddev*2<<std::endl;
- 		std::cout<<" peak std dev "<<Peaks_stddev<<std::endl;
- 		std::cout<<" ------------ "<<std::endl; 
+    double Peaks_sum = std::accumulate(Peaks.begin(), Peaks.end(), 0.0);
+    double Peaks_avg = Peaks_sum / Peaks.size();
+    double Peaks_stddev = TMath::StdDev(Peaks.begin(), Peaks.end());
+    double stddev_prcnt = (Peaks_stddev / Peaks_avg) * 100;
+    
+    double peakerrhi_sum = std::accumulate(PeakErrHighs.begin(), PeakErrHighs.end(), 0.0);
+    double peakerrlo_sum = std::accumulate(PeakErrLos.begin(), PeakErrLos.end(), 0.0);
+    double avgpeakerr_hi = peakerrhi_sum / PeakErrHighs.size();
+    double avgpeakerr_lo = peakerrlo_sum / PeakErrLos.size();
+    
+    std::cout << " peak 2 std dev " << Peaks_stddev * 2 << std::endl;
+    std::cout << " peak std dev " << Peaks_stddev << std::endl;
+    std::cout << " ------------ " << std::endl;
+
 //----create loop to count and print how many crys/sipms have pear error larger than 2 stdev----		
- 		int countHighPeakErrs = 0;
-for (size_t i = 0; i < PeakErrs.size(); ++i) {
-    if (PeakErrs[i] > 2 * Peaks_stddev) {
-        ++countHighPeakErrs;
-        std::cout << "Crystal " << crystalNos[i] 
-                  << " has PeakErr = " << PeakErrs[i] 
-                  << " > 2*Peaks_stddev (" << 2 * Peaks_stddev << ")\n";
+    int countHighPeakErrHighs = 0;
+    for (size_t i = 0; i < PeakErrHighs.size(); ++i) {
+        if (PeakErrHighs[i] > 2 * Peaks_stddev) {
+            ++countHighPeakErrHighs;
+            std::cout << "Crystal " << crystalNos[i] 
+                      << " has PeakErrHigh = " << PeakErrHighs[i] 
+                      << " > 2*Peaks_stddev (" << 2 * Peaks_stddev << ")\n";
+        }
     }
-}
-std::cout << "Number of PeakErrs > 2 stdev " << countHighPeakErrs << std::endl;
- 		std::cout<<" ------------ "<<std::endl;
+    int countHighPeakErrLos = 0;
+    for (size_t i = 0; i < PeakErrLos.size(); ++i) {
+        if (PeakErrLos[i] > 2 * Peaks_stddev) {
+            ++countHighPeakErrLos;
+            std::cout << "Crystal " << crystalNos[i] 
+                      << " has PeakErrLos = " << PeakErrLos[i] 
+                      << " > 2*Peaks_stddev (" << 2 * Peaks_stddev << ")\n";
+        }
+    }
+    std::cout << "Number of PeakErrHighs > 2 stdev " << countHighPeakErrHighs << std::endl;
+    std::cout << " ------------ " << std::endl;
+    std::cout << "Number of PeakErrLos > 2 stdev " << countHighPeakErrLos << std::endl;
+    std::cout << " ------------ " << std::endl;
+
 //----resume creating values of avg and std dev for tlines for plots-----
- 		double ChiSqs_sum = std::accumulate(ChiSqs.begin(), ChiSqs.end(),0.0);
- 		double ChiSqs_avg = ChiSqs_sum / ChiSqs.size();
- 		double ChiSqs_stddev = TMath::StdDev(ChiSqs.begin(),ChiSqs.end());
- 		std::cout<<" std dev of chi2 "<<ChiSqs_stddev<<std::endl;		
- 		std::cout<<" 2 std dev of chi2 "<<2*ChiSqs_stddev<<std::endl;		
- 		double Events_sum = std::accumulate(Events.begin(), Events.end(),0.0);
- 		double Events_avg = Events_sum / Events.size();
- 		double Events_stddev = TMath::StdDev(Events.begin(),Events.end());	
- 		std::cout<<" std dev of events "<<Events_stddev<<std::endl;		
- 			
-    // Create a TGraph for the scatter plot
-    TGraphErrors grpeaks(crystalNos.size(), &crystalNos[0], &Peaks[0], nullptr, &PeakErrs[0]);
+    double ChiSqs_sum = std::accumulate(ChiSqs.begin(), ChiSqs.end(), 0.0);
+    double ChiSqs_avg = ChiSqs_sum / ChiSqs.size();
+    double ChiSqs_stddev = TMath::StdDev(ChiSqs.begin(), ChiSqs.end());
+    std::cout << " std dev of chi2 " << ChiSqs_stddev << std::endl;
+    std::cout << " 2 std dev of chi2 " << 2 * ChiSqs_stddev << std::endl;
+    
+    double Events_sum = std::accumulate(Events.begin(), Events.end(), 0.0);
+    double Events_avg = Events_sum / Events.size();
+    double Events_stddev = TMath::StdDev(Events.begin(), Events.end());
+    std::cout << " std dev of events " << Events_stddev << std::endl;
+
+    // =======================================================
+    // SPLIT DATA INTO SUBSETS
+    // Logic: The 8 specific IDs are LYSO. The rest are CsI.
+    // =======================================================
+    // Using long and lround to ensure ID matching works even if crystalNos are floats
+    std::set<long> lyso_ids = {1164, 1165, 1220, 1221, 1218, 1219, 1274, 1275};
+    
+    // Vectors for LYSO (The 8 specific IDs)
+    std::vector<double> crys_L, p_L, el_L, eh_L; 
+    // Vectors for CsI (The rest)
+    std::vector<double> crys_C, p_C, el_C, eh_C; 
+
+    for(size_t i=0; i<crystalNos.size(); ++i) {
+        // Use rounding to ensure 1120.00 matches 1120
+        long id = std::lround(crystalNos[i]);
+        
+        if(lyso_ids.count(id)) {
+            // It IS one of the 8 -> LYSO
+            crys_L.push_back(crystalNos[i]);
+            p_L.push_back(Peaks[i]);
+            el_L.push_back(PeakErrLos[i]);
+            eh_L.push_back(PeakErrHighs[i]);
+        } else {
+            // It is NOT one of the 8 -> CsI
+            crys_C.push_back(crystalNos[i]);
+            p_C.push_back(Peaks[i]);
+            el_C.push_back(PeakErrLos[i]);
+            eh_C.push_back(PeakErrHighs[i]);
+        }
+    }
+
+    // =======================================================
+    // GLOBAL PLOT DEFINITIONS
+    // =======================================================
+    TGraphAsymmErrors grpeaks(crystalNos.size(), &crystalNos[0], &Peaks[0], nullptr, nullptr, &PeakErrLos[0], &PeakErrHighs[0]);
     TGraph grchi2(crystalNos.size(), &crystalNos[0], &ChiSqs[0]);
     TGraphErrors grN(crystalNos.size(), &crystalNos[0], &Events[0], nullptr, &EventsErr[0]);
-    TGraph grpeakerrs(crystalNos.size(), &crystalNos[0], &PeakErrs[0]);
-    TGraph grconvstatus(convgstatus_vec.size(), &convgstatus_vec[0], &PeakErrs[0]);
+    TGraph grconvstatus(convgstatus_vec.size(), &convgstatus_vec[0], &PeakErrHighs[0]);
     TGraph grconvvschi2(convgstatus_vec.size(), &convgstatus_vec[0], &ChiSqs[0]);
-    // Customize the plot
-    grpeaks.SetTitle("Cry Number vs MeV/ADC;Crystal Number;MeV/ADC");
+
+    // =======================================================
+    // CANVAS LAYOUT: TOP (All), BOTTOM-LEFT (CsI), BOTTOM-RIGHT (LYSO)
+    // =======================================================
+    TCanvas canvas("canvas", "Scatter Plot", 1000, 900); 
+    
+    TPad *padTop = new TPad("padTop", "All", 0.0, 0.5, 1.0, 1.0);
+    TPad *padBL  = new TPad("padBL",  "CsI", 0.0, 0.0, 0.5, 0.5); // LEFT -> CsI
+    TPad *padBR  = new TPad("padBR",  "LYSO",  0.5, 0.0, 1.0, 0.5); // RIGHT -> LYSO
+    padTop->Draw();
+    padBL->Draw();
+    padBR->Draw();
+
+    // --- 1. TOP PLOT (All SiPMs) ---
+    padTop->cd();
+    grpeaks.SetTitle("All SiPMs;SiPM Number;MeV/ADC");
     grpeaks.SetMarkerStyle(20);
     grpeaks.SetMarkerSize(0.8);
     grpeaks.SetMarkerColor(kBlue);
     grpeaks.SetLineColor(kBlue);
-    TLine *avgpeak = new TLine(cry_start,Peaks_avg,cry_end,Peaks_avg);
-    TLine *nominalpeak = new TLine(cry_start,0.0625,cry_end,0.0625); 
-    TLine *stddevpeak_abv = new TLine(cry_start,Peaks_avg+2*Peaks_stddev,cry_end,Peaks_avg+2*Peaks_stddev);    
-    TLine *stddevpeak_blw = new TLine(cry_start,Peaks_avg-2*Peaks_stddev,cry_end,Peaks_avg-2*Peaks_stddev);		
-    TCanvas canvas("canvas", "Scatter Plot", 800, 600);
-    grpeaks.Draw("AP"); // A for axis, P for points  
-    canvas.Update();  // Must update to get access to Y axis
-    grpeaks.GetYaxis()->SetRangeUser(0.05, 0.08);  // Y-axis limits  
-    TPaveText *avg = new TPaveText(0.15, 0.75, 0.35, 0.65, "brNDC");
-   	avg -> SetFillStyle(0);
-   	avg -> SetBorderSize(0);
-   	avg -> SetTextSize(0.03);
-   	avg -> SetTextColor(kBlack);
-   	avg -> SetTextFont(72);
-   	avg -> SetFillColor(kWhite);
-    avg->AddText(Form("Peaks avg val = %4.8f#pm%.8f", Peaks_avg,Peaks_stddev));
-		avg->AddText(Form("Std Dev = %.2f%%", stddev_prcnt));   
-    avgpeak->SetLineColor(kCyan);
-    avgpeak->SetLineWidth(2);
-    nominalpeak->SetLineColor(kMagenta);
-    nominalpeak->SetLineWidth(2);
-    stddevpeak_abv->SetLineColor(kOrange-3);
-    stddevpeak_blw->SetLineColor(kOrange);        
-    stddevpeak_abv->SetLineWidth(2);    
-    stddevpeak_blw->SetLineColor(kOrange);
-    stddevpeak_blw->SetLineWidth(2);        
+    grpeaks.Draw("AP");
+    padTop->Update();
+    grpeaks.GetYaxis()->SetRangeUser(0.05, 0.08);
+
+    // Lines for Top
+    TLine *avgpeak = new TLine(cry_start, Peaks_avg, cry_end, Peaks_avg);
+    TLine *nominalpeak = new TLine(cry_start, 0.0625, cry_end, 0.0625); 
+    TLine *stddevpeak_abv = new TLine(cry_start, Peaks_avg + 2*Peaks_stddev, cry_end, Peaks_avg + 2*Peaks_stddev);    
+    TLine *stddevpeak_blw = new TLine(cry_start, Peaks_avg - 2*Peaks_stddev, cry_end, Peaks_avg - 2*Peaks_stddev);        
+    
+    avgpeak->SetLineColor(kCyan); avgpeak->SetLineWidth(2);
+    nominalpeak->SetLineColor(kMagenta); nominalpeak->SetLineWidth(2);
+    stddevpeak_abv->SetLineColor(kOrange-3); stddevpeak_abv->SetLineWidth(2);    
+    stddevpeak_blw->SetLineColor(kOrange); stddevpeak_blw->SetLineWidth(2);        
+    
     avgpeak->Draw("same");
     nominalpeak->Draw("same");
     stddevpeak_abv->Draw("same");
     stddevpeak_blw->Draw("same");
+
+    // Text Box for Top
+    TPaveText *avg = new TPaveText(0.15, 0.75, 0.35, 0.65, "brNDC");
+    avg->SetFillStyle(0); avg->SetBorderSize(0); avg->SetTextSize(0.03);
+    avg->SetTextColor(kBlack); avg->SetTextFont(72); avg->SetFillColor(kWhite);
+    avg->AddText(Form("Avg = %4.8f#pm%.8f", Peaks_avg, Peaks_stddev));
+    avg->AddText(Form("Std Dev = %.2f%%", stddev_prcnt));   
+    avg->AddText(Form("Err Hi Avg = %4.8f", avgpeakerr_hi));
+    avg->AddText(Form("Err Lo Avg = %4.8f", avgpeakerr_lo));
     avg->Draw();
-    auto legend = new TLegend();
+    
+    TLegend *legend = new TLegend();
     legend->AddEntry(avgpeak, "Average Value", "L");
-    legend->AddEntry(nominalpeak,"Nominal Value","L");
-    legend->AddEntry(stddevpeak_abv,"Std Dev","L");
-    legend->AddEntry(stddevpeak_blw,"Std Dev","L");
-     //legend->SetTextSize(0.4);
+    legend->AddEntry(nominalpeak, "Nominal Value", "L");
+    legend->AddEntry(stddevpeak_abv, "Std Dev", "L");
     legend->Draw();
+
+    // --- 2. BOTTOM LEFT PLOT (CsI Only) ---
+    padBL->cd();
+    // Stats for CsI
+    double sum_C = std::accumulate(p_C.begin(), p_C.end(), 0.0);
+    double avg_val_C = p_C.empty() ? 0 : sum_C / p_C.size();
+    double std_val_C = TMath::StdDev(p_C.begin(), p_C.end());
+
+    TGraphAsymmErrors *grCsI = new TGraphAsymmErrors(crys_C.size(), &crys_C[0], &p_C[0], nullptr, nullptr, &el_C[0], &eh_C[0]);
+    grCsI->SetTitle("CsI Crystals;SiPM Number;MeV/ADC");
+    grCsI->SetMarkerStyle(20); 
+    grCsI->SetMarkerSize(0.8); // Set to 0.8
+    grCsI->SetMarkerColor(kViolet+2); grCsI->SetLineColor(kViolet+2);
+    grCsI->Draw("AP");
+    padBL->Update();
+    grCsI->GetYaxis()->SetRangeUser(0.05, 0.08);
+
+    TLine *l_avg_C = new TLine(padBL->GetUxmin(), avg_val_C, padBL->GetUxmax(), avg_val_C);
+    TLine *l_hi_C  = new TLine(padBL->GetUxmin(), avg_val_C + 2*std_val_C, padBL->GetUxmax(), avg_val_C + 2*std_val_C);
+    TLine *l_lo_C  = new TLine(padBL->GetUxmin(), avg_val_C - 2*std_val_C, padBL->GetUxmax(), avg_val_C - 2*std_val_C);
+
+    l_avg_C->SetLineColor(kCyan); l_avg_C->SetLineWidth(2);
+    l_hi_C->SetLineColor(kOrange-3); l_hi_C->SetLineWidth(2);
+    l_lo_C->SetLineColor(kOrange); l_lo_C->SetLineWidth(2);
+    l_avg_C->Draw("same"); l_hi_C->Draw("same"); l_lo_C->Draw("same");
+
+    TPaveText *ptC = new TPaveText(0.15, 0.75, 0.45, 0.60, "brNDC");
+    ptC->SetFillStyle(0); ptC->SetBorderSize(0); ptC->SetTextSize(0.035);
+    ptC->AddText(Form("Avg = %4.8f #pm %.8f", avg_val_C, std_val_C));
+    ptC->AddText(Form("Std Dev = %.2f%%", (std_val_C/avg_val_C)*100));
+    ptC->Draw();
+
+    // --- 3. BOTTOM RIGHT PLOT (LYSO Only) ---
+    padBR->cd();
+    // Stats for LYSO
+    double sum_L = std::accumulate(p_L.begin(), p_L.end(), 0.0);
+    double avg_val_L = p_L.empty() ? 0 : sum_L / p_L.size();
+    double std_val_L = TMath::StdDev(p_L.begin(), p_L.end());
+    
+    TGraphAsymmErrors *grLYSO = new TGraphAsymmErrors(crys_L.size(), &crys_L[0], &p_L[0], nullptr, nullptr, &el_L[0], &eh_L[0]);
+    grLYSO->SetTitle("LYSO Crystals;SiPM Number;MeV/ADC");
+    grLYSO->SetMarkerStyle(20); 
+    grLYSO->SetMarkerSize(0.8); // Set to 0.8
+    grLYSO->SetMarkerColor(kAzure-3); grLYSO->SetLineColor(kAzure-3);
+    grLYSO->Draw("AP");
+    padBR->Update();
+    grLYSO->GetYaxis()->SetRangeUser(0.05, 0.08);
+
+    TLine *l_avg_L = new TLine(padBR->GetUxmin(), avg_val_L, padBR->GetUxmax(), avg_val_L);
+    TLine *l_hi_L  = new TLine(padBR->GetUxmin(), avg_val_L + 2*std_val_L, padBR->GetUxmax(), avg_val_L + 2*std_val_L);
+    TLine *l_lo_L  = new TLine(padBR->GetUxmin(), avg_val_L - 2*std_val_L, padBR->GetUxmax(), avg_val_L - 2*std_val_L);
+    
+    l_avg_L->SetLineColor(kCyan); l_avg_L->SetLineWidth(2);
+    l_hi_L->SetLineColor(kOrange-3); l_hi_L->SetLineWidth(2);
+    l_lo_L->SetLineColor(kOrange); l_lo_L->SetLineWidth(2);
+    l_avg_L->Draw("same"); l_hi_L->Draw("same"); l_lo_L->Draw("same");
+
+    TPaveText *ptL = new TPaveText(0.15, 0.75, 0.45, 0.60, "brNDC");
+    ptL->SetFillStyle(0); ptL->SetBorderSize(0); ptL->SetTextSize(0.035);
+    ptL->AddText(Form("Avg = %4.8f #pm %.8f", avg_val_L, std_val_L));
+    ptL->AddText(Form("Std Dev = %.2f%%", (std_val_L/avg_val_L)*100));
+    ptL->Draw();
+
     outputFile->cd();
     grpeaks.Write("Peaks");
     canvas.SaveAs("Peaks.root");
-          
+// =======================================================
+// SUBSET COMPARISON PLOTS (ODD / EVEN / RANGE1 / RANGE2)
+// =======================================================
+
+// -------- USER-EDITABLE RANGES --------
+int cry_start1 = 0;   // Range 1 start
+int cry_end1   = 400;     // Range 1 end
+
+int cry_start2 = 900;         // <<< CHANGE RANGE 2 HERE
+int cry_end2   = 1348;         // <<< CHANGE RANGE 2 HERE
+// ------------------------------------
+
+// --- Graphs ---
+TGraphAsymmErrors *grOdd    = new TGraphAsymmErrors();
+TGraphAsymmErrors *grEven   = new TGraphAsymmErrors();
+TGraphAsymmErrors *grRange1 = new TGraphAsymmErrors();
+TGraphAsymmErrors *grRange2 = new TGraphAsymmErrors();
+
+// --- Storage for stats ---
+std::vector<double> PeaksOdd, PeaksEven, PeaksRange1, PeaksRange2;
+
+int iOdd = 0, iEven = 0, iR1 = 0, iR2 = 0;
+
+// --- Fill graphs and stat vectors ---
+for (size_t i = 0; i < crystalNos.size(); ++i) {
+
+    double x   = crystalNos[i];
+    double y   = Peaks[i];
+    double eyL = PeakErrLos[i];
+    double eyH = PeakErrHighs[i];
+
+    if (((int)x) % 2 == 1) {
+        grOdd->SetPoint(iOdd, x, y);
+        grOdd->SetPointError(iOdd, 0, 0, eyL, eyH);
+        PeaksOdd.push_back(y);
+        ++iOdd;
+    }
+
+    if (((int)x) % 2 == 0) {
+        grEven->SetPoint(iEven, x, y);
+        grEven->SetPointError(iEven, 0, 0, eyL, eyH);
+        PeaksEven.push_back(y);
+        ++iEven;
+    }
+
+    if (x >= cry_start1 && x <= cry_end1) {
+        grRange1->SetPoint(iR1, x, y);
+        grRange1->SetPointError(iR1, 0, 0, eyL, eyH);
+        PeaksRange1.push_back(y);
+        ++iR1;
+    }
+
+    if (x >= cry_start2 && x <= cry_end2) {
+        grRange2->SetPoint(iR2, x, y);
+        grRange2->SetPointError(iR2, 0, 0, eyL, eyH);
+        PeaksRange2.push_back(y);
+        ++iR2;
+    }
+}
+
+// --- Compute averages and std devs ---
+auto Avg = [](const std::vector<double>& v){
+    return std::accumulate(v.begin(), v.end(), 0.0) / v.size();
+};
+auto Std = [](const std::vector<double>& v){
+    return TMath::StdDev(v.begin(), v.end());
+};
+
+double avgOdd = Avg(PeaksOdd),     stdOdd = Std(PeaksOdd);
+double avgEven = Avg(PeaksEven),   stdEven = Std(PeaksEven);
+double avgR1 = Avg(PeaksRange1),   stdR1 = Std(PeaksRange1);
+double avgR2 = Avg(PeaksRange2),   stdR2 = Std(PeaksRange2);
+
+// --- Make lines ---
+auto MakeLines = [](double xmin, double xmax, double avg, double std){
+    TLine *avgL = new TLine(xmin, avg, xmax, avg);
+    TLine *hiL  = new TLine(xmin, avg+2*std, xmax, avg+2*std);
+    TLine *loL  = new TLine(xmin, avg-2*std, xmax, avg-2*std);
+
+    avgL->SetLineColor(kCyan); avgL->SetLineWidth(2);
+    hiL->SetLineColor(kOrange+1); hiL->SetLineWidth(2);
+    loL->SetLineColor(kOrange+1); loL->SetLineWidth(2);
+
+    return std::make_tuple(avgL, hiL, loL);
+};
+
+auto [avgOddL,  hiOddL,  loOddL ] = MakeLines(cry_start1, cry_end1, avgOdd,  stdOdd);
+auto [avgEvenL, hiEvenL, loEvenL] = MakeLines(cry_start1, cry_end1, avgEven, stdEven);
+auto [avgR1L,   hiR1L,   loR1L  ] = MakeLines(cry_start1, cry_end1, avgR1,   stdR1);
+auto [avgR2L,   hiR2L,   loR2L  ] = MakeLines(cry_start2, cry_end2, avgR2,   stdR2);
+
+// --- Text boxes ---
+auto MakeText = [](double avg, double std){
+    TPaveText *t = new TPaveText(0.15,0.75,0.35,0.65,"brNDC");
+    t->SetFillStyle(0);
+    t->SetBorderSize(0);
+    t->SetTextSize(0.03);
+    t->SetTextFont(72);
+    t->AddText(Form("Avg = %4.8f", avg));
+    t->AddText(Form("Std Dev = %.2f%%", (std/avg)*100));
+    return t;
+};
+
+TPaveText *txtOdd  = MakeText(avgOdd, stdOdd);
+TPaveText *txtEven = MakeText(avgEven, stdEven);
+TPaveText *txtR1   = MakeText(avgR1, stdR1);
+TPaveText *txtR2   = MakeText(avgR2, stdR2);
+
+// --- Style graphs ---
+grOdd->SetTitle("Odd SiPMs;SiPM Number;MeV/ADC");
+grOdd->SetMarkerStyle(20); grOdd->SetMarkerColor(kRed+1);
+
+grEven->SetTitle("Even SiPMs;SiPM Number;MeV/ADC");
+grEven->SetMarkerStyle(20); grEven->SetMarkerColor(kBlue+1);
+
+grRange1->SetTitle(Form("Range %d-%d;SiPM Number;MeV/ADC",cry_start1,cry_end1));
+grRange1->SetMarkerStyle(20); grRange1->SetMarkerColor(kGreen+2);
+
+grRange2->SetTitle(Form("Range %d-%d;SiPM Number;MeV/ADC",cry_start2,cry_end2));
+grRange2->SetMarkerStyle(20); grRange2->SetMarkerColor(kMagenta+1);
+
+// --- Canvas ---
+TCanvas *cSplit = new TCanvas("cSplit","Subset Comparison",1600,400);
+cSplit->Divide(4,1);
+
+// --- Draw pads ---
+auto DrawPad = [&](int pad, TGraphAsymmErrors* g,
+                   TLine* a, TLine* h, TLine* l, TPaveText* t){
+    cSplit->cd(pad);
+    g->Draw("AP");
+    g->GetYaxis()->SetRangeUser(0.05,0.08);
+    a->Draw("same"); h->Draw("same"); l->Draw("same");
+    t->Draw();
+};
+
+DrawPad(1, grOdd,    avgOddL,  hiOddL,  loOddL,  txtOdd);
+DrawPad(2, grEven,   avgEvenL, hiEvenL, loEvenL, txtEven);
+DrawPad(3, grRange1, avgR1L,   hiR1L,   loR1L,   txtR1);
+DrawPad(4, grRange2, avgR2L,   hiR2L,   loR2L,   txtR2);
+
+// --- Write output ---
+outputFile->cd();
+grOdd->Write("Peaks_Odd");
+grEven->Write("Peaks_Even");
+grRange1->Write("Peaks_Range1");
+grRange2->Write("Peaks_Range2");
+cSplit->SaveAs("Peaks_SubsetComparison.root");
+
+
+
+//----------------------------------------//
+
     //TCanvas canvas("canvas", "Scatter Plot", 800, 600);
     grpeaks.Draw("APsame"); // A for axis, P for points
     outputFile->cd();
@@ -147,17 +434,19 @@ std::cout << "Number of PeakErrs > 2 stdev " << countHighPeakErrs << std::endl;
     // ---- save peaks and errors into a txt file ----
 std::ofstream outFile("SiPM_FitParameters.txt");
 if (outFile.is_open()) {
-    outFile << "#SiPMNo\tPeak(MeV/ADC)\tPeakErr\tunredChi2\tndof\tnEvents\tWidth\tWidthErr\tChi2\n";
+    outFile << "#SiPMNo\tPeak(MeV/ADC)\tPeakErrHigh\tPeakErrLo\tunredChi2\tndof\tnEvents\tWidth\tWidthErrHigh\tWidthErrLo\tChi2\n";
     for (size_t i = 0; i < crystalNos.size(); ++i) {
         outFile << std::fixed << std::setprecision(6)
                 << crystalNos[i] << "\t"
                 << Peaks[i]      << "\t"
-                << PeakErrs[i]   << "\t"
+                << PeakErrHighs[i]   << "\t"
+                << PeakErrLos[i]   << "\t"
                 << unreducedchi2s[i]<< "\t"
                 << ndofs[i]<< "\t"
                 << Events[i] << "\t"
-                << Widths[i] << "\t"    // Width
-                << WidthErrs[i] << "\t"    // WidthError
+                << Widths[i] << "\t"    
+                << WidthErrHighs[i] << "\t" 
+                << WidthErrLos[i] << "\t"    
                 << ChiSqs[i] << "\t"
                 << Events[i] << "\n";
     }
@@ -166,80 +455,7 @@ if (outFile.is_open()) {
 } else {
     std::cerr << "Error: could not open SiPM_FitParameters.txt for writing." << std::endl;
 }
-//-----ADC Peaks graph that represent the full peak in ADC--------
-		double ADCPeaks_sum = std::accumulate(ADCPeaks.begin(), ADCPeaks.end(),0.0);
- 		double ADCPeaks_avg = ADCPeaks_sum / ADCPeaks.size();
- 		double ADCPeaks_stddev = TMath::StdDev(ADCPeaks.begin(),ADCPeaks.end());
- 		double ADCstddev_prcnt = (ADCPeaks_stddev/ADCPeaks_avg)*100;
- 		std::cout<<" ADC peak 2 std dev "<<ADCPeaks_stddev*2<<std::endl;
- 		std::cout<<" ADC peak std dev "<<ADCPeaks_stddev<<std::endl;
- 		std::cout<<" ------------ "<<std::endl; 		
- 		int ADCcountHighPeakErrs = 0;
-for (size_t i = 0; i < ADCPeakErrs.size(); ++i) {
-    if (ADCPeakErrs[i] > 2 * ADCPeaks_stddev) {
-        ++ADCcountHighPeakErrs;
-    }
-}
-std::cout << "Number of ADC PeakErrs > 2 stdev " << ADCcountHighPeakErrs << std::endl;
- 		std::cout<<" ------------ "<<std::endl;
 
- 			
-    // Create a TGraph for the scatter plot
-    TGraphErrors ADCgrpeaks(crystalNos.size(), &crystalNos[0], &ADCPeaks[0], nullptr, &ADCPeakErrs[0]);
-    TGraph ADCgrpeakerrs(crystalNos.size(), &crystalNos[0], &ADCPeakErrs[0]);
-    
-    // Customize the plot
-    ADCgrpeaks.SetTitle("Cry Number vs ADC;Crystal Number;ADC");
-    ADCgrpeaks.SetMarkerStyle(20);
-    ADCgrpeaks.SetMarkerSize(0.8);
-    ADCgrpeaks.SetMarkerColor(kBlue);
-    ADCgrpeaks.SetLineColor(kBlue);
-    TLine *ADCavgpeak = new TLine(cry_start,ADCPeaks_avg,cry_end,ADCPeaks_avg);
-    TLine *ADCnominalpeak = new TLine(cry_start,98,cry_end,98); 
-    TLine *ADCstddevpeak_abv = new TLine(cry_start,ADCPeaks_avg+2*ADCPeaks_stddev,cry_end,ADCPeaks_avg+2*ADCPeaks_stddev);    
-    TLine *ADCstddevpeak_blw = new TLine(cry_start,ADCPeaks_avg-2*ADCPeaks_stddev,cry_end,ADCPeaks_avg-2*ADCPeaks_stddev);		
-    TCanvas ADCcanvas("ADCcanvas", "Scatter Plot", 800, 600);
-    ADCgrpeaks.Draw("AP"); // A for axis, P for points  
-    ADCcanvas.Update();  // Must update to get access to Y axis
-    ADCgrpeaks.GetYaxis()->SetRangeUser(122, 77);  // Y-axis limits  
-    TPaveText *ADCavg = new TPaveText(0.15, 0.75, 0.35, 0.65, "brNDC");
-   	ADCavg -> SetFillStyle(0);
-   	ADCavg -> SetBorderSize(0);
-   	ADCavg -> SetTextSize(0.03);
-   	ADCavg -> SetTextColor(kBlack);
-   	ADCavg -> SetTextFont(72);
-   	ADCavg -> SetFillColor(kWhite);
-    ADCavg->AddText(Form("ADC Peaks avg val = %4.8f#pm%.8f", ADCPeaks_avg,ADCPeaks_stddev));
-		ADCavg->AddText(Form("Std Dev = %.2f%%", ADCstddev_prcnt));   
-    ADCavgpeak->SetLineColor(kCyan);
-    ADCavgpeak->SetLineWidth(2);
-    ADCnominalpeak->SetLineColor(kMagenta);
-    ADCnominalpeak->SetLineWidth(2);
-    ADCstddevpeak_abv->SetLineColor(kOrange-3);
-    ADCstddevpeak_blw->SetLineColor(kOrange);        
-    ADCstddevpeak_abv->SetLineWidth(2);    
-    ADCstddevpeak_blw->SetLineColor(kOrange);
-    ADCstddevpeak_blw->SetLineWidth(2);        
-    ADCavgpeak->Draw("same");
-    ADCnominalpeak->Draw("same");
-    ADCstddevpeak_abv->Draw("same");
-    ADCstddevpeak_blw->Draw("same");
-    ADCavg->Draw();
-    auto ADClegend = new TLegend();
-    ADClegend->AddEntry(ADCavgpeak, "Average Value", "L");
-    ADClegend->AddEntry(ADCnominalpeak,"Nominal Value","L");
-    ADClegend->AddEntry(ADCstddevpeak_abv,"Std Dev","L");
-    ADClegend->AddEntry(ADCstddevpeak_blw,"Std Dev","L");
-     //legend->SetTextSize(0.4);
-    ADClegend->Draw();
-    outputFile->cd();
-    ADCgrpeaks.Write("ADCPeaks");
-    ADCcanvas.SaveAs("ADCPeaks.root");
-          
-    //TCanvas canvas("canvas", "Scatter Plot", 800, 600);
-    ADCgrpeaks.Draw("APsame"); // A for axis, P for points
-    outputFile->cd();
-    ADCgrpeaks.Write("ADCPeaks");
 //create print out statment of convergance status percentages:
 int total = convgstatus_vec.size();
 int count0 = 0,count1=0,count2=0,count3=0,count4=0,count5=0,countx=0;
@@ -338,25 +554,9 @@ std::cout<< "% of sipms with convg status unknown ="<< percx<<std::endl;}
     outputFile->cd();
     grN.Write("nEvents");
     canvas3.SaveAs("nEvents.root");    
-    
-//----PeakErrors plot that represents the errors from the fit in MeV/ADC-----
-    grpeakerrs.SetTitle("Cry Number vs Peak Errors;Crystal Number;Peak Errors");
-	grpeakerrs.SetMarkerStyle(20);   // full circle (visible marker)
-	grpeakerrs.SetMarkerSize(1.2);   // make points bigger
-    grpeakerrs.SetMarkerColor(kGreen);
-    grpeakerrs.SetLineColor(kGreen);        
-    TCanvas canvas4("canvas", "Scatter Plot", 800, 600);
-    grpeakerrs.Draw("AP"); // A for axis, P for points
-    outputFile->cd();
-    grpeakerrs.Write("peakerrs");
-    canvas4.SaveAs("peakerrs.root");
-    
-    grpeakerrs.Draw("AP"); // A for axis, P for points
-    outputFile->cd();
-    grpeakerrs.Write("PeaksErrors");
 
 //-----convergence status plots that come from the nll fit function vs peak error-------- 
-    grconvstatus.SetTitle("Peak Error vs Convg Status ;Convergence Status; PeakError");
+    grconvstatus.SetTitle("Peak Error vs Convg Status ;Convergence Status; PeakErrorHigh");
     grconvstatus.SetMarkerStyle(20);
     grconvstatus.SetMarkerSize(0.8);
     grconvstatus.SetMarkerColor(kRed);
@@ -448,6 +648,79 @@ identity.Draw("same");
 outputFile->cd();
 grScatter.Write("SiPM_Peak_Scatter");
 canvasScatter.SaveAs("SiPM_Peak_Scatter.root");
+// =======================================================
+// ODD vs EVEN + 45 DEGREE PROJECTION
+// =======================================================
+
+// --- Graphs ---
+TGraph *grOddEven = new TGraph();
+TH1D *hProj45 = new TH1D("hProj45",
+    "Projection Along 45^{#circ};(Odd+Even)/#sqrt{2};Counts",
+    60, 0.05*sqrt(2), 0.08*sqrt(2));
+
+TH1D *hProjPerp = new TH1D("hProjPerp",
+    "Projection Perpendicular to 45^{#circ};(Odd-Even)/#sqrt{2};Counts",
+    60, -0.01, 0.01);
+
+int p = 0;
+
+// --- Build odd-even pairs ---
+for (size_t i = 0; i + 1 < crystalNos.size(); ++i) {
+
+    int sipm = (int)crystalNos[i];
+
+    // enforce even-odd pairing
+    if (sipm % 2 != 0) continue;
+
+    double evenVal = Peaks[i];
+    double oddVal  = Peaks[i+1];
+
+    // Scatter plot
+    grOddEven->SetPoint(p++, evenVal, oddVal);
+
+    // Rotated coordinates
+    double u = (evenVal + oddVal) / sqrt(2.0);   // along 45°
+    double v = (oddVal  - evenVal) / sqrt(2.0);  // perpendicular
+
+    hProj45->Fill(u);
+    hProjPerp->Fill(v);
+}
+TCanvas *c45 = new TCanvas("c45","Odd-Even 45 Degree Analysis",1200,400);
+c45->Divide(3,1);
+
+// --- Odd vs Even scatter ---
+c45->cd(1);
+grOddEven->SetTitle("Odd vs Even SiPM Calibration;Even MeV/ADC;Odd MeV/ADC");
+grOddEven->SetMarkerStyle(20);
+grOddEven->SetMarkerSize(0.7);
+grOddEven->Draw("AP");
+
+// 45 degree reference line
+TLine *diag = new TLine(0.05,0.05,0.08,0.08);
+diag->SetLineColor(kRed);
+diag->SetLineWidth(2);
+diag->Draw("same");
+
+// --- Projection along 45° ---
+c45->cd(2);
+hProj45->SetLineColor(kBlue+1);
+hProj45->SetLineWidth(2);
+hProj45->Draw();
+
+// --- Projection perpendicular to 45° ---
+c45->cd(3);
+hProjPerp->SetLineColor(kMagenta+1);
+hProjPerp->SetLineWidth(2);
+hProjPerp->Draw();
+
+// --- Save ---
+outputFile->cd();
+grOddEven->Write("OddVsEven");
+hProj45->Write("Proj_45deg");
+hProjPerp->Write("Proj_Perp45");
+c45->SaveAs("OddEven_45deg.root");
+
+//----------------------------------------------//
 
 // --- Difference plot: Peak0 - Peak1 vs crystal number ---
 TGraph grDiff(crystal_ids.size(), &crystal_ids[0], &pair_diffs[0]);
@@ -779,7 +1052,7 @@ gr1st.Write("FirstPeak_vs_Crystal");
 gr2nd.Write("SecondPeak_vs_Crystal");
 cADC1st2nd.SaveAs("ADC_1st_2nd_Peaks.root");
 
-// ---- Combined Fraction Plot: frFull, frFrst, frScnd ----
+/*// ---- Combined Fraction Plot: frFull, frFrst, frScnd ----
 
 // Histogram settings
 int nbins_frac = 50;
@@ -797,13 +1070,6 @@ for (double v : frFull_vec) hFrFull->Fill(v);
 for (double v : frFrst_vec) hFrFrst->Fill(v);
 for (double v : frScnd_vec) hFrScnd->Fill(v);
 
-// Normalize all histograms together (so areas show relative fractions)
-/*double totalIntegral = hFrFull->Integral("width") + hFrFrst->Integral("width") + hFrScnd->Integral("width");
-if (totalIntegral > 0) {
-    hFrFull->Scale(1.0 / totalIntegral);
-    hFrFrst->Scale(1.0 / totalIntegral);
-    hFrScnd->Scale(1.0 / totalIntegral);
-}*/
 
 // ---- Overlay Plot ----
 TCanvas* cOverlay = new TCanvas("cOverlay", "Overlay of SiPM Fraction Distributions", 800, 600);
@@ -864,6 +1130,84 @@ outputFile->cd();
 hFrFull->Write("SiPM_FrFull_Hist");
 hFrFrst->Write("SiPM_FrFrst_Hist");
 hFrScnd->Write("SiPM_FrScnd_Hist");
-cStack->SaveAs("SiPM_Fractions_Hist.root");
+cStack->SaveAs("SiPM_Fractions_Hist.root");*/
+// =======================================================
+// Peak Location vs Fraction ? SCATTER (MeV space)
+// =======================================================
+
+const double E_min = 40.0;
+const double E_max = 120.0;
+
+// --- Graphs: one point per fit ---
+TGraph* gMain   = new TGraph();
+TGraph* gFirst  = new TGraph();
+TGraph* gSecond = new TGraph();
+
+gMain  ->SetName("gMainPeak_MeV_vs_Fraction");
+gFirst ->SetName("gFirstPeak_MeV_vs_Fraction");
+gSecond->SetName("gSecondPeak_MeV_vs_Fraction");
+
+// ---- Fill graphs ----
+int iMain = 0, iFirst = 0, iSecond = 0;
+
+for (size_t i = 0; i < ADCPeaks.size(); ++i) {
+    gMain  ->SetPoint(iMain++,   ADCPeaks[i],        frFull_vec[i]);
+    gFirst ->SetPoint(iFirst++,  firstPeak_vec[i],    frFrst_vec[i]);
+    gSecond->SetPoint(iSecond++, secondPeak_vec[i],   frScnd_vec[i]);
+}
+
+// ---- Styling ----
+gMain->SetMarkerStyle(20);
+gMain->SetMarkerSize(1.2);
+gMain->SetMarkerColor(kOrange + 7);
+gMain->SetLineColor(kOrange + 7);
+
+gFirst->SetMarkerStyle(21);
+gFirst->SetMarkerSize(1.2);
+gFirst->SetMarkerColor(kMagenta + 1);
+gFirst->SetLineColor(kMagenta + 1);
+
+gSecond->SetMarkerStyle(22);
+gSecond->SetMarkerSize(1.2);
+gSecond->SetMarkerColor(kCyan + 1);
+gSecond->SetLineColor(kCyan + 1);
+
+// ---- Canvas ----
+TCanvas* cPeakFrac = new TCanvas(
+    "cPeakFrac",
+    "Peak Location vs Fraction (per fit)",
+    900, 650
+);
+
+// ---- Frame (DO NOT STORE POINTER) ----
+cPeakFrac->DrawFrame(
+    E_min, 0.0,
+    E_max, 1.05,
+    "Peak Location vs Fraction;Peak Energy [MeV];Fraction"
+);
+
+// ---- Draw graphs ----
+gMain  ->Draw("P SAME");
+gFirst ->Draw("P SAME");
+gSecond->Draw("P SAME");
+
+// ---- Legend ----
+TLegend* leg = new TLegend(0.62, 0.72, 0.88, 0.88);
+leg->AddEntry(gMain,   "Main Peak",   "p");
+leg->AddEntry(gFirst,  "1st Escape",  "p");
+leg->AddEntry(gSecond, "2nd Escape",  "p");
+leg->Draw();
+
+// ---- Save (ROOT-style, no extra files) ----
+outputFile->cd();
+gMain  ->Write();
+gFirst ->Write();
+gSecond->Write();
+cPeakFrac->Write("PeakLocation_vs_Fraction");
+
+cPeakFrac->SaveAs("PeakLocation_vs_Fraction.root");
+
+
+
 
 }

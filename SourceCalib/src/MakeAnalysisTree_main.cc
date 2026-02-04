@@ -1,110 +1,40 @@
 #include "CaloCalibration/SourceCalib/inc/MakeAnalysisTree.hh"
 #include "CaloCalibration/SourceCalib/inc/SourceFitter.hh"
 #include "CaloCalibration/SourceCalib/inc/SourcePlotter.hh"
+#include "CaloCalibration/SourceCalib/inc/2dcontour.hh"
+#include "CaloCalibration/SourceCalib/inc/mcinfo.hh"// extracting mc information -- need to be removed for real data
 #include <chrono>
 using namespace std::chrono;
 
 using namespace CaloSourceCalib;
-double GetTreeMean(TTree* t, const char* branchName) {
-    if (!t->GetBranch(branchName)) {
-        std::cerr << "ERROR: Branch " << branchName << " not found in tree!\n";
-        return -1;
-    }
-    t->Draw(branchName, "", "goff");
-    Long64_t n = t->GetSelectedRows();
-    if (n <= 0) return -1;
-    return TMath::Mean(n, t->GetV1());
-}
+
 //method with one big root file
-TString filepath_disk0 = "/exp/mu2e/app/home/mu2epro/sourcecalib/disk0/SourceAna1e9.root";
-
-
+TString filepath_disk0 = "/exp/mu2e/app/home/mu2epro/sourcecalib/full_containment/newsinglephoton.root";
+//"/exp/mu2e/app/home/mu2epro/sourcecalib/full_containment/newsinglephoton.root";
+//"/exp/mu2e/app/home/mu2epro/sourcecalib/full_containment/reconew.root";
+//"/exp/mu2e/app/home/mu2epro/sourcecalib/disk0/SourceAna1e9.root";
+//"/exp/mu2e/app/home/mu2epro/sourcecalib/full_containment/singlephoton.root";
+//"/exp/mu2e/app/home/mu2epro/sourcecalib/full_containment/multiphoton.root";
 
 TString filepath_disk1 = "/exp/mu2e/app/home/mu2epro/sourcecalib/disk1/nts.mu2e.SourceCalibAna1e9.0.root";
+
 //TString filepath_disk1 = "/exp/mu2e/app/users/hjafree/SourceFitDir/combined_disk1.root";
 
-/*function to extract the TTree from the SourceCalibAna output*/
-//original method to read sipms without cry option
-/*std::pair<TH1F*, TFile*> get_data_histogram(int cryNum, int disk) {
-    TString filepath;
-    TString histPath;
-    if (disk == 0) filepath = filepath_disk0;
-    if (disk == 1) filepath = filepath_disk1;
-    TFile *f = new TFile(filepath);
-    TString crystalNumber = to_string(cryNum);
-    TH1F* hist = (TH1F*)f->Get("SourceAna/sipm_ADC/sipm_" + crystalNumber); 
-    return std::make_pair(hist, f);*/
-    
-//method to loop over several files
-/*std::vector<std::string> ImportFileList(const char* filelist) {
-    std::ifstream files(filelist);
-    std::vector<std::string> fileNames;
-    std::string line;
-    while (std::getline(files, line)) {
-        if (!line.empty()) fileNames.push_back(line);
-    }
-    return fileNames;
-}
-struct DiskConfig {
-    std::vector<std::string> files;
-    TString subdir; // "sipm_ADC" or "crystals_ADC"
-    TString histPrefix; // e.g. "sipm_" or "cry_"
-};
-DiskConfig SetupFilesAndFolder(int disk) {
-    DiskConfig cfg;
-    // choose filelist file name and histogram folder/prefix depending on disk
-    if (disk == 0 || disk == 2) {
-        cfg.files = ImportFileList("disk0_files.txt");
-        if (disk == 0) { cfg.subdir = "sipm_ADC"; cfg.histPrefix = "sipm_"; }
-        else           { cfg.subdir = "crystals_ADC"; cfg.histPrefix = "cry_"; }
-    } else if (disk == 1 || disk == 3) {
-        cfg.files = ImportFileList("disk1_files.txt");
-        if (disk == 1) { cfg.subdir = "sipm_ADC"; cfg.histPrefix = "sipm_"; }
-        else           { cfg.subdir = "crystals_ADC"; cfg.histPrefix = "cry_"; }
-    } else {
-        throw std::runtime_error("Invalid disk number");
-    }
-    if (cfg.files.empty()) {
-        std::cerr << "[SetupFilesAndFolder] WARNING: file list is empty for disk " << disk << "\n";
-    }
-    return cfg;
-}   */
 std::pair<TH1F*, TFile*> get_data_histogram(int cryNum, int disk) {
     TString filepath;
     TString histPath;
+    // Currently the disk can be toggled between sipms (disk 0 or 1) vs crystals (disk 2 or 3-- representing 0 and 1 respectively) as input. This is a temporary switch being used for studies and will be removed before the final data run.
     if (disk == 0 || disk == 2) {
         filepath = filepath_disk0;
+        //if "mc" flag is called
         histPath = (disk == 0) ? "SourceAna/sipm_ADC/sipm_" : "SourceAna/crystals_ADC/cry_";
+        //uncomment line below and comment the one above if cut and count needs to be applied to the mc truth histograms
+        //histPath = (disk == 0) ? "SourceAna/crystals_edep_truth/cry_" : "SourceAna/crystals_ADC/cry_";
     } else if (disk == 1 || disk == 3) {
         filepath = filepath_disk1;
         histPath = (disk == 1) ? "SourceAna/sipm_ADC/sipm_" : "SourceAna/crystals_ADC/cry_";
     }
  
-
-// Example: collect every histogram in SourceAna/sipm_ADC
-/*TH1F* SumHistogramAcrossFiles(const std::vector<std::string>& files, const TString& fullPath, const char* cloneName = nullptr) {
-    TH1F* hSum = nullptr;
-    for (const auto& fname : files) {
-        TFile f(fname.c_str());
-        if (f.IsZombie()) {
-            std::cerr << "[SumHistogramAcrossFiles] cannot open: " << fname << "\n";
-            continue;
-        }
-        TH1F* hTmp = (TH1F*)f.Get(fullPath);
-        if (!hTmp) continue;
-        if (!hSum) {
-            // clone first found histogram (gives an independent object)
-            if (cloneName)
-                hSum = (TH1F*)hTmp->Clone(cloneName);
-            else
-                hSum = (TH1F*)hTmp->Clone(Form("sum_%s", fullPath.Data()));
-            hSum->SetDirectory(0); // detach from file
-        } else {
-            hSum->Add(hTmp);
-        }
-    }
-    return hSum;
-}*/
     TFile *f = new TFile(filepath);
     TString crystalNumber = to_string(cryNum);
     TH1F* hist = (TH1F*)f->Get(histPath + crystalNumber); 
@@ -134,47 +64,134 @@ std::pair<double, double> ComputeHistogramStats(TH1F* hist) {
 }
 
 /*main function allows a loop over all crystals or a choice of a single crystal*/
-int main(int argc, char* argv[]){
-  std::cout<<"========== Welcome to the Mu2e Source Calibration Analysis =========="<<std::endl;
-  int anacrys_start = std::atoi(argv[1]); //starting crystal//675
-  int anacrys_end = std::atoi(argv[2]); //final crystal//680
-  TString alg = argv[3]; // fitting alg (nll=NLL, chi2=chi2 fit)
-  int disk = std::atoi(argv[4]); //disk number 0 or 1
-  bool doOverlay = false;
-    if (argc >= 6 && TString(argv[5]) == "overlay") {
-        doOverlay = true;
-    }
-    // Read list of ROOT files (one per line)
- // Setup file list and which histogram folder/prefix to use
-    //DiskConfig cfg = SetupFilesAndFolder(disk);
-    //auto& files = cfg.files; // alias
+int main(int argc, char* argv[]) {
+    std::cout << "========== Welcome to the Mu2e Source Calibration Analysis ==========" << std::endl;
 
+    // 1. Safety Check: Ensure we have at least the 4 mandatory arguments
+    // Usage: ./exe <start> <end> <alg> <disk> [optional flags...]
+    if (argc < 5) {
+        std::cerr << "[ERROR] Missing arguments.\n";
+        std::cerr << "Usage: " << argv[0] << " <start_cry> <end_cry> <alg> <disk> [flags: overlay, contour, mc]\n";
+        return 1;
+    }
+
+    // 2. Parse Fixed Positional Arguments
+    int anacrys_start = std::atoi(argv[1]);
+    int anacrys_end   = std::atoi(argv[2]);
+    TString alg       = argv[3];
+    int disk          = std::atoi(argv[4]);
+
+    // 3. Initialize Flags
+    bool doOverlay = false;
+    bool contour   = false;
+    bool isMC      = false;
+
+    // 4. Parse Optional Flags
+    // We start at i = 5 because indices 1, 2, 3, 4 are already used above.
+    for (int i = 5; i < argc; i++) {
+        TString arg = argv[i];
+        arg.ToLower(); // Optional: makes it case-insensitive
+        
+        if (arg.Contains("overlay")) doOverlay = true;
+        if (arg.Contains("contour")) contour   = true;
+        if (arg.Contains("mc"))      isMC      = true;
+    }
+// --------------------------------------------------------
+// MC TRUTH BLOCK
+// --------------------------------------------------------
+if (isMC) {
+    std::cout << "[INFO] Running in MC mode, using MC file paths.\n";
+    std::cout << "=======================================\n";
+    std::cout << "        Running MC Truth Analysis        \n";
+    std::cout << "=======================================\n";
+
+    // 1. Create File and Tree INSIDE the block (so we don't create junk files for NLL fits)
+    TFile *truthtable = new TFile("truthinfo.root", "RECREATE");
+    TTree *trueinfo = new TTree("trueinfo", "MC Truth Information");
+
+    // 2. Define Branch Variables
+    Int_t cryNumparam, tot_evts, mainpeak, first_espeak, second_espeak, background;
+    Float_t frmainpeak, frfirst_espeak, frsecond_espeak, frbackground;
+
+    // 3. Link Branches
+    trueinfo->Branch("cryNumparam",     &cryNumparam,     "cryNumparam/I");
+    trueinfo->Branch("tot_evts",        &tot_evts,        "tot_evts/I");
+    trueinfo->Branch("mainpeak",        &mainpeak,        "mainpeak/I");
+    trueinfo->Branch("first_espeak",    &first_espeak,    "first_espeak/I");
+    trueinfo->Branch("second_espeak",   &second_espeak,   "second_espeak/I");
+    trueinfo->Branch("background",      &background,      "background/I");
+    trueinfo->Branch("frmainpeak",      &frmainpeak,      "frmainpeak/F");
+    trueinfo->Branch("frfirst_espeak",  &frfirst_espeak,  "frfirst_espeak/F");
+    trueinfo->Branch("frsecond_espeak", &frsecond_espeak, "frsecond_espeak/F");
+    trueinfo->Branch("frbackground",    &frbackground,    "frbackground/F");
+
+    // 4. Loop Over Crystals
+    for (int cryNum = anacrys_start; cryNum < anacrys_end; cryNum++) {
+        
+        // Helper to load histogram (make sure this returns the right MC histogram)
+        auto [hist, file] = get_data_histogram(cryNum, disk);
+        if (!hist) { 
+            if (file) { file->Close(); delete file; }
+            continue; 
+        }
+        hist->SetDirectory(0); // Detach from file so we can close the input file
+
+        // Explicitly set the crystal number for the branch
+        cryNumparam = cryNum; 
+
+        // Run Logic
+        mcinfo truth;
+        truth.RunMCTruth(
+            hist, cryNum, disk, trueinfo, 
+            cryNumparam, tot_evts, mainpeak, first_espeak, second_espeak, background,
+            frmainpeak, frfirst_espeak, frsecond_espeak, frbackground
+        );
+
+        // Cleanup Input
+        file->Close();
+        delete file;
+        delete hist;
+    }
+
+    // 5. Finalize and Save
+    mcinfo summary;
+    summary.FinalizeMCSummary(trueinfo);
+
+    truthtable->cd();
+    trueinfo->Write(); // Write the tree explicitly
+    truthtable->Write(); // Write any histograms created by FinalizeMCSummary
+    truthtable->Close();
+    
+    std::cout << "[INFO] MC Truth analysis complete. Saved to truthinfo.root" << std::endl;
+   
+     return 0; 
+}
+
+// --------------------------------------------------------
+// FITTING BLOCK
+// --------------------------------------------------------
   TFile *table = new TFile("arXivTable.root", "RECREATE");
   Int_t nEvents;
   Int_t convergencestatus;
-  Float_t fpeak, dpeak, fsigma, chiSq, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,fullResparam,fstResparam,scdResparam,comCnstparam,
-  combetaparam,frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam
-  ,errbar,pval,h_means,h_stddevs,unreducedchi2,fval,mparam,etaparam,dsigma;//frBKGparam
+  Float_t fpeak, peakerrorhigh,peakerrorlo,fsigma, chiSq, fstpeak,
+  scdpeak,fcbalphaparam,fcbndegparam,comCnstparam,
+  combetaparam,frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam,
+  pval,h_means,h_stddevs,unreducedchi2,fval,mparam,etaparam,widtherrorhigh,widtherrorlo,errbarhigh, errbarlo,
+  evtfullerrorhigh,evtfullerrorlo,eventsFull,Esparam;//frBKGparam
   Int_t ndof;
   TTree *covar = new TTree("covar","Covariance Plot");
   covar->Branch("nEvents", &nEvents,"nEvents/I");
   covar->Branch("Peak", &fpeak,"fpeak/F");
-  covar->Branch("PeakErr", &dpeak,"dpeak/F");
+  covar->Branch("PeakErrHigh", &peakerrorhigh,"peakerrorhigh/F");
+  covar->Branch("PeakErrLo", &peakerrorlo,"peakerrorlo/F");
   covar->Branch("Width", &fsigma,"fsigma/F");
-  covar->Branch("WidthErr", &dsigma,"dsigma/F");
+  covar->Branch("WidthErrHigh", &widtherrorhigh,"widtherrorhigh/F");
+  covar->Branch("WidthErrLo", &widtherrorlo,"widtherrorlo/F");
   covar->Branch("ChiSq", &chiSq,"chiSq/F");
   covar->Branch("1stPeak", &fstpeak,"fstpeak/F");
-  covar->Branch("1stWidth", &fstsigma,"fstsigma/F");
   covar->Branch("2ndPeak", &scdpeak,"scdpeak/F");
-  covar->Branch("2ndWidth", &scdsigma,"scdsigma/F");
   covar->Branch("Alpha", &fcbalphaparam,"fcbalphaparam/F");
   covar->Branch("Ndeg", &fcbndegparam,"fcbndegparam/F");
-  covar->Branch("A", &Aparam,"Aparam/F");
-  covar->Branch("B", &Bparam,"Bparam/F");
-  covar->Branch("C", &Cparam,"Cparam/F");
-  covar->Branch("fullRes", &fullResparam,"fullResparam/F");
-  covar->Branch("fstRes", &fstResparam,"fstResparam/F");
-  covar->Branch("scdRes", &scdResparam,"scdResparam/F");
   covar->Branch("comCnst", &comCnstparam,"comCnstparam/F");
   covar->Branch("combeta", &combetaparam,"combetaparam/F");
   covar->Branch("frFull", &frFullparam,"frFullparam/F");
@@ -183,7 +200,6 @@ int main(int argc, char* argv[]){
   covar->Branch("frBKG", &frBKGparam,"frBKGparam/F");
   covar->Branch("crystalNo", &crystalNoparam,"crystalNoparam/F");
   covar->Branch("convgstatus", &convergencestatus,"convergencestatus/I");
-  covar->Branch("errorbar", &errbar,"errbar/F");
   covar->Branch("pval", &pval,"pval/F");
   covar->Branch("h_means", &h_means,"h_means/F");
   covar->Branch("h_stddevs", &h_stddevs,"h_stddevs/F");
@@ -192,68 +208,34 @@ int main(int argc, char* argv[]){
   covar->Branch("m", &mparam,"mparam/F");
   covar->Branch("eta", &etaparam,"etaparam/F");
   covar->Branch("ndof", &ndof,"ndof/I");
+  covar->Branch("errbarhigh", &errbarhigh,"errbarhigh/I");
+  covar->Branch("errbarlo", &errbarlo,"errbarlo/I");
+  covar->Branch("evtfullerrorhigh", &evtfullerrorhigh,"evtfullerrorhigh/I");
+  covar->Branch("evtfullerrorlo", &evtfullerrorlo,"evtfullerrorlo/I");
+  covar->Branch("eventsFull", &eventsFull,"eventsFull/I");
+  covar->Branch("Esparam", &Esparam,"Esparam/I");
 
   auto start_bin = high_resolution_clock::now();
-  /*for(int cryNum=anacrys_start; cryNum<anacrys_end; cryNum++){
-    TH1F* h = get_data_histogram(cryNum, disk);
-    SourceFitter *fit = new SourceFitter();
-    fit->FitCrystal(h,alg, cryNum, covar, nEvents, fpeak, dpeak, fsigma,chiSq, fstpeak, fstsigma, scdpeak,scdsigma,fcbalphaparam,fcbndegparam,Aparam,Bparam,Cparam,
-    fullResparam,fstResparam,scdResparam,comCnstparam,combetaparam,
-    frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam);
-  };*/
-
-
   for(int cryNum=anacrys_start; cryNum<anacrys_end; cryNum++){
     auto [hSum, file] = get_data_histogram(cryNum, disk); // unpack pair    
     auto [mean, stddev] = ComputeHistogramStats(hSum);
 		h_means   = mean;
 		h_stddevs = stddev;
     SourceFitter *fit = new SourceFitter();
-    fit->FitCrystal(hSum, alg, cryNum, covar, nEvents,convergencestatus, fpeak, dpeak, 
-                    fsigma,dsigma, chiSq, fstpeak, fstsigma, scdpeak, scdsigma,
-                    fcbalphaparam, fcbndegparam, Aparam, Bparam, Cparam,
-                    fullResparam, fstResparam, scdResparam, comCnstparam, combetaparam,
-                    frFullparam, frFrstparam, frScndparam, crystalNoparam, frBKGparam
-                    ,errbar,pval,h_means,h_stddevs,unreducedchi2,fval,mparam,etaparam,ndof);//migrad_status,hesse_status,minos_status
-   bool need_refit = (convergencestatus > 0);
-   double nEventsMean   = GetTreeMean(covar, "nEvents");
-   double newPeakGuess   = GetTreeMean(covar, "Peak");
-   double newSigmaGuess  = GetTreeMean(covar, "Width");
-   double newAlphaGuess  = GetTreeMean(covar, "Alpha");
-   double newCombetaGuess  = GetTreeMean(covar, "combeta");
-   double newevtsFullGuess  = (GetTreeMean(covar, "frFull"))*nEventsMean;
-   double newevtsFstGuess  = (GetTreeMean(covar, "frFrst"))*nEventsMean;
-   double newevtsScndGuess  = (GetTreeMean(covar, "frScnd"))*nEventsMean;
-   double newevtsBkgGuess  = (GetTreeMean(covar, "frBKG"))*nEventsMean;
-   std::cout << "newPeakGuess = " << newPeakGuess << std::endl;
-   std::cout << "newsigmaguess = " << newSigmaGuess << std::endl;
-   std::cout << "newAlphaGuess = " << newAlphaGuess << std::endl;
-   std::cout << "newCombetaGuess = " << newCombetaGuess << std::endl;
-   std::cout << "newevtsFullGuess = " << newevtsFullGuess << std::endl;
-   std::cout << "newevtsFstGuess = " << newevtsFstGuess << std::endl;
-   std::cout << "newevtsScndGuess = " << newevtsScndGuess << std::endl;
-   std::cout << "newevtsBkgGuess = " << newevtsBkgGuess << std::endl;
-   std::cout << "nEventsMean = " << nEventsMean << std::endl;
-   
-   if (need_refit) {             
-   fit->SetInitialGuesses(newPeakGuess, newSigmaGuess,newAlphaGuess,newCombetaGuess,newevtsFullGuess,newevtsFstGuess,newevtsScndGuess,newevtsBkgGuess);
-   fit->FitCrystal(hSum, alg, cryNum, covar, nEvents, convergencestatus,
-                    fpeak, dpeak, fsigma, dsigma, chiSq,
-                    fstpeak, fstsigma, scdpeak, scdsigma,
-                    fcbalphaparam, fcbndegparam, Aparam, Bparam, Cparam,
-                    fullResparam, fstResparam, scdResparam,
-                    comCnstparam, combetaparam,
-                    frFullparam, frFrstparam, frScndparam,
-                    crystalNoparam, frBKGparam,
-                    errbar, pval, h_means, h_stddevs,
-                    unreducedchi2, fval, mparam, etaparam,ndof);
-}
-
+    fit->FitCrystal(hSum, alg, cryNum, covar, nEvents,convergencestatus, fpeak, peakerrorhigh,peakerrorlo, 
+                    fsigma,widtherrorhigh,widtherrorlo, chiSq, fstpeak, scdpeak,
+                    fcbalphaparam, fcbndegparam, comCnstparam, combetaparam,
+                    frFullparam, frFrstparam, frScndparam, crystalNoparam, frBKGparam,
+                    pval,h_means,h_stddevs,unreducedchi2,fval,mparam,etaparam,ndof,contour,errbarhigh, errbarlo,
+                    evtfullerrorhigh,evtfullerrorlo,eventsFull,Esparam );
     file->Close();    
     delete file;     
     delete fit;      
     delete hSum;
 }
+// --------------------------------------------------------
+// OVERLAY BLOCK (Optional)
+// --------------------------------------------------------
 if (doOverlay) {
 	for (int cryNum = anacrys_start; cryNum + 1 < anacrys_end; cryNum += 2) {
 
@@ -329,7 +311,7 @@ if (doOverlay) {
         stats->SetTextSize(0.07);
     }
     // --- Save to a unique ROOT file ---
-		TString oName = "mu2e_simu_hist_" + std::to_string(cryNum) + "_" + std::to_string(cryNum+1) + ".root";
+	TString oName = "mu2e_simu_hist_" + std::to_string(cryNum) + "_" + std::to_string(cryNum+1) + ".root";
     TFile* outputFile = new TFile(oName, "RECREATE");
     cOverlay->Write();
     outputFile->Close();
@@ -343,8 +325,10 @@ if (doOverlay) {
 		}
 }      
   auto end_bin = high_resolution_clock::now();
+// --------------------------------------------------------
+// SUMMARY & PLOTTING
+// --------------------------------------------------------  
   std::cout<<" ******** Av. Time take to fit crystal: "<<duration_cast<seconds>((end_bin - start_bin)/(anacrys_end-anacrys_start))<<std::endl;
-  
   TFile *globalPlots = new TFile("globalPlots.root", "RECREATE");
   SourcePlotter *plot = new SourcePlotter();
   plot->ParamPlots(covar, table, globalPlots, anacrys_start, anacrys_end);
@@ -353,6 +337,38 @@ if (doOverlay) {
   table -> Close();
   globalPlots -> Write();
   globalPlots -> Close();
+
+  std::cout << "================ Refit Summary =================" << std::endl;
+  auto printConv = [](std::string label, int count, const std::vector<int>& list) {
+    std::cout << label << ": " << count;
+    if (!list.empty()) {
+        std::cout << " (";
+        for (size_t i = 0; i < list.size(); ++i) {
+            std::cout << list[i];
+            if (i + 1 < list.size()) std::cout << ", ";
+        }
+        std::cout << ")";
+    }
+    std::cout << std::endl;
+};
+
+  std::cout << "First fit converged: " << SourceFitter::nFirstFitConverged << std::endl;  
+printConv("Second fit converged", SourceFitter::nSecondFitConverged, SourceFitter::crystalsSecondFitConverged);
+printConv("Third fit converged",  SourceFitter::nThirdFitConverged,  SourceFitter::crystalsThirdFitConverged);
+std::cout << "\nRetry attempts per crystal:\n";
+for (const auto &p : SourceFitter::thirdFitRetryCount) {
+    std::cout << "  Crystal " << p.first << ": " << p.second << " attempts\n";
+}
+
+if (!SourceFitter::convFailures.empty()) {
+    std::cout << "Crystals with non-zero convergence status:\n";
+    for (const auto& [cryNo, status] : SourceFitter::convFailures) {
+        std::cout << "Crystal " << cryNo << " : status = " << status << std::endl;
+    }
+}
+
+std::cout << "================================================" << std::endl;
+
   std::cout<<"Finished processing ..."<<std::endl;
   return 0;
 }
