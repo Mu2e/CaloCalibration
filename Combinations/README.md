@@ -33,12 +33,20 @@ openTool get-calibration --name CalCosmicEnergyCalib --run 106521 &> Cosmics.txt
 
 this is an example of how to extract the most up to date cosmics table.
 
-The code assumes two input archive tables:
+The code now applies the calibration-combination algorithm:
 
-* source ( stored as Source.txt)  - the source calibration
-* cosmic ( stored as Cosmics.txt) - the cosmic/mip calibration
+1. Fit quality gate (`p > 0.01`) for cosmic and source fits.
+2. Case split:
+   - neither valid: fallback to nominal (`R0`)
+   - one valid: use that estimator
+   - both valid: inverse-variance weighted average
+3. Compatibility test for the two-method case (`p_compat > 0.05`), otherwise fallback to nominal.
 
-Originally it was assumed these would have the same structure. We need to edit the code for the source.
+Expected inputs:
+
+* `Cosmics.txt` (`CalCosmicEnergyCalib`)
+* `Source.txt` (`CalSourceEnergyCalib`)
+* `nominal.txt` (`CalEnergyCalib`, used for fallback `R0`)
 
 ## Producing a reco table
 
@@ -46,17 +54,28 @@ Within ```CaloCalibTableMaker.hh``` we have two structs defined: the ArchiveTabl
 
 The point is that the ArchiveTable is channels specific and the RecoTable is the simple combined output.
 
-The main code can be configured (assuming Cosmic.txt and Source.txt are local):
+Default run (both methods enabled, default filenames above):
 
 ```
 ./build/al9-prof-e29-p082/CaloCalibration/bin/CaloCalibTableMaker 1 1
 ```
 
-For just cosmics:
+Run with explicit paths:
 
 ```
-./build/al9-prof-e29-p082/CaloCalibration/bin/CaloCalibTableMaker 1
+./build/al9-prof-e29-p082/CaloCalibration/bin/CaloCalibTableMaker 1 1 Cosmics.txt Source.txt nominal.txt RecoTable.txt CalEnergyCalibInfo.txt
 ```
+
+For just cosmics (source disabled):
+
+```
+./build/al9-prof-e29-p082/CaloCalibration/bin/CaloCalibTableMaker 1 0
+```
+
+Outputs:
+
+* `RecoTable.txt` with `TABLE CalEnergyCalib`
+* `CalEnergyCalibInfo.txt` with status/error metadata per channel
 
 ## Development
 

@@ -1,223 +1,277 @@
-//To run:  g++ -std=c++14 CaloCalibTableMaker.cc -o a.out the ./a.out (add -pthread to use multithreaded)
-#include "CaloCalibration/Combinations/inc/CaloCalibTableMaker.hh" 
+#include "CaloCalibration/Combinations/inc/CaloCalibTableMaker.hh"
 
-unsigned int total_ids = 2720 ;
-//= 2696 sipms + 16 disk pin diodes + 4 laser pin diodes + 4 spare channels
+#include <cctype>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
+#include <stdexcept>
 
-// inputTable : reads an input archive table
-ArchiveTable inputTable(const std::string& archiveFile, const std::string& tag) {
-    std::vector<int> roids;
-    std::vector<double> peaks;
-    std::vector<double> errpeaks;
-    std::vector<double> widths;
-    std::vector<double> errwidths;
-    std::vector<double> sigmas;
-    std::vector<double> errsigmas;
-    std::vector<double> chisqs;
-    std::vector<int> Nhits;
+namespace {
+constexpr double kCosmicReferenceMeV = 20.0;
+constexpr double kSourceReferenceMeV = 6.13;
 
-    std::ifstream file(archiveFile);
-    if (!file) {
-        std::cerr << "[In inputTable()] : Error: Cannot open file " << archiveFile << std::endl;
-        exit(1);
-    }
-
-    std::string line;
-    // Read the file line by line
-    while (std::getline(file, line)) {
-        std::stringstream ss(line);
-        std::string token;
-
-        int roid = 0;
-        double peak = 0.;
-        double errpeak = 0.;
-        double width = 0.;
-        double errwidth = 0.;
-        double sigma = 0.;
-        double errsigma = 0.;
-        double chisq = 0.;
-        int nhits = 0;
-
-        // Read the first value (roid) separately
-        if (std::getline(ss, token, ',')) {
-            roid = std::stoi(token);
-
-            // Check the remaining values in the stringstream
-            bool all_zeros = true;
-            std::string remaining_part;
-            std::getline(ss, remaining_part); // Get the rest of the line
-
-            for (char c : remaining_part) {
-                if (c != '0' && c != ',' && c != '\n' && c != '\r') {
-                    all_zeros = false;
-                    break;
-                }
-            }
-
-            // If all remaining values are '0's, replace them with '1's
-            if (all_zeros) {
-                std::stringstream modified_ss(remaining_part);
-                std::string zero_token;
-                // Discard the first value, then process the rest
-                while (std::getline(modified_ss, zero_token, ',')) {
-                     // Reset all 0,0,0,0 etc. to 1s
-                    peak = 1.0;
-                    errpeak = 1.0;
-                    width = 1.0;
-                    errwidth = 1.0;
-                    sigma = 1.0;
-                    errsigma = 1.0;
-                    chisq = 1.0;
-                    nhits = 1;
-                    
-                    peaks.push_back(peak);
-                    errpeaks.push_back(errpeak);
-                    widths.push_back(width);
-                    errwidths.push_back(errwidth);
-                    chisqs.push_back(chisq);
-                    sigmas.push_back(sigma);
-                    errsigmas.push_back(errsigma);
-                    Nhits.push_back(nhits);
-                }
-                
-                roids.push_back(roid);
-            } else {
-                ss.clear();
-                ss.str(remaining_part);
-
-                // Extract each token separated by a comma
-                if (std::getline(ss, token, ',')) peak = std::stod(token);
-                if (std::getline(ss, token, ',')) errpeak = std::stod(token);
-                if (std::getline(ss, token, ',')) width = std::stod(token);
-                if (std::getline(ss, token, ',')) errwidth = std::stod(token);
-                if (std::getline(ss, token, ',')) sigma = std::stod(token);
-                if (std::getline(ss, token, ',')) errsigma = std::stod(token);
-                if (std::getline(ss, token, ',')) chisq = std::stod(token);
-                if (std::getline(ss, token, ',')) nhits = std::stoi(token);
-
-                // Populate the vectors
-                roids.push_back(roid);
-                peaks.push_back(peak);
-                errpeaks.push_back(errpeak);
-                widths.push_back(width);
-                errwidths.push_back(errwidth);
-                chisqs.push_back(chisq);
-                sigmas.push_back(sigma);
-                errsigmas.push_back(errsigma);
-                Nhits.push_back(nhits);
-            }
-        }
-    }
-
-    return ArchiveTable(roids, peaks, errpeaks, widths, errwidths, sigmas, errsigmas, chisqs, Nhits, tag);
-}
-// combineAlg : called by main function, this funciton does the hard work
-RecoTable combineAlg(std::vector<ArchiveTable> tables){
-  std::vector<int> roids;
-  std::vector<double> peaks;
-  // Fill ROID:
-  for(unsigned int i = 0; i < total_ids; i++){
-    roids.push_back(i);
+std::string trim(const std::string& value) {
+  std::size_t begin = 0;
+  while (begin < value.size() && std::isspace(static_cast<unsigned char>(value[begin]))) {
+    ++begin;
   }
-  // Loop over ROID, for each table find ID value and average, fill new table
-  for(auto const& id: roids){
-    double average_peak = 0;
-    for(unsigned int i = 0; i < tables.size() ; i++){
-      
-      if(tables[i].tag_ == "mip"){
-        if(tables[i].peak_[id] != 0) average_peak += 20/tables[i].peak_[id];
-        else average_peak += 0;
-      } else {
-        average_peak += tables[i].peak_[id]; //assumes source is already ADC2MeV
+  std::size_t end = value.size();
+  while (end > begin && std::isspace(static_cast<unsigned char>(value[end - 1]))) {
+    --end;
+  }
+  return value.substr(begin, end - begin);
+}
+
+std::vector<std::string> splitCsv(const std::string& line) {
+  std::vector<std::string> tokens;
+  std::stringstream ss(line);
+  std::string token;
+  while (std::getline(ss, token, ',')) {
+    tokens.push_back(trim(token));
+  }
+  return tokens;
+}
+
+bool isDataLine(const std::string& line) {
+  const std::string stripped = trim(line);
+  if (stripped.empty()) return false;
+  if (stripped.rfind("TABLE", 0) == 0) return false;
+  if (stripped[0] == '#') return false;
+  return true;
+}
+}  // namespace
+
+std::unordered_map<int, ArchiveFitRow> CaloCalibTableMaker::readCosmicTable(
+    const std::string& inputPath) const {
+  std::unordered_map<int, ArchiveFitRow> rows;
+  std::ifstream input(inputPath);
+  if (!input) {
+    std::cerr << "Error: cannot open cosmic table " << inputPath << "\n";
+    return rows;
+  }
+
+  std::string line;
+  while (std::getline(input, line)) {
+    if (!isDataLine(line)) continue;
+    const auto columns = splitCsv(line);
+    if (columns.size() < 9) continue;
+
+    try {
+      const int roid = std::stoi(columns[0]);
+      rows[roid] = ArchiveFitRow{
+          roid,
+          std::stod(columns[1]),
+          std::stod(columns[2]),
+          std::stod(columns[7]),
+          std::stoi(columns[8])};
+    } catch (const std::exception&) {
+    }
+  }
+
+  return rows;
+}
+
+std::unordered_map<int, ArchiveFitRow> CaloCalibTableMaker::readSourceTable(
+    const std::string& inputPath) const {
+  std::unordered_map<int, ArchiveFitRow> rows;
+  std::ifstream input(inputPath);
+  if (!input) {
+    std::cerr << "Error: cannot open source table " << inputPath << "\n";
+    return rows;
+  }
+
+  std::string line;
+  while (std::getline(input, line)) {
+    if (!isDataLine(line)) continue;
+    const auto columns = splitCsv(line);
+    // Expected order from CalSourceEnergyCalib:
+    // roid,fullepeak,fullerrepeak,...,frsecond,chisq,ndf
+    if (columns.size() < 18) continue;
+
+    try {
+      const int roid = std::stoi(columns[0]);
+      rows[roid] = ArchiveFitRow{
+          roid,
+          std::stod(columns[1]),
+          std::stod(columns[2]),
+          std::stod(columns[16]),
+          std::stoi(columns[17])};
+    } catch (const std::exception&) {
+    }
+  }
+
+  return rows;
+}
+
+std::unordered_map<int, CalEnergyCalibRow> CaloCalibTableMaker::readNominalTable(
+    const std::string& inputPath) const {
+  std::unordered_map<int, CalEnergyCalibRow> rows;
+  std::ifstream input(inputPath);
+  if (!input) {
+    std::cerr << "Warning: cannot open nominal table " << inputPath
+              << ", fallback R0 will default to 1.0\n";
+    return rows;
+  }
+
+  std::string line;
+  while (std::getline(input, line)) {
+    if (!isDataLine(line)) continue;
+    const auto columns = splitCsv(line);
+    if (columns.size() < 2) continue;
+
+    try {
+      const int roid = std::stoi(columns[0]);
+      rows[roid] = CalEnergyCalibRow{roid, std::stod(columns[1])};
+    } catch (const std::exception&) {
+    }
+  }
+
+  return rows;
+}
+
+std::vector<CombinedCalibRow> CaloCalibTableMaker::combineTables(
+    const std::unordered_map<int, CalEnergyCalibRow>& nominal,
+    const std::unordered_map<int, ArchiveFitRow>& cosmic,
+    const std::unordered_map<int, ArchiveFitRow>& source,
+    bool useCosmic,
+    bool useSource,
+    const CalEnergyCalibCombiner& combiner) const {
+  std::vector<CombinedCalibRow> out;
+  out.reserve(kTotalChannels);
+
+  for (int roid = 0; roid < kTotalChannels; ++roid) {
+    const auto nominalIt = nominal.find(roid);
+    const double oldADC2MeV = (nominalIt != nominal.end()) ? nominalIt->second.adc2MeV : 1.0;
+
+    double cosmicPeak = 0.0;
+    double cosmicErrPeak = -1.0;
+    double cosmicChi2 = 0.0;
+    int cosmicNdf = 0;
+    if (useCosmic) {
+      const auto cosmicIt = cosmic.find(roid);
+      if (cosmicIt != cosmic.end()) {
+        // Cosmic table stores peak in ADC; convert to method calibration constant.
+        cosmicPeak = cosmicIt->second.peak / kCosmicReferenceMeV;
+        cosmicErrPeak = cosmicIt->second.errPeak / kCosmicReferenceMeV;
+        cosmicChi2 = cosmicIt->second.chi2;
+        cosmicNdf = cosmicIt->second.ndf;
       }
     }
-    if(id > 2695) peaks.push_back(1);
-    else peaks.push_back(average_peak/tables.size());
-  }
-   
-  RecoTable outputs(roids, peaks);
-  return outputs;
-}
 
-
-void WriteOutput(const RecoTable& table) {
-  std::ofstream fw("RecoTable.txt", std::ofstream::out);
-
-  // Check if the file was successfully opened
-  if (!fw) {
-    std::cerr << "Error: Unable to open RecoTable.txt for writing." << std::endl;
-    return;
-  }
-
-  fw << "TABLE CalEnergyCalib" << "\n";
-  
-  if (!table.roid_.empty()) {
-      for (size_t i = 0; i < table.roid_.size(); ++i) {
-          // Use '\n' instead of std::endl for better performance
-          fw << table.roid_[i] << "," << table.ADC2MeV_[i] << "\n";
+    double sourcePeak = 0.0;
+    double sourceErrPeak = -1.0;
+    double sourceChi2 = 0.0;
+    int sourceNdf = 0;
+    if (useSource) {
+      const auto sourceIt = source.find(roid);
+      if (sourceIt != source.end()) {
+        // Source table stores full-energy peak in ADC; convert similarly.
+        sourcePeak = sourceIt->second.peak / kSourceReferenceMeV;
+        sourceErrPeak = sourceIt->second.errPeak / kSourceReferenceMeV;
+        sourceChi2 = sourceIt->second.chi2;
+        sourceNdf = sourceIt->second.ndf;
       }
+    }
+
+    const CalibCombineResult result = combiner.combineChannel(
+        oldADC2MeV,
+        cosmicPeak,
+        cosmicErrPeak,
+        cosmicChi2,
+        cosmicNdf,
+        sourcePeak,
+        sourceErrPeak,
+        sourceChi2,
+        sourceNdf);
+
+    out.push_back(CombinedCalibRow{
+        roid,
+        result.adc2MeV,
+        result.adc2MeVErr,
+        static_cast<int>(result.status),
+        result.statusMessage});
   }
 
-  // Check for write errors after all operations are complete
-  if (!fw) {
-    std::cerr << "Error: An error occurred while writing to RecoTable.txt." << std::endl;
-  }
+  return out;
 }
 
-void removeFirstLine(const std::string& filename) {
-    std::ifstream inputFile(filename);
-    if (!inputFile.is_open()) {
-        std::cerr << "Error: Could not open file " << filename << std::endl;
-        return;
-    }
-    std::ofstream tempFile("temp.txt"); // Create a temporary file
-    if (!tempFile.is_open()) {
-        std::cerr << "Error: Could not create temporary file." << std::endl;
-        inputFile.close();
-        return;
-    }
-    std::string line;
-    // Read and discard the first line
-    std::getline(inputFile, line); 
+bool CaloCalibTableMaker::writeRecoTable(
+    const std::string& outputPath, const std::vector<CombinedCalibRow>& rows) const {
+  std::ofstream output(outputPath);
+  if (!output) {
+    std::cerr << "Error: cannot write " << outputPath << "\n";
+    return false;
+  }
 
-    // Read and write the rest of the lines
-    while (std::getline(inputFile, line)) {
-        tempFile << line << std::endl;
-    }
-    inputFile.close();
-    tempFile.close();
-    // Delete the original file
-    if (std::remove(filename.c_str()) != 0) {
-        std::cerr << "Error: Could not delete original file." << std::endl;
-        return;
-    }
-    // Rename the temporary file to the original file's name
-    if (std::rename("temp.txt", filename.c_str()) != 0) {
-        std::cerr << "Error: Could not rename temporary file." << std::endl;
-        return;
-    }
-    std::cout << "First line removed successfully from " << filename << std::endl;
+  output << "TABLE CalEnergyCalib\n";
+  output << std::fixed << std::setprecision(5);
+  for (const auto& row : rows) {
+    output << row.roid << "," << row.adc2MeV << "\n";
+  }
+  return output.good();
 }
 
-int main(int argc, char ** argv){
-  bool source = argv[2];
-  bool MIP = argv[1];
-  std::vector<ArchiveTable> tables;
-  // get source table
-  if(source){
-    removeFirstLine("Source.txt");
-    ArchiveTable sourceInput = inputTable("Source.txt", "source");
-    tables.push_back(sourceInput);
+bool CaloCalibTableMaker::writeInfoTable(
+    const std::string& outputPath, const std::vector<CombinedCalibRow>& rows) const {
+  std::ofstream output(outputPath);
+  if (!output) {
+    std::cerr << "Error: cannot write " << outputPath << "\n";
+    return false;
   }
-  // get MIP table
-  if(MIP){
-    removeFirstLine("Cosmics.txt");
-    ArchiveTable mipInput = inputTable("Cosmics.txt", "mip");
-    tables.push_back(mipInput);
+
+  output << "TABLE CalEnergyCalibInfo\n";
+  output << std::fixed << std::setprecision(5);
+  for (const auto& row : rows) {
+    output << row.roid << "," << row.adc2MeV << "," << row.adc2MeVErr << ","
+           << row.statusCode << "," << row.statusMessage << "\n";
   }
-  // pass to combination:
-  RecoTable output = combineAlg(tables);
-  //write out CSV:
-  WriteOutput(output);
+  return output.good();
+}
+
+int main(int argc, char** argv) {
+  bool useCosmic = true;
+  bool useSource = true;
+  std::string cosmicPath = "Cosmics.txt";
+  std::string sourcePath = "Source.txt";
+  std::string nominalPath = "nominal.txt";
+  std::string recoOutputPath = "RecoTable.txt";
+  std::string infoOutputPath = "CalEnergyCalibInfo.txt";
+
+  if (argc >= 3) {
+    useCosmic = (std::stoi(argv[1]) != 0);
+    useSource = (std::stoi(argv[2]) != 0);
+  }
+  if (argc >= 4) cosmicPath = argv[3];
+  if (argc >= 5) sourcePath = argv[4];
+  if (argc >= 6) nominalPath = argv[5];
+  if (argc >= 7) recoOutputPath = argv[6];
+  if (argc >= 8) infoOutputPath = argv[7];
+
+  if (!useCosmic && !useSource) {
+    std::cerr << "Error: at least one input method must be enabled\n";
+    return 1;
+  }
+
+  CaloCalibTableMaker maker;
+  const auto nominal = maker.readNominalTable(nominalPath);
+  const auto cosmic = useCosmic ? maker.readCosmicTable(cosmicPath)
+                                : std::unordered_map<int, ArchiveFitRow>{};
+  const auto source = useSource ? maker.readSourceTable(sourcePath)
+                                : std::unordered_map<int, ArchiveFitRow>{};
+
+  CalEnergyCalibCombiner::Config config;
+  config.fitPvalueThreshold = 0.01;
+  config.compatPvalueThreshold = 0.05;
+  const CalEnergyCalibCombiner combiner(config);
+
+  const auto combined = maker.combineTables(
+      nominal, cosmic, source, useCosmic, useSource, combiner);
+
+  if (!maker.writeRecoTable(recoOutputPath, combined)) return 1;
+  if (!maker.writeInfoTable(infoOutputPath, combined)) return 1;
+
+  std::cout << "Wrote " << combined.size() << " rows to " << recoOutputPath
+            << " and " << infoOutputPath << "\n";
   return 0;
 }
