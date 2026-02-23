@@ -6,8 +6,6 @@
 #include "fhiclcpp/types/Atom.h"
 #include "fhiclcpp/types/Sequence.h"
 
-#include "Offline/ConditionsService/inc/ConditionsHandle.hh"
-#include "Offline/ConditionsService/inc/CalorimeterCalibrations.hh"
 #include "Offline/ProditionsService/inc/ProditionsHandle.hh"
 #include "Offline/RecoDataProducts/inc/CaloDigi.hh"
 #include "Offline/RecoDataProducts/inc/CaloRecoDigi.hh"
@@ -165,7 +163,6 @@ namespace mu2e {
       
       const auto& caloDigis = *caloDigisHandle;
       const auto& caloSims = *caloSimHandle;
-      ConditionsHandle<CalorimeterCalibrations> calorimeterCalibrations("ignored");
 
       double totEnergyReco(0);
       std::vector<double> x{},y{};
