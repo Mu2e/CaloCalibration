@@ -53,34 +53,68 @@ This runs an analyzer which will loop over the simulated events and analyze the 
 
 # The Analysis
 
-Now you have a file containing one histogram per crystal or sipm. The number of entries in these histograms is the number of events. To extract the calibration constants for each crystal or sim we muse run our analysis code. The analysis code is stored in "MakeAnalysisTree". This is the main script which applies the ROOFIT based maximum likelihood or chi2 fit to the crystal histograms to extract the constants.
+Now you have a file containing one histogram per crystal or sipm. The number of entries in these histograms is the number of events. To extract the calibration constants for each crystal or sipm we must run our analysis code. The analysis code is stored in "MakeAnalysisTree". This is the main script which applies the ROOFIT based maximum likelihood or chi2 fit to the crystal histograms to extract the constants.
 
 ## MakeAnalysisTree
+The MakeAnalysisTree executable performs source calibration analysis. It can either fit crystal energy spectra (Data mode) or extract truth information (MC mode).
+### Usage
+The command requires 4 mandatory arguments followed by any optional flags.
+### Arguments
 
+| Argument    | Type   | Description                                                                 |
+| :---        | :---   | :---                                                                        |
+| **start_cry** | int    | The starting crystal ID to analyze.                                         |
+| **end_cry** | int    | The final crystal ID (exclusive limit).                                     |
+| **alg** | string | The fitting algorithm: "nll" (Log-Likelihood) or "chi2" (Chi-Square).       |
+| **disk** | int    | The disk number (0 or 1).                                                   |
+*Note: Currently the disk can be toggled between sipms (disk 0 or 1) vs crystals (disk 2 or 3-- representing 0 and 1 respectively) as input. This is a temporary switch being used for studies and will be removed before the final data run.*
+### Optional Flags
+Add one or more of these flags at the end of the command (order does not matter):
 
+* `overlay`: Generates plots comparing the Data histogram vs. the Fit function.
+* `contour`: Generates 2D parameter scan plots (e.g., Peak vs. Width) to check correlations.
+* `mc`: Runs **MC Truth Mode**.
+    * *Note: When `mc` is used, the program skips the fitting process entirely. You must still provide a dummy value for the `<alg>` argument (e.g., "chi2") to satisfy the command structure.*
+    
 To accumulate all the events for a given crystal the command line would look like this:
 ```
-./build/al9-prof-e28-p056/CaloCalibration/bin/MakeAnalysisTree start_crystalnumber end_crystalnumber "minimisation_method" disk number
+./build/al9-prof-e28-p056/CaloCalibration/bin/MakeAnalysisTree <start_cry> <end_cry> <alg> <disk> [flags]
 ```
-To add the data comparision plots, you must add  "overlay" at the end of the command:
-```
-./build/al9-prof-e28-p056/CaloCalibration/bin/MakeAnalysisTree start_crystalnumber end_crystalnumber "minimisation_method" disk number overlay
-```
-For example you can run the MakeAnalysisTree program as follows:
-```
-bash-5.1$  ./build/al9-prof-e28-p056/CaloCalibration/bin/MakeAnalysisTree 0 674 "chi2" 0
+### Examples
+
+**1. Standard Analysis (Chi2 Fit)**
+Accumulate and fit events for crystals 0 to 674 on disk 0 using Chi-Square minimization:
+
+./build/al9-prof-e28-p056/CaloCalibration/bin/MakeAnalysisTree 0 674 "chi2" 0
+
+**2. Analysis with Overlay Plots**
+Perform an NLL fit and save the data comparison plots:
+
+./build/al9-prof-e28-p056/CaloCalibration/bin/MakeAnalysisTree 1322 1323 "nll" 0 overlay
+**3. Analysis with Contour Plots**
+Perform a fit and generate 2D error contours (useful for debugging parameter correlations):
+
+./build/al9-prof-e28-p056/CaloCalibration/bin/MakeAnalysisTree 100 101 "nll" 0 contour
+
+**4. MC Truth Extraction**
+Run in MC mode to generate the truthinfo.root file. The fitting algorithm is ignored, but must be present:
+
+./build/al9-prof-e28-p056/CaloCalibration/bin/MakeAnalysisTree 0 674 "chi2" 0 mc
+
+**5. Combined Flags**
+Run NLL fit, generate overlays, AND generate contours:
+
+./build/al9-prof-e28-p056/CaloCalibration/bin/MakeAnalysisTree 100 105 "nll" 0 overlay contour
+
+*Example Output:*
 ========== Welcome to the Mu2e Source Calibration Analysis ==========
-crystal to be analyzed (int) : 
-1322
+crystal to be analyzed (int) : 1322
 Running pre-processing .....
  Finding Hits in Crystal # 1322
  Events analyzed in this crystal : 4043
- Time take no filter crystal 24s
  Fitting Crystal # 1322
 Finished pre-processing ...
 
-```
-The arguments are the crystal ranges you want to fit to. This is followed by the method of minimization (nll or chi2) and the disk number.
 
 ## Understanding bad fits
 
