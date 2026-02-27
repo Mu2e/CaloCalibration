@@ -40,6 +40,24 @@ bool isDataLine(const std::string& line) {
   if (stripped[0] == '#') return false;
   return true;
 }
+
+bool parseEnableFlag(const std::string& raw, const char* label, bool* value) {
+  try {
+    std::size_t parsedChars = 0;
+    const int parsedValue = std::stoi(raw, &parsedChars);
+    if (parsedChars != raw.size()) {
+      std::cerr << "Error: " << label << " must be an integer (0 disables, non-zero enables), got \""
+                << raw << "\"\n";
+      return false;
+    }
+    *value = (parsedValue != 0);
+    return true;
+  } catch (const std::exception& ex) {
+    std::cerr << "Error: failed to parse " << label << " from \"" << raw << "\": " << ex.what()
+              << "\n";
+    return false;
+  }
+}
 }  // namespace
 
 std::unordered_map<int, ArchiveFitRow> CaloCalibTableMaker::readCosmicTable(
@@ -263,8 +281,8 @@ int main(int argc, char** argv) {
   std::string infoOutputPath = "CalEnergyCalibInfo.txt";
 
   if (argc >= 3) {
-    useCosmic = (std::stoi(argv[1]) != 0);
-    useSource = (std::stoi(argv[2]) != 0);
+    if (!parseEnableFlag(argv[1], "useCosmic", &useCosmic)) return 1;
+    if (!parseEnableFlag(argv[2], "useSource", &useSource)) return 1;
   }
   if (argc >= 4) cosmicPath = argv[3];
   if (argc >= 5) sourcePath = argv[4];
