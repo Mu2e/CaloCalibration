@@ -52,10 +52,16 @@ std::unordered_map<int, ArchiveFitRow> CaloCalibTableMaker::readCosmicTable(
   }
 
   std::string line;
+  int lineNumber = 0;
   while (std::getline(input, line)) {
+    ++lineNumber;
     if (!isDataLine(line)) continue;
     const auto columns = splitCsv(line);
-    if (columns.size() < 9) continue;
+    if (columns.size() < 9) {
+      std::cerr << "Warning: skipping cosmic row at line " << lineNumber << " in " << inputPath
+                << " (expected at least 9 columns, found " << columns.size() << ")\n";
+      continue;
+    }
 
     try {
       const int roid = std::stoi(columns[0]);
@@ -65,7 +71,9 @@ std::unordered_map<int, ArchiveFitRow> CaloCalibTableMaker::readCosmicTable(
           std::stod(columns[2]),
           std::stod(columns[7]),
           std::stoi(columns[8])};
-    } catch (const std::exception&) {
+    } catch (const std::exception& ex) {
+      std::cerr << "Warning: failed to parse cosmic row at line " << lineNumber << " in "
+                << inputPath << ": " << ex.what() << "\n";
     }
   }
 
@@ -82,12 +90,18 @@ std::unordered_map<int, ArchiveFitRow> CaloCalibTableMaker::readSourceTable(
   }
 
   std::string line;
+  int lineNumber = 0;
   while (std::getline(input, line)) {
+    ++lineNumber;
     if (!isDataLine(line)) continue;
     const auto columns = splitCsv(line);
     // Expected order from CalSourceEnergyCalib:
     // roid,fullepeak,fullerrepeak,...,frsecond,chisq,ndf
-    if (columns.size() < 18) continue;
+    if (columns.size() < 18) {
+      std::cerr << "Warning: skipping source row at line " << lineNumber << " in " << inputPath
+                << " (expected at least 18 columns, found " << columns.size() << ")\n";
+      continue;
+    }
 
     try {
       const int roid = std::stoi(columns[0]);
@@ -97,7 +111,9 @@ std::unordered_map<int, ArchiveFitRow> CaloCalibTableMaker::readSourceTable(
           std::stod(columns[2]),
           std::stod(columns[16]),
           std::stoi(columns[17])};
-    } catch (const std::exception&) {
+    } catch (const std::exception& ex) {
+      std::cerr << "Warning: failed to parse source row at line " << lineNumber << " in "
+                << inputPath << ": " << ex.what() << "\n";
     }
   }
 
@@ -115,15 +131,23 @@ std::unordered_map<int, CalEnergyCalibRow> CaloCalibTableMaker::readNominalTable
   }
 
   std::string line;
+  int lineNumber = 0;
   while (std::getline(input, line)) {
+    ++lineNumber;
     if (!isDataLine(line)) continue;
     const auto columns = splitCsv(line);
-    if (columns.size() < 2) continue;
+    if (columns.size() < 2) {
+      std::cerr << "Warning: skipping nominal row at line " << lineNumber << " in " << inputPath
+                << " (expected at least 2 columns, found " << columns.size() << ")\n";
+      continue;
+    }
 
     try {
       const int roid = std::stoi(columns[0]);
       rows[roid] = CalEnergyCalibRow{roid, std::stod(columns[1])};
-    } catch (const std::exception&) {
+    } catch (const std::exception& ex) {
+      std::cerr << "Warning: failed to parse nominal row at line " << lineNumber << " in "
+                << inputPath << ": " << ex.what() << "\n";
     }
   }
 
