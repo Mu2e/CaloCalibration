@@ -1,6 +1,7 @@
 #include "CaloCalibration/Combinations/inc/CaloCalibTableMaker.hh"
 
 #include <cctype>
+#include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -10,6 +11,7 @@
 namespace {
 constexpr double kCosmicReferenceMeV = 20.0;
 constexpr double kSourceReferenceMeV = 6.13;
+constexpr double kMinimumPeakADC = 1e-12;
 
 std::string trim(const std::string& value) {
   std::size_t begin = 0;
@@ -39,6 +41,10 @@ bool isDataLine(const std::string& line) {
   if (stripped.rfind("TABLE", 0) == 0) return false;
   if (stripped[0] == '#') return false;
   return true;
+}
+
+bool isUsablePeakMeasurement(double peak, double errPeak) {
+  return std::isfinite(peak) && std::isfinite(errPeak) && peak > kMinimumPeakADC && errPeak > 0.0;
 }
 
 bool parseEnableFlag(const std::string& raw, const char* label, bool* value) {
@@ -193,11 +199,16 @@ std::vector<CombinedCalibRow> CaloCalibTableMaker::combineTables(
     if (useCosmic) {
       const auto cosmicIt = cosmic.find(roid);
       if (cosmicIt != cosmic.end()) {
-        // Cosmic table stores peak in ADC; convert to method calibration constant.
-        cosmicPeak = cosmicIt->second.peak / kCosmicReferenceMeV;
-        cosmicErrPeak = cosmicIt->second.errPeak / kCosmicReferenceMeV;
-        cosmicChi2 = cosmicIt->second.chi2;
-        cosmicNdf = cosmicIt->second.ndf;
+        if (isUsablePeakMeasurement(cosmicIt->second.peak, cosmicIt->second.errPeak)) {
+          // Cosmic table stores peak in ADC; convert to method calibration constant.
+          cosmicPeak = cosmicIt->second.peak / kCosmicReferenceMeV;
+          cosmicErrPeak = cosmicIt->second.errPeak / kCosmicReferenceMeV;
+          cosmicChi2 = cosmicIt->second.chi2;
+          cosmicNdf = cosmicIt->second.ndf;
+        } else {
+          std::cerr << "Warning: cosmic fit for ROID " << roid
+                    << " has non-positive or invalid peak/error and will be treated as invalid\n";
+        }
       }
     }
 
@@ -208,11 +219,16 @@ std::vector<CombinedCalibRow> CaloCalibTableMaker::combineTables(
     if (useSource) {
       const auto sourceIt = source.find(roid);
       if (sourceIt != source.end()) {
-        // Source table stores full-energy peak in ADC; convert similarly.
-        sourcePeak = sourceIt->second.peak / kSourceReferenceMeV;
-        sourceErrPeak = sourceIt->second.errPeak / kSourceReferenceMeV;
-        sourceChi2 = sourceIt->second.chi2;
-        sourceNdf = sourceIt->second.ndf;
+        if (isUsablePeakMeasurement(sourceIt->second.peak, sourceIt->second.errPeak)) {
+          // Source table stores full-energy peak in ADC; convert similarly.
+          sourcePeak = sourceIt->second.peak / kSourceReferenceMeV;
+          sourceErrPeak = sourceIt->second.errPeak / kSourceReferenceMeV;
+          sourceChi2 = sourceIt->second.chi2;
+          sourceNdf = sourceIt->second.ndf;
+        } else {
+          std::cerr << "Warning: source fit for ROID " << roid
+                    << " has non-positive or invalid peak/error and will be treated as invalid\n";
+        }
       }
     }
 
