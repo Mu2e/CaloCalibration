@@ -50,9 +50,11 @@ Expected inputs:
 
 ## Producing a reco table
 
-Within ```CaloCalibTableMaker.hh``` we have two structs defined: the ArchiveTable and RecoTable.
+Within `CaloCalibTableMaker.hh` the key row structs are:
 
-The point is that the ArchiveTable is channels specific and the RecoTable is the simple combined output.
+* `ArchiveFitRow` for per-channel fit inputs (cosmic/source peak, error, chi2, ndf)
+* `CalEnergyCalibRow` for nominal fallback constants (`R0`)
+* `CombinedCalibRow` for the final combined output with uncertainty and status
 
 Default run (both methods enabled, default filenames above):
 
