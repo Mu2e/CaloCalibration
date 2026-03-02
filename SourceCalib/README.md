@@ -5,12 +5,12 @@ This repo contains scripts which take input from the Archive Tables for Source, 
 
 Since we do not have real data from the current system, we base our work on Simulation. A model of the calibration system is built in GEANT4 within Mu2e/Offline. Photons can be fired uniformly from this geometry to simulate the system.
 
-To configure this simulation use the CaloCalibration/SourceCalib/fcl/Run*.fcl files.
+To configure this simulation use the CaloCalibration/SourceCalib/simulation/Run*.fcl files.
 
 First we run the generator, producing detector steps e.g.
 
 ```
-mu2e -c CaloCalibration/SourceCalib/fcl/RunCaloCalibGun-sim.fcl --nevts=1000
+mu2e -c CaloCalibration/SourceCalib/simulation/RunCaloCalibGun-sim.fcl --nevts=1000
 
 ```
 
@@ -35,7 +35,7 @@ Currently the generator must be ran one disk at a time, the last parameter choos
 This stage produces a file with a prefix ``dts" (detector steps). To digitize this file:
 
 ```
-mu2e -c CaloCalibration/SourceCalib/fcl/RunCaloCalibGun-digi.fcl dts.owner.name.version.sequencer.art
+mu2e -c CaloCalibration/SourceCalib/simulation/RunCaloCalibGun-dig.fcl dts.owner.name.version.sequencer.art
 
 ```
 
@@ -44,7 +44,7 @@ where dts.owner.name.version.sequencer.art is the file from the preceeding stage
 To analyze and perform our calibration we must run the SourceCalibAna module on this digitized ``data":
 
 ```
-mu2e -c CaloCalibration/SourceCalib/fcl/RunCaloCalibGun-ana.fcl dig.owner.name.version.sequencer.art
+mu2e -c CaloCalibration/SourceCalib/simulation/RunCaloCalibGun-ana.fcl dig.owner.name.version.sequencer.art
 
 ```
 

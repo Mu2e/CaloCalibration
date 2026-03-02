@@ -9,6 +9,7 @@ CaloSourceAna :
         {
             module_type         : SourceCalibDigiAna
             caloDigiCollection  : CaloDigiMaker
+            caloShowerSimCollection  : CaloShowerROMaker 
             RawProcessor        : { @table::CaloReco.RawProcessor }
             TemplateProcessor   : { @table::CaloReco.TemplateProcessor }
             processorStrategy   : "TemplateFit"

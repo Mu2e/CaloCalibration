@@ -1,55 +1,51 @@
-#ifndef CaloCalibTableMaker_hh
-#define CaloCalibTableMaker_hh
-#include<vector>
-#include <iostream>
-#include <utility>
-#include <tuple>
-#include <fstream>
-using namespace std;
+#ifndef CALOCALIBTABLEMAKER_HH
+#define CALOCALIBTABLEMAKER_HH
 
-struct ArchiveTable{
-  std::vector<int> roid_;
-  std::vector<double> peak_;
-  std::vector<double> errpeak_;
-  std::vector<double> width_;
-  std::vector<double> errwidth_;
-  std::vector<double> sigma_;
-  std::vector<double> errsigma_;
-  std::vector<double> chisq_;
-  std::vector<int> Nhits_;
-  std::string tag_;
-  //const char* algtag_;
-  ArchiveTable(){};
-  ArchiveTable(
-  std::vector<int> roid, 
-  std::vector<double> peak, 
-  std::vector<double> errpeak, 
-  std::vector<double> width, 
-  std::vector<double> errwidth, 
-  std::vector<double> sigma, 
-  std::vector<double> errsigma, 
-  std::vector<double> chisq,
-  std::vector<int> nhits,
-  std::string tag) 
-  : roid_(roid), peak_(peak), errpeak_(errpeak), width_(width), errwidth_(errwidth), sigma_(sigma), errsigma_(errsigma), chisq_(chisq), Nhits_(nhits), tag_(tag) {};
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+#include "CaloCalibration/Combinations/inc/CalEnergyCalibCombiner.hh"
+
+struct ArchiveFitRow {
+  int roid = -1;
+  double peak = 0.0;
+  double errPeak = 0.0;
+  double chi2 = 0.0;
+  int ndf = 0;
 };
 
-struct RecoTable{
-  std::vector<int> roid_;
-  std::vector<double> ADC2MeV_;
-  RecoTable(){};
-  RecoTable(
-  std::vector<int> roid, 
-  std::vector<double> ADC2MeV ) 
-  : roid_(roid), ADC2MeV_(ADC2MeV) {};
+struct CalEnergyCalibRow {
+  int roid = -1;
+  double adc2MeV = 1.0;
 };
 
-class CaloCalibTableMaker
-	{
-      public:
-        ArchiveTable inputTable(const char *ArchiveFile, const char *tag);
-        RecoTable combineAlg(std::vector<ArchiveTable> tables);
-        void WriteOutput(RecoTable table);
-  };
+struct CombinedCalibRow {
+  int roid = -1;
+  double adc2MeV = 1.0;
+  double adc2MeVErr = 0.0;
+  int statusCode = static_cast<int>(CalibStatus::kFallbackAllInvalid);
+  std::string statusMessage = "FALLBACK: bad fits";
+};
+
+class CaloCalibTableMaker {
+ public:
+  static constexpr int kTotalChannels = 2720;
+
+  std::unordered_map<int, ArchiveFitRow> readCosmicTable(const std::string& inputPath) const;
+  std::unordered_map<int, ArchiveFitRow> readSourceTable(const std::string& inputPath) const;
+  std::unordered_map<int, CalEnergyCalibRow> readNominalTable(const std::string& inputPath) const;
+
+  std::vector<CombinedCalibRow> combineTables(
+      const std::unordered_map<int, CalEnergyCalibRow>& nominal,
+      const std::unordered_map<int, ArchiveFitRow>& cosmic,
+      const std::unordered_map<int, ArchiveFitRow>& source,
+      bool useCosmic,
+      bool useSource,
+      const CalEnergyCalibCombiner& combiner) const;
+
+  bool writeRecoTable(const std::string& outputPath, const std::vector<CombinedCalibRow>& rows) const;
+  bool writeInfoTable(const std::string& outputPath, const std::vector<CombinedCalibRow>& rows) const;
+};
+
 #endif
-
