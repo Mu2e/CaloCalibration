@@ -77,7 +77,6 @@ helper.make_plugins( [
     'mu2e_DAQConditions',
     'mu2e_CaloReco',
     'mu2e_ProditionsService',
-    'mu2e_ConditionsService',
     'pthread'
     ] )
 
