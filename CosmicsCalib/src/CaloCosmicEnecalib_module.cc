@@ -1,9 +1,9 @@
 // =============================================================================
-// extrapolate energy, position and time for offline calorimeter calibration
-// 12-Dec-2023 - P.Fedeli & S.Giovannella
+// extrapolate the MIP MPV for offline calorimeter calibration with cosmics
+// 09-Mar-2026 - S.Salamino & S.Giovannella
 //
-// Starting code for retrieving calo information:
-// CaloEnergy & caloT0alig module from P.Fedeli & S.Giovannella
+// Starting code for track selection and path normalization:
+// CaloCosmicEnergy module from P.Fedeli & S.Giovannella
 //
 // =============================================================================
 
@@ -57,11 +57,11 @@ namespace mu2e{
     struct Config {
       using Name=fhicl::Name;
       using Comment=fhicl::Comment;
-      fhicl::Atom<int>           diagLevel{Name("diagLevel"),           Comment(""), 0};
+      fhicl::Atom<int>           diagLevel{Name("diagLevel"),           Comment("Diagnostic level"), 0};
       fhicl::Atom<bool>          useMeV{Name("useMeV"),                 Comment("Set to true for data in MeV, false for ADC"), false};
-      fhicl::Atom<int>           CutNCryHit{Name("CutNCryHit"),         Comment(""), 3};
-      fhicl::Atom<float>         CutEnergyDep{Name("CutEnergyDep"),     Comment(""), 250.}; //ADC
-      fhicl::Atom<float>         CutChi2Norm{Name("CutChi2Norm"),       Comment(""), 2.5};
+      fhicl::Atom<int>           CutNCryHit{Name("CutNCryHit"),         Comment("Minimum number of crystals in the event"), 3};
+      fhicl::Atom<float>         CutEnergyDep{Name("CutEnergyDep"),     Comment("Minimum energy of the hit"), 250.}; //ADC
+      fhicl::Atom<float>         CutChi2Norm{Name("CutChi2Norm"),       Comment("Maximum chi2 threshold for linear fits"), 2.5};
       fhicl::Atom<art::InputTag> CaloClusterTag{Name("CaloClusterTag"), Comment("Tag for Calorimeter cluster collection"), art::InputTag()};
       fhicl::Atom<art::InputTag> CaloHitTag{Name("CaloHitTag"),         Comment("Tag for Calorimeter hit collection"), art::InputTag()};
       fhicl::Atom<std::string>   OutCalibFile{Name("OutCalibFile"),     Comment("Name for output .dat MIP calibration file"), "calib_parameters.dat"};
@@ -70,16 +70,9 @@ namespace mu2e{
     explicit CaloCosmicEnecalib(const art::EDAnalyzer::Table<Config>& config);
     virtual ~CaloCosmicEnecalib(){};
     void beginJob() override;
-
     void analyze(art::Event const& event) override;
-
     void endJob() override;
-
-    static double langaufun(Double_t *x, Double_t *par);
-
-    float findpath(float m,float q, float x, float y);
-
-    std::vector<float> fitLangaus(TH1F *histo, int refit=0, int iter=0, float oldwidth=0, float oldsigma=0);
+    
 
   private:
 
@@ -88,7 +81,7 @@ namespace mu2e{
     art::TFileDirectory tfdir     = tfs->mkdir("All_tracks");
     art::TFileDirectory tfdirv    = tfs->mkdir("Vertical_tracks");
     art::TFileDirectory tfdird    = tfs->mkdir("Diagonal_tracks");
-    art::TFileDirectory tfdirfp   = tfs->mkdir("All_normalized_tracks");
+    art::TFileDirectory tfdirg    = tfs->mkdir("General_tracks");
     art::TFileDirectory tfdir_res = tfs->mkdir("MPV_distributions");
 
 
@@ -113,15 +106,15 @@ namespace mu2e{
 
 
     //histogram variables
-    TH1F *hSiPM[nROchan]   =  { nullptr };
-    TH1F *hSiPMv[nROchan]  =  { nullptr };
-    TH1F *hSiPMd[nROchan]  =  { nullptr };
-    TH1F *hSiPMfp[nROchan] =  { nullptr };
+    TH1F *hSiPM[nROchan]  = { nullptr };
+    TH1F *hSiPMv[nROchan] = { nullptr };
+    TH1F *hSiPMd[nROchan] = { nullptr };
+    TH1F *hSiPMg[nROchan] = { nullptr };
 
     TH1F *MPV    = nullptr;
     TH1F *MPVv   = nullptr;
     TH1F *MPVd   = nullptr;
-    TH1F *MPVfp  = nullptr;
+    TH1F *MPVg   = nullptr;
     TH1F *hWidth = nullptr;
     TH1F *hSigma = nullptr;
 
@@ -133,15 +126,24 @@ namespace mu2e{
     double  hWxmax;
     double  hSxmax;
 
-    std::vector<std::vector<float>> sipmLangausParams;
+    TF1* myPoly = nullptr;
+    TF1* mylang = nullptr;
+    TF1* mygaus = nullptr;
    
 
-    //helper variables
+    //helper variables for Langaus fit
+    struct LangausResult { //langaus fit parameters
+      float mpv      = -99.; float mpvErr   = -99.;
+      float width    = -99.; float widthErr = -99.;
+      float sigma    = -99.; float sigmaErr = -99.;
+      float chi2     = -99.; int   ndf      = 0;
+      int   nev      = 0;
+      void reset() { *this = LangausResult(); }
+    };
+    
     struct FitFlags { //flags to determine fit quality
-      bool badWidthLow  = false;
-      bool badWidthHigh = false;
-      bool badSigmaLow  = false;
-      bool badSigmaHigh = false;
+      bool badWidthLow  = false; bool badWidthHigh = false;
+      bool badSigmaLow  = false; bool badSigmaHigh = false;
       bool isBad() const { return badWidthLow || badWidthHigh || badSigmaLow || badSigmaHigh; }
       void fitQuality(float width, float sigma, TH1F *hW, TH1F *hS)
       {
@@ -152,12 +154,19 @@ namespace mu2e{
 	badSigmaHigh = (sigma > hS->GetMean() + 4 * hS->GetRMS());
       }
     };
-    TF1* myPoly = new TF1("myPoly", "pol1", -600., 600.); //polinomial to fit the track
-    TF1* mylang = new TF1("mylang", langaufun, 0., 2100., 4);//langaus function
-    TF1* mygaus = new TF1("mygaus", "gaus");
+    
+    std::vector<LangausResult> sipmParams;
+    std::vector<LangausResult> sipmParamsv;
+    std::vector<LangausResult> sipmParamsd;
+    std::vector<LangausResult> sipmParamsg;
+
+    static double langaus(Double_t *x, Double_t *par);
+    float findpath(float m,float q, float x, float y);
+    LangausResult fitLangaus(TH1F *histo, int refit=0, int iter=0, float oldwidth=0, float oldsigma=0);
 
   };//end class
 
+  
   CaloCosmicEnecalib::CaloCosmicEnecalib(const art::EDAnalyzer::Table<Config>& config) :
     art::EDAnalyzer(config),
     _diagLevel(config().diagLevel()),
@@ -174,6 +183,7 @@ namespace mu2e{
     }
   }
 
+  
   void CaloCosmicEnecalib::beginJob(){
     if (_diagLevel > 0 ) std::cout<< "CaloCosmicEnecalib: Entering beginJob" << std::endl;
 
@@ -185,24 +195,28 @@ namespace mu2e{
     }
     else {
       hSiPMxmax = 100.;
-      hMPVxmax  = 50.;
+      hMPVxmax  = 35.;
       hWxmax    = 10.;
       hSxmax    = 20.;
     }
 
     for(int iRou=0; iRou < nROchan; iRou++){
-      hSiPM[iRou] = tfdir.make<TH1F>(Form("Channel_%i",iRou),Form("Energy deposited in channel %i",iRou),hSiPMbins, 0, hSiPMxmax);
-      hSiPMv[iRou] = tfdirv.make<TH1F>(Form("Channel_%i_v",iRou),Form("Energy deposited in channel %i - only vertical tracks",iRou),hSiPMbins, 0, hSiPMxmax);
-      hSiPMd[iRou] = tfdird.make<TH1F>(Form("Channel_%i_d",iRou),Form("Energy deposited in channel %i - only diagonal tracks",iRou),hSiPMbins, 0, hSiPMxmax);
-      hSiPMfp[iRou] = tfdirfp.make<TH1F>(Form("Channel_%i_fp",iRou),Form("Energy deposited in channel %i - normalized track length",iRou),hSiPMbins, 0, hSiPMxmax);
+      hSiPM[iRou]  = tfdir.make<TH1F>(Form("Channel_%i",iRou),Form("Energy deposited in channel %i",iRou),hSiPMbins,0,hSiPMxmax);
+      hSiPMv[iRou] = tfdirv.make<TH1F>(Form("Channel_%i_v",iRou),Form("Energy deposited in channel %i - vertical tracks",iRou),80,0,hSiPMxmax);
+      hSiPMd[iRou] = tfdird.make<TH1F>(Form("Channel_%i_d",iRou),Form("Energy deposited in channel %i - diagonal tracks",iRou),80,0,hSiPMxmax);
+      hSiPMg[iRou] = tfdirg.make<TH1F>(Form("Channel_%i_g",iRou),Form("Energy deposited in channel %i - general tracks",iRou),80,0,hSiPMxmax);
     }
 
     MPV    = tfdir_res.make<TH1F>("MPV_distr","MPV distribution",400, 0., hMPVxmax);
-    MPVv   = tfdir_res.make<TH1F>("MPV_v_distr","MPV distribution only vertical tracks",400, 0., hMPVxmax);
-    MPVd   = tfdir_res.make<TH1F>("MPV_d_distr","MPV distribution only diagonal tracks",400, 0., hMPVxmax);
-    MPVfp  = tfdir_res.make<TH1F>("MPV_fp_distr","MPV distribution all normalized tracks",400, 0., hMPVxmax);
+    MPVv   = tfdir_res.make<TH1F>("MPV_v_distr","MPV distribution only vertical tracks",1000, 15., hMPVxmax);
+    MPVd   = tfdir_res.make<TH1F>("MPV_d_distr","MPV distribution only diagonal tracks",1000, 15., hMPVxmax);
+    MPVg   = tfdir_res.make<TH1F>("MPV_g_distr","MPV distribution only general tracks",1000, 15., hMPVxmax);
     hWidth = tfdir_res.make<TH1F>("Width_distr","Width distribution",150, 0., hWxmax);
     hSigma = tfdir_res.make<TH1F>("Sigma_distr","Sigma distribution",300, 0., hSxmax);
+
+    myPoly = new TF1("myPoly", "pol1", -600., 600.);    //polinomial to fit the track
+    mylang = new TF1("mylang", langaus, 0., 2100., 4);  //langaus function
+    mygaus = new TF1("mygaus", "gaus");
     
   }//end begin job
 
@@ -231,7 +245,6 @@ namespace mu2e{
       std::array<int, nCrystals>    IDs;
       std::array<double, nCrystals> Vmax;
       std::array<float, nCrystals>  path;
-
       std::vector<std::pair<float,float>> PosXY;
 
       auto const& hitsPtrVector = caloClusters[iClu].caloHitsPtrVector();
@@ -245,44 +258,50 @@ namespace mu2e{
 
 	//loop over hits in the crystal
 	for (auto const& rdPtr : recoDigis) {
-	  auto const& rawDigiPtr = rdPtr->caloDigiPtr();
-	  
-	  if (rawDigiPtr.isNonnull()) {
-            const std::vector<int>& waveform = rawDigiPtr->waveform();
+	  double VmaxHit = -1;
+	  int sipmID = -1;
 
-	    //evaluate baseline on first 5 samples in the waveform
-	    double baseline = 0;
-            for (int i=0; i<5; ++i) baseline += waveform.at(i);
-            baseline /= 5.0;
+	  if (_useMeV) {
+	    VmaxHit = rdPtr->energyDep();
+	    sipmID  = rdPtr->SiPMID();
+	  }
 
-	    //find maximum of the waveform (baseline subtracted)
-	    int VmaxHit = 0; 
-	    for (int i = 0; i < (int)waveform.size(); ++i) {
-	      if (waveform.at(i) > VmaxHit) VmaxHit = waveform.at(i);
-	    }
-	    if (_diagLevel>0) {
-		std::cout << "sipmID:  " << rawDigiPtr->SiPMID()
-		          << " waveform peak: " << VmaxHit
-	                  << " baseline: " << baseline;
-	    }
-	    VmaxHit = VmaxHit - baseline;
-	    if (_diagLevel>0) std::cout << " Vmax:  " << VmaxHit << std::endl;
+	  else {
+	    auto const& rawDigiPtr = rdPtr->caloDigiPtr();
+	    if (rawDigiPtr.isNonnull()) {
+	      const std::vector<int>& waveform = rawDigiPtr->waveform();
+
+	      //evaluate baseline on first 5 samples in the waveform
+	      double baseline = 0;
+	      for (int i=0; i<5; ++i) baseline += waveform.at(i);
+	      baseline /= 5.0;
+
+	      //find maximum of the waveform (baseline subtracted)
+	      for (int i = 0; i < (int)waveform.size(); ++i) {
+		if (waveform.at(i) > VmaxHit) VmaxHit = waveform.at(i);
+	      }
+	      if (_diagLevel>0) {
+		std::cout << "sipmID:  " << rawDigiPtr->SiPMID() << " waveform peak: " << VmaxHit << " baseline: " << baseline;
+	      }
+	      VmaxHit = VmaxHit - baseline;
+	      sipmID = rawDigiPtr->SiPMID();
+	    }//caloDigi check
+	  }//use MeV or ADC
+	    
+	  if (_diagLevel>0) std::cout << " Vmax:  " << VmaxHit << std::endl;
 	    
 
-	    //cut on energy deposition
-	    if (VmaxHit > CutEnergyDep) {
-	      int sipmID = rawDigiPtr->SiPMID();
-	      if (sipmID > nROchan) continue;
-	      float PosX = cal.geomUtil().mu2eToDiskFF(diskID, cal.crystal(cryID).position()).getX();
-	      float PosY = cal.geomUtil().mu2eToDiskFF(diskID, cal.crystal(cryID).position()).getY();
+	  //cut on energy deposition
+	  if (VmaxHit > CutEnergyDep && sipmID>=0 && sipmID<nROchan) {
+	    float PosX = cal.geomUtil().mu2eToDiskFF(diskID, cal.crystal(cryID).position()).getX();
+	    float PosY = cal.geomUtil().mu2eToDiskFF(diskID, cal.crystal(cryID).position()).getY();
 
-	      PosXY.push_back({PosX,PosY});
-	      IDs[nhits] = sipmID;
-	      Vmax[nhits] = VmaxHit;
-	      nhits++;
-	      
-	    }//energy cut
-	  }//caloDigi check
+	    PosXY.push_back({PosX,PosY});
+	    IDs[nhits] = sipmID;
+	    Vmax[nhits] = VmaxHit;
+	    nhits++; 
+	  }//energy cut
+	  
 	}//loop over hits
       }//loop over crystals
 
@@ -375,7 +394,7 @@ namespace mu2e{
 	    //diagonal track
 	    if (chi2norm<0.01) hSiPMd[IDs[kk]]->Fill(Vmax[kk]*cryDim/path[kk]);
 	    //general track
-	    else hSiPMfp[IDs[kk]]->Fill(Vmax[kk]*cryDim/path[kk]);
+	    else hSiPMg[IDs[kk]]->Fill(Vmax[kk]*cryDim/path[kk]);
 	    
 	    hSiPM[IDs[kk]]->Fill(Vmax[kk]*cryDim/path[kk]);
 	  }
@@ -387,7 +406,10 @@ namespace mu2e{
   void CaloCosmicEnecalib::endJob(){
     std::cout << "CaloCosmicEnecalib: entering endjob" << std::endl;
 
-    sipmLangausParams.assign(nROchan, std::vector<float>(9, -99.));
+    sipmParams.assign(nROchan, LangausResult());
+    sipmParamsv.assign(nROchan, LangausResult());
+    sipmParamsg.assign(nROchan, LangausResult());
+    sipmParamsd.assign(nROchan, LangausResult());
     int nEntries;
 
     for (int irou=0; irou<nROchan; irou++) {
@@ -396,15 +418,23 @@ namespace mu2e{
 	if (_diagLevel>0) std::cout << " >>  Fitting channel " << irou << std::endl;
 
 	// Rebin hitsograms to help with convercence
-	if (nEntries <= lowStatThreshold) hSiPM[irou] = (TH1F*) hSiPM[irou]->Rebin(6);
-	else if (nEntries <= midStatThreshold) hSiPM[irou] = (TH1F*) hSiPM[irou]->Rebin(5);
-	else hSiPM[irou] = (TH1F*) hSiPM[irou]->Rebin(3);
-
-	// First attempt for langaus fit
-	sipmLangausParams[irou] = fitLangaus(hSiPM[irou]);
+	int rebinfactor = 1;
+	if (nEntries <= lowStatThreshold)      rebinfactor=6;
+	else if (nEntries <= midStatThreshold) rebinfactor=5;
+	else                                   rebinfactor=3;
+	hSiPM[irou] = (TH1F*) hSiPM[irou]->Rebin(rebinfactor);
 	
-	hWidth->Fill(sipmLangausParams[irou][2]);
-	hSigma->Fill(sipmLangausParams[irou][4]);
+	// First attempt for langaus fit
+	sipmParams[irou]  = fitLangaus(hSiPM[irou]);
+	sipmParamsv[irou] = fitLangaus(hSiPMv[irou]);
+	sipmParamsd[irou] = fitLangaus(hSiPMd[irou]);
+	sipmParamsg[irou] = fitLangaus(hSiPMg[irou]);
+	
+	hWidth->Fill(sipmParams[irou].width);
+	hSigma->Fill(sipmParams[irou].sigma);
+	if (sipmParamsv[irou].mpv>0) MPVv->Fill(sipmParamsv[irou].mpv);
+	if (sipmParamsd[irou].mpv>0) MPVd->Fill(sipmParamsd[irou].mpv);
+	if (sipmParamsg[irou].mpv>0) MPVg->Fill(sipmParamsg[irou].mpv);
       }
     }
 
@@ -418,25 +448,25 @@ namespace mu2e{
     for (int irou=0; irou<nROchan; irou++) {
       if (hSiPM[irou]->GetEntries()>0) {
 	FitFlags flags;
-	flags.fitQuality(sipmLangausParams[irou][2],sipmLangausParams[irou][4],hWidth,hSigma);
+	flags.fitQuality(sipmParams[irou].width,sipmParams[irou].sigma,hWidth,hSigma);
 
 	// Refit up to 10 times if fit was not good
 	int iter=0;
 	while (flags.isBad() && iter<10) {
 	  if (_diagLevel>0) std::cout << "Refitting channel " << irou << ", iteration "<< iter << std::endl;
     
-	  sipmLangausParams[irou] = fitLangaus(hSiPM[irou],1,iter,sipmLangausParams[irou][2],sipmLangausParams[irou][4]);
-	  flags.fitQuality(sipmLangausParams[irou][2],sipmLangausParams[irou][4],hWidth,hSigma);
+	  sipmParams[irou] = fitLangaus(hSiPM[irou],1,iter,sipmParams[irou].width,sipmParams[irou].sigma);
+	  flags.fitQuality(sipmParams[irou].width,sipmParams[irou].sigma,hWidth,hSigma);
 	  iter++;
 	}
-
-	MPV->Fill(sipmLangausParams[irou][0]);
+	if (sipmParams[irou].mpv>0) MPV->Fill(sipmParams[irou].mpv);
       }
     }
 
-    if (!_useMeV) MPV->Fit("gaus","Q");
-    else          MPV->Fit("gaus","Q");
-
+    MPV->Fit("gaus","Q");
+    MPVv->Fit("gaus","Q");
+    MPVd->Fit("gaus","Q");
+    MPVg->Fit("gaus","Q");
 
     // Write output file
     _outputfile << std::left 
@@ -453,24 +483,31 @@ namespace mu2e{
 		<< std::endl;
     
     for (int irou=0; irou<nROchan; irou++){
-      _outputfile << std::left << std::setw(6)  << irou;
+      const auto& res = sipmParams[irou];
 
-      for (int kk=0; kk<(int)sipmLangausParams[irou].size(); kk++) {
-	if (kk<7) _outputfile << std::setw(10) << std::fixed << std::setprecision(2) << sipmLangausParams[irou][kk];
-        else _outputfile << std::setw(8) << sipmLangausParams[irou][kk];
-      }
-      _outputfile << std::endl;
-
-      //if (sipmLangausParams[irou][0]<400 && sipmLangausParams[irou][0]>0) std::cout << "Low channel: ID " << irou << ", MPV " << sipmLangausParams[irou][0] << std::endl;
-      //else if (sipmLangausParams[irou][0]>700) std::cout << "High channel: ID " << irou << ", MPV " << sipmLangausParams[irou][0] << std::endl;
-      
+      _outputfile << std::left << std::setw(6) << irou
+                  << std::fixed << std::setprecision(2)
+		  << std::setw(10) << res.mpv
+		  << std::setw(10) << res.mpvErr
+		  << std::setw(10) << res.width
+		  << std::setw(10) << res.widthErr
+		  << std::setw(10) << res.sigma
+		  << std::setw(10) << res.sigmaErr
+		  << std::setw(10) << res.chi2
+		  << std::setw(8)  << res.ndf
+		  << std::setw(8)  << res.nev 
+		  << std::endl;
     }
+    
     _outputfile.close();
-
     delete mygaus;
+    delete myPoly;
+    delete mylang;
+    
   }//end endjob
 
-  double CaloCosmicEnecalib::langaufun(double *x, double *par) {
+  
+  double CaloCosmicEnecalib::langaus(double *x, double *par) {
     //Fit parameters:
     //par[0]=Width (scale) parameter of Landau density
     //par[1]=Most Probable (MP, location) parameter of Landau density
@@ -576,23 +613,20 @@ namespace mu2e{
   }
 
   else{
-    if(diag==1){
-      std::cout << "can't find a path" << std::endl;
-    }
+    if(diag==1) std::cout << "can't find a path" << std::endl;
   }
-  if(diag==1){
-    std::cout << "path is: " << path << std::endl;
-  }
+    
+  if(diag==1) std::cout << "path is: " << path << std::endl;
   
   return path;
   }//end findpath
 
-  std::vector<float> CaloCosmicEnecalib::fitLangaus(TH1F* hist, int refit, int iter, float oldwidth, float oldsigma) {
+  CaloCosmicEnecalib::LangausResult CaloCosmicEnecalib::fitLangaus(TH1F* hist, int refit, int iter, float oldwidth, float oldsigma) {
 
-    std::vector<float> params(9, 0.);
+    LangausResult res;
 
     //discarding histograms with not enough entries
-    if (hist->GetEntries()<10) return params;
+    if (hist->GetEntries()<10) return res;
 
     //set initial parameters
     int   binMax = hist->GetMaximumBin();
@@ -663,17 +697,17 @@ namespace mu2e{
       std::cout<< "fit complete "<< std::endl;
     }
 
-    params[0] = mylang->GetParameter(1);
-    params[1] = mylang->GetParError(1);
-    params[2] = mylang->GetParameter(0);
-    params[3] = mylang->GetParError(0);
-    params[4] = mylang->GetParameter(3);
-    params[5] = mylang->GetParError(3);
-    params[6] = mylang->GetChisquare();
-    params[7] = mylang->GetNDF();
-    params[8] = norm;
+    res.mpv      = mylang->GetParameter(1);
+    res.mpvErr   = mylang->GetParError(1);
+    res.width    = mylang->GetParameter(0);
+    res.widthErr = mylang->GetParError(0);
+    res.sigma    = mylang->GetParameter(3);
+    res.sigmaErr = mylang->GetParError(3);
+    res.chi2     = mylang->GetChisquare();
+    res.ndf      = mylang->GetNDF();
+    res.nev      = norm;
 
-    return params;
+    return res;
   }
   
 
