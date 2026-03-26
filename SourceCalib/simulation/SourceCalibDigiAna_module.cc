@@ -140,12 +140,12 @@ namespace mu2e {
       art::TFileDirectory sipmdir = tfs->mkdir( "sipm_ADC" );
       for(int i = 0; i < ncrystals ; i++){
         TString histname = "cry_"+std::to_string(i);
-        list_of_crys_hists[i] = crydir.make<TH1F>( histname , histname, 150, 0.0, endBin_);
+        list_of_crys_hists[i] = crydir.make<TH1F>( histname , histname, 120, 0.0, endBin_);
         list_of_crys_hists_truth[i] = crytruedir.make<TH1F>( histname , histname, 150, 0.0, 10.0); //assume MeV
       }
       for(int i = 0; i < nsipms ; i++){
         TString histname = "sipm_"+std::to_string(i);
-        list_of_sipm_hists[i] = sipmdir.make<TH1F>( histname , histname, 150, 0.0, endBin_);
+        list_of_sipm_hists[i] = sipmdir.make<TH1F>( histname , histname, 120, 0.0, endBin_);
       }
       //badfile.open("badcrys.csv");
       //goodfile.open("goodcrys.csv");

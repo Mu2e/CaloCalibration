@@ -3,13 +3,16 @@
 #include "CaloCalibration/SourceCalib/inc/SourcePlotter.hh"
 #include "CaloCalibration/SourceCalib/inc/2dcontour.hh"
 #include "CaloCalibration/SourceCalib/inc/mcinfo.hh"// extracting mc information -- need to be removed for real data
+//#include "CaloCalibration/SourceCalib/inc/validationfitter.hh"
+
 #include <chrono>
 using namespace std::chrono;
 
 using namespace CaloSourceCalib;
 
 //method with one big root file
-TString filepath_disk0 = "/exp/mu2e/app/home/mu2epro/sourcecalib/full_containment/newsinglephoton.root";
+TString filepath_disk0 = "/exp/mu2e/app/users/hjafree/SourceFitDir/nonoise_smallsample.root";
+//"/exp/mu2e/app/home/mu2epro/sourcecalib/full_containment/newsinglephoton.root";//300k sample
 //"/exp/mu2e/app/home/mu2epro/sourcecalib/full_containment/newsinglephoton.root";
 //"/exp/mu2e/app/home/mu2epro/sourcecalib/full_containment/reconew.root";
 //"/exp/mu2e/app/home/mu2epro/sourcecalib/disk0/SourceAna1e9.root";
@@ -66,7 +69,17 @@ std::pair<double, double> ComputeHistogramStats(TH1F* hist) {
 /*main function allows a loop over all crystals or a choice of a single crystal*/
 int main(int argc, char* argv[]) {
     std::cout << "========== Welcome to the Mu2e Source Calibration Analysis ==========" << std::endl;
-
+    //Define allowed params for contour
+    std::vector<TString> allowedParams = {
+    	"peak", "width" , "alpha", "n_full" , "n_1st", "n_2nd" 
+    }; //, "n_bkg", "beta" , "const"};
+    auto isInvalid = [&](TString input){
+    	input.ToLower();
+    	for (const auto& p : allowedParams) {
+    		if (input == p) return false;
+    	}
+    	return true;
+    };
     // 1. Safety Check: Ensure we have at least the 4 mandatory arguments
     // Usage: ./exe <start> <end> <alg> <disk> [optional flags...]
     if (argc < 5) {
@@ -84,6 +97,8 @@ int main(int argc, char* argv[]) {
     // 3. Initialize Flags
     bool doOverlay = false;
     bool contour   = false;
+    TString xSelect = "Peak"; //default x axis
+    TString ySelect = "Width"; //default y axis
     bool isMC      = false;
 
     // 4. Parse Optional Flags
@@ -93,9 +108,29 @@ int main(int argc, char* argv[]) {
         arg.ToLower(); // Optional: makes it case-insensitive
         
         if (arg.Contains("overlay")) doOverlay = true;
-        if (arg.Contains("contour")) contour   = true;
-        if (arg.Contains("mc"))      isMC      = true;
+        if (arg.Contains("contour")){
+        	contour   = true;
+        	//check if x and y variables were plotted
+        	if (i+2 < argc){
+        		xSelect = argv[i+1];
+        		ySelect = argv[i+2];
+        			//make case insensitive
+        			if (isInvalid(xSelect)||isInvalid(ySelect)){
+        				std::cerr<<"\n[ERROR] Invalid contour variables "<<std::endl;
+        				std::cerr << "Allowed options are: \n";
+        				for (auto &p : allowedParams) std::cerr<< " - " << p << "\n";
+        				std::cerr <<std::endl;
+        				return 1;
+        			}
+        		i += 2;
+        	} else {
+        		std::cerr<< "[ERROR] contour flag requires two variables (eg Peak, Width, Alpha, N_Full, N_1st, N_2nd)"<<std::endl;
+        		}
+        }
+        
+        if (arg.Contains("mc"))      isMC      = true;   	
     }
+    
 // --------------------------------------------------------
 // MC TRUTH BLOCK
 // --------------------------------------------------------
@@ -166,24 +201,24 @@ if (isMC) {
    
      return 0; 
 }
-
 // --------------------------------------------------------
 // FITTING BLOCK
 // --------------------------------------------------------
   TFile *table = new TFile("arXivTable.root", "RECREATE");
-  Int_t nEvents;
-  Int_t convergencestatus;
-  Float_t fpeak, peakerrorhigh,peakerrorlo,fsigma, chiSq, fstpeak,
-  scdpeak,fcbalphaparam,fcbndegparam,comCnstparam,
-  combetaparam,frFullparam,frFrstparam,frScndparam,crystalNoparam,frBKGparam,
-  pval,h_means,h_stddevs,unreducedchi2,fval,mparam,etaparam,widtherrorhigh,widtherrorlo,errbarhigh, errbarlo,
-  evtfullerrorhigh,evtfullerrorlo,eventsFull,Esparam;//frBKGparam
+  Int_t nEvents, convergencestatus;
+  Float_t fpeak, peakerrorhigh,peakerrorlo,redpeak,fsigma, chiSq, fstpeak,
+  scdpeak,fcbalphaparam,fcbndegparam,comCnstparam,  combetaparam,frFullparam,frFrstparam,
+  frScndparam,crystalNoparam,frBKGparam,frcomptonparam1,frcomptonparam2,frcomptonparam3,
+  pval,h_means,h_stddevs,unreducedchi2,fval,mparam,etaparam,widtherrorhigh,
+  widtherrorlo,errbarhigh,errbarlo,evtfullerrorhigh,evtfullerrorlo,
+  Esparam;// frcomptonparam1,frcomptonparam2,frcomptonparam3,
   Int_t ndof;
   TTree *covar = new TTree("covar","Covariance Plot");
   covar->Branch("nEvents", &nEvents,"nEvents/I");
   covar->Branch("Peak", &fpeak,"fpeak/F");
   covar->Branch("PeakErrHigh", &peakerrorhigh,"peakerrorhigh/F");
   covar->Branch("PeakErrLo", &peakerrorlo,"peakerrorlo/F");
+  covar->Branch("CompositePeak", &redpeak,"redpeak/F");
   covar->Branch("Width", &fsigma,"fsigma/F");
   covar->Branch("WidthErrHigh", &widtherrorhigh,"widtherrorhigh/F");
   covar->Branch("WidthErrLo", &widtherrorlo,"widtherrorlo/F");
@@ -198,6 +233,10 @@ if (isMC) {
   covar->Branch("frFrst", &frFrstparam,"frFrstparam/F");
   covar->Branch("frScnd", &frScndparam,"frScndparam/F");
   covar->Branch("frBKG", &frBKGparam,"frBKGparam/F");
+  //covar->Branch("frCompton", &frcomptonparam,"frComptonparam/F");
+  covar->Branch("frcompton1", &frcomptonparam1,"frcomptonparam1/F");
+  covar->Branch("frcompton2", &frcomptonparam2,"frcomptonparam2/F");
+  covar->Branch("frcompton3", &frcomptonparam3,"frcomptonparam3/F");
   covar->Branch("crystalNo", &crystalNoparam,"crystalNoparam/F");
   covar->Branch("convgstatus", &convergencestatus,"convergencestatus/I");
   covar->Branch("pval", &pval,"pval/F");
@@ -208,11 +247,10 @@ if (isMC) {
   covar->Branch("m", &mparam,"mparam/F");
   covar->Branch("eta", &etaparam,"etaparam/F");
   covar->Branch("ndof", &ndof,"ndof/I");
-  covar->Branch("errbarhigh", &errbarhigh,"errbarhigh/I");
-  covar->Branch("errbarlo", &errbarlo,"errbarlo/I");
-  covar->Branch("evtfullerrorhigh", &evtfullerrorhigh,"evtfullerrorhigh/I");
-  covar->Branch("evtfullerrorlo", &evtfullerrorlo,"evtfullerrorlo/I");
-  covar->Branch("eventsFull", &eventsFull,"eventsFull/I");
+  covar->Branch("errbarhigh", &errbarhigh,"errbarhigh/F");
+  covar->Branch("errbarlo", &errbarlo,"errbarlo/F");
+  covar->Branch("evtfullerrorhigh", &evtfullerrorhigh,"evtfullerrorhigh/F");
+  covar->Branch("evtfullerrorlo", &evtfullerrorlo,"evtfullerrorlo/F");
   covar->Branch("Esparam", &Esparam,"Esparam/I");
 
   auto start_bin = high_resolution_clock::now();
@@ -222,12 +260,14 @@ if (isMC) {
 		h_means   = mean;
 		h_stddevs = stddev;
     SourceFitter *fit = new SourceFitter();
-    fit->FitCrystal(hSum, alg, cryNum, covar, nEvents,convergencestatus, fpeak, peakerrorhigh,peakerrorlo, 
+    fit->FitCrystal(hSum, alg, cryNum, covar, nEvents,convergencestatus, fpeak, peakerrorhigh,peakerrorlo, redpeak,
                     fsigma,widtherrorhigh,widtherrorlo, chiSq, fstpeak, scdpeak,
                     fcbalphaparam, fcbndegparam, comCnstparam, combetaparam,
                     frFullparam, frFrstparam, frScndparam, crystalNoparam, frBKGparam,
-                    pval,h_means,h_stddevs,unreducedchi2,fval,mparam,etaparam,ndof,contour,errbarhigh, errbarlo,
-                    evtfullerrorhigh,evtfullerrorlo,eventsFull,Esparam );
+                    frcomptonparam1,frcomptonparam2,frcomptonparam3,pval,h_means,
+                    h_stddevs,unreducedchi2,
+                    fval,mparam,etaparam,ndof,contour,xSelect,ySelect,errbarhigh,
+                    errbarlo, evtfullerrorhigh,evtfullerrorlo,Esparam );//frcomptonparam1,frcomptonparam2,frcomptonparam3
     file->Close();    
     delete file;     
     delete fit;      

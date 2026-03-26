@@ -12,16 +12,7 @@
 // =====================================================================
 
 #include "CaloCalibration/SourceCalib/inc/2dcontour.hh"
-#include "RooChi2Var.h"
-#include "RooNLLVar.h"
-#include "RooMinimizer.h"
-#include "TH2F.h"
-#include "TCanvas.h"
-#include "TMarker.h"
-#include "TLine.h"
-#include "TLegend.h"
-#include "TStyle.h"
-#include <iostream>
+
 
 using namespace RooFit;
 
@@ -43,10 +34,10 @@ void CaloSourceCalib::MakeContourPlot(
     RooRealVar& varAlpha,
     RooRealVar& varNFull,
     RooRealVar& varN1st,
-    RooRealVar& varN2nd,
-    RooRealVar& varNBkg,
-    RooRealVar& varConst,
-    RooRealVar& varBeta
+    RooRealVar& varN2nd
+    //RooRealVar& varNBkg,
+    //RooRealVar& varConst,
+    //RooRealVar& varBeta
 ) {
     // ======================================================
     // 1. Internal Switch Board
@@ -61,27 +52,29 @@ void CaloSourceCalib::MakeContourPlot(
 
     // Helper lambda to select variables based on name
     auto selectParam = [&](TString name, RooRealVar*& ptr, double& val, double& eLo, double& eHi) {
+    	TString lowerName = name;
+    	lowerName.ToLower();
         
         // --- CASE A: Special Manual Variables ---
         // These use the high-precision calculated values passed from the Fitter
-        if (name == "Peak") {
+        if (lowerName == "peak") {
             ptr = &varPeak; val = valPeak; eLo = errLoPeak; eHi = errHiPeak;
             return;
         }
-        if (name == "Width") {
+        if (lowerName == "width") {
             ptr = &varWidth; val = valWidth; eLo = errLoWidth; eHi = errHiWidth;
             return;
         }
 
         // --- CASE B: Standard RooFit Variables ---
         // These map directly to the RooRealVar objects
-        if      (name == "Alpha")  ptr = &varAlpha;
-        else if (name == "N_Full") ptr = &varNFull;
-        else if (name == "N_1st")  ptr = &varN1st;
-        else if (name == "N_2nd")  ptr = &varN2nd;
-        else if (name == "N_Bkg")  ptr = &varNBkg;
-        else if (name == "Const")  ptr = &varConst;
-        else if (name == "Beta")   ptr = &varBeta;
+        if      (lowerName == "n_Full") ptr = &varNFull;
+        else if (lowerName == "alpha")  ptr = &varAlpha;
+        else if (lowerName == "n_1st")  ptr = &varN1st;
+        else if (lowerName == "n_2nd")  ptr = &varN2nd;
+        //else if (lowerName == "N_Bkg")  ptr = &varNBkg;
+        //else if (lowerName == "Const")  ptr = &varConst;
+        //else if (lowerName == "Beta")   ptr = &varBeta;
 
         // Extract values automatically for Case B
         if (ptr) {
@@ -128,7 +121,7 @@ void CaloSourceCalib::MakeContourPlot(
         contourLevel = 0.5;   // Delta NLL = 0.5 corresponds to 1 sigma
         zTitle = "#Delta NLL";
     } else {
-        fitFunc = new RooChi2Var("chi2", "chi2", fitFun, chSpec, DataError(RooAbsData::SumW2), Range(40, 115.2));
+        fitFunc = fitFun.createChi2(chSpec,RooFit::DataError(RooAbsData::SumW2),RooFit::Range(40, 115.2));
         contourLevel = 1.0;   // Delta Chi2 = 1.0 corresponds to 1 sigma
         zTitle = "#Delta #chi^{2}";
     }
@@ -143,7 +136,12 @@ void CaloSourceCalib::MakeContourPlot(
     // We determine the scan window by taking the best fit value +/- 4 sigma.
     
     int nX = 50, nY = 50;
-    double rangeScale = 4.0; 
+    double rangeScale = 4.0;
+    TString xCheck = xName; xCheck.ToLower();
+    TString yCheck = yName; yCheck.ToLower();
+    if (xName.Contains("n_") || yName.Contains("n_")){
+     rangeScale = 5000.0; 
+    } 
 
     // Safety fallback: If errors are zero (fixed param), default to 10% of value
     double safeErrX_lo = (fabs(errXLo) > 1e-6) ? fabs(errXLo) : 0.1 * fabs(valX);
@@ -169,7 +167,7 @@ void CaloSourceCalib::MakeContourPlot(
     // 4. The Grid Loop
     // ======================================================
     // Perform the actual 2D scan. We fix X and Y, then minimize everything else.
-    
+
     double minVal = 1e30;
     
     for (int ix = 0; ix < nX; ++ix) {

@@ -5,16 +5,18 @@
 #include "RooAbsPdf.h"
 #include "RooDataHist.h"
 #include "RooRealVar.h"
+//#include "RooNLLVar.h"
 #include "TH2F.h"
 #include "TCanvas.h"
 #include "TLine.h"
 #include "TMarker.h"
 #include "TLegend.h"
-#include "RooChi2Var.h"
+//#include "RooChi2Var.h"
 #include "RooMinimizer.h"
 #include "TStyle.h"
 #include "TString.h"
 #include <iostream>
+
 namespace CaloSourceCalib {
 
     void MakeContourPlot(
@@ -32,10 +34,10 @@ namespace CaloSourceCalib {
         RooRealVar& varAlpha,
         RooRealVar& varNFull,
         RooRealVar& varN1st,
-        RooRealVar& varN2nd,
-        RooRealVar& varNBkg,
-        RooRealVar& varConst,
-        RooRealVar& varBeta
+        RooRealVar& varN2nd
+        //RooRealVar& varNBkg,
+        //RooRealVar& varConst,
+        //RooRealVar& varBeta
     );
 
 }

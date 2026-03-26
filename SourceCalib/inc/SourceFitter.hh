@@ -48,7 +48,7 @@
 #include "RooAbsReal.h"
 #include "RooFormulaVar.h"
 #include "RooAddition.h"
-#include "RooChi2Var.h" 
+//#include "RooChi2Var.h" 
 #include "RooMsgService.h"
 #include "Math/MinimizerOptions.h"
 #include "RooAbsPdf.h"
@@ -68,7 +68,8 @@ namespace CaloSourceCalib{
         //SourceFitter& operator = (const SourceFitter &);
         virtual ~SourceFitter() = default;
         //#ifndef __CINT__
-        void FitCrystal(TH1F* histogram, TString opt, int cryNum, TTree* covar, Int_t &nEvents,Int_t &convergencestatus, Float_t &fpeak, Float_t &peakerrorhigh,Float_t &peakerrorlo, Float_t &fsigma,Float_t &widtherrorhigh,Float_t &widtherrorlo, Float_t &chiSq, Float_t &fstpeak, Float_t &scdpeak,Float_t &fcbalphaparam,Float_t &fcbndegparam,Float_t &comCnstparam, Float_t &combetaparam, Float_t &frFullparam, Float_t &frFrstparam,Float_t &frScndparam,Float_t &crystalNoparam,Float_t &frBKGparam, Float_t &pval,Float_t &h_means,Float_t &h_stddevs,Float_t &unreducedchi2,Float_t &fval,Float_t &mparam,Float_t &etaparam,Int_t &ndof,bool contour,Float_t &errbarhigh, Float_t &errbarlo,Float_t &evtfullerrorhigh,Float_t &evtfullerrorlo,Float_t &eventsFull,Float_t &Esparam);
+        void FitCrystal(TH1F* histogram, TString opt, int cryNum, TTree* covar, Int_t &nEvents,Int_t &convergencestatus, Float_t &fpeak, Float_t &peakerrorhigh,Float_t &peakerrorlo,Float_t &redpeak, Float_t &fsigma,Float_t &widtherrorhigh,Float_t &widtherrorlo, Float_t &chiSq, Float_t &fstpeak, Float_t &scdpeak,Float_t &fcbalphaparam,Float_t &fcbndegparam,Float_t &comCnstparam, Float_t &combetaparam, Float_t &frFullparam, Float_t &frFrstparam,Float_t &frScndparam,Float_t &crystalNoparam,Float_t &frBKGparam,Float_t &fr_comptonparam1,Float_t &fr_comptonparam2,Float_t &fr_comptonparam3, Float_t &pval,Float_t &h_means,Float_t &h_stddevs,Float_t &unreducedchi2,Float_t &fval,Float_t &mparam,Float_t &etaparam,Int_t &ndof,bool contour,TString xVar, TString yVar,Float_t &errbarhigh, Float_t &errbarlo,Float_t &evtfullerrorhigh,Float_t &evtfullerrorlo,Float_t &Esparam);
+        //Float_t &fr_comptonparam1,Float_t &fr_comptonparam2,Float_t &fr_comptonparam3
         void MCFitCrystal(int crystalNo, TString opt);
         void randomize_all_parameters();
         //counter for crystals that need a refit
