@@ -143,8 +143,8 @@ namespace mu2e{
     CutNCryHit(config().CutNCryHit()),
     CutEnergyDep(config().CutEnergyDep()),
     CutChi2Norm(config().CutChi2Norm()),
-    _caloClusterToken(consumes<CaloClusterCollection>(config().caloClusterTag())),
-    _caloHitToken(consumes<CaloHitCollection>(config().caloHitTag()))
+    _caloClusterToken(consumes<CaloClusterCollection>(config().CaloClusterTag())),
+    _caloHitToken(consumes<CaloHitCollection>(config().CaloHitTag()))
   {}
 
   void CaloCosmicEnergy::beginJob(){
