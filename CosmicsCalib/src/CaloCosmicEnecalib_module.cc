@@ -61,6 +61,7 @@ namespace mu2e{
       fhicl::Atom<bool>          useMeV{Name("useMeV"),                 Comment("Set to true for data in MeV, false for ADC"), false};
       fhicl::Atom<int>           CutNCryHit{Name("CutNCryHit"),         Comment("Minimum number of crystals in the event"), 3};
       fhicl::Atom<float>         CutEnergyDep{Name("CutEnergyDep"),     Comment("Minimum energy of the hit"), 250.}; //ADC
+      fhicl::Atom<float>         LYSOcut{Name("LYSOcut"),               Comment("Minimum energy of the hit for LYSO"), 500.}; //ADC
       fhicl::Atom<float>         CutChi2Norm{Name("CutChi2Norm"),       Comment("Maximum chi2 threshold for linear fits"), 2.5};
       fhicl::Atom<art::InputTag> CaloClusterTag{Name("CaloClusterTag"), Comment("Tag for Calorimeter cluster collection"), art::InputTag()};
       fhicl::Atom<art::InputTag> CaloHitTag{Name("CaloHitTag"),         Comment("Tag for Calorimeter hit collection"), art::InputTag()};
@@ -99,6 +100,7 @@ namespace mu2e{
     bool                                       _useMeV;
     int                                        CutNCryHit;   // >
     float                                      CutEnergyDep; // >
+    float                                      LYSOcut; // >
     float                                      CutChi2Norm;  // <
     art::ProductToken<CaloClusterCollection>   _caloClusterToken;
     art::ProductToken<CaloHitCollection>       _caloHitToken;
@@ -173,6 +175,7 @@ namespace mu2e{
     _useMeV(config().useMeV()),
     CutNCryHit(config().CutNCryHit()),
     CutEnergyDep(config().CutEnergyDep()),
+    LYSOcut(config().LYSOcut()),
     CutChi2Norm(config().CutChi2Norm()),
     _caloClusterToken(consumes<CaloClusterCollection>(config().CaloClusterTag())),
     _caloHitToken(consumes<CaloHitCollection>(config().CaloHitTag())),
@@ -292,7 +295,10 @@ namespace mu2e{
 	    
 
 	  //cut on energy deposition
-	  if (VmaxHit > CutEnergyDep && sipmID>=0 && sipmID<nROchan) {
+	  float enecut = 9999.;
+	  if (cryID==610 || cryID==637 || cryID==609 || cryID==582) enecut = LYSOcut; 
+	  else enecut = CutEnergyDep;
+	  if (VmaxHit > enecut && sipmID>=0 && sipmID<nROchan) {
 	    float PosX = cal.geomUtil().mu2eToDiskFF(diskID, cal.crystal(cryID).position()).getX();
 	    float PosY = cal.geomUtil().mu2eToDiskFF(diskID, cal.crystal(cryID).position()).getY();
 
