@@ -160,7 +160,7 @@ namespace mu2e{
     GeomHandle<Calorimeter> ch;
     cal    = ch.get();
     cryDim = cal->caloInfo().getDouble("crystalXYLength") +  2.*cal->caloInfo().getDouble("wrapperThickness");
-    MaxDxVertical = cryDim; 
+    MaxDxVertical = cryDim*1.1; 
   }
 
   void CaloCosmicEnergy::beginJob(){
