@@ -67,6 +67,7 @@ namespace mu2e{
     explicit CaloCosmicEnergy(const art::EDAnalyzer::Table<Config>& config);
     virtual ~CaloCosmicEnergy(){};
     void beginJob() override;
+    void beginRun(art::Run const& run) override;
 
     void analyze(art::Event const& event) override;
 
@@ -93,8 +94,9 @@ namespace mu2e{
     static constexpr int nCrystals = CaloConst::_nCrystalPerDisk;
     static constexpr int nDisks = CaloConst::_nDisk;
     static constexpr int nROchan = nDisks*nCrystals*nSiPMs;
-    static constexpr float cryDim = 34.3; // Total crystal dimension
-    static constexpr float MaxDxVertical = 34.; // Max Dx value for vertical tracks
+    const Calorimeter* cal; // For calorimeter geometry
+    float  cryDim;          // Total crystal dimension
+    float  MaxDxVertical;   // Max Dx value for vertical tracks
     static constexpr int Ebin = 11; //number of 5 MeV ranges for the sigma asymmetry variable
 
     //fcl parameters
@@ -147,6 +149,20 @@ namespace mu2e{
     _caloHitToken(consumes<CaloHitCollection>(config().CaloHitTag()))
   {}
 
+  void CaloCosmicEnergy::beginRun(art::Run const& run){
+    
+    art::ServiceHandle<GeometryService> geom;
+    if ( !geom->hasElement<Calorimeter>() ){
+      throw cet::exception("NO-CALO-GEOM")
+         << "CaloEnergy: Calorimeter geometry not found";
+    }
+
+    GeomHandle<Calorimeter> ch;
+    cal    = ch.get();
+    cryDim = cal->caloInfo().getDouble("crystalXYLength") +  2.*cal->caloInfo().getDouble("wrapperThickness");
+    MaxDxVertical = cryDim; 
+  }
+
   void CaloCosmicEnergy::beginJob(){
     if (_diagLevel > 0 ) std::cout<< "CaloCosmicEnergy: Entering beginJob" << std::endl;
 
@@ -175,14 +191,6 @@ namespace mu2e{
 
 
   void CaloCosmicEnergy::analyze(art::Event const& event){
-
-    art::ServiceHandle<GeometryService> geom;
-    if ( !geom->hasElement<Calorimeter>() ){
-      throw cet::exception("NO-CALO-GEOM")
-         << "CaloEnergy: Calorimeter geometry not found";
-    }
-
-    const Calorimeter& cal = *(GeomHandle<Calorimeter>());
 
     //art::Handle<CaloClusterCollection> caloClustersHandle;
     //event.getByLabel(_caloClusterTag, caloClustersHandle);
@@ -220,8 +228,8 @@ namespace mu2e{
         //cut on energy of crystal in cluster
         if(caloClusters[iClu].caloHitsPtrVector()[iCry].get()->energyDep() > CutEnergyDep){
           //counter n crystal above 10 MeV
-          PosX[ncry] = cal.geomUtil().mu2eToDiskFF(caloClusters[iClu].diskID(), cal.crystal(caloClusters[iClu].caloHitsPtrVector()[iCry].get()->crystalID()).position()).getX();
-          PosY[ncry] = cal.geomUtil().mu2eToDiskFF(caloClusters[iClu].diskID(), cal.crystal(caloClusters[iClu].caloHitsPtrVector()[iCry].get()->crystalID()).position()).getY();
+          PosX[ncry] = cal->geomUtil().mu2eToDiskFF(caloClusters[iClu].diskID(), cal->crystal(caloClusters[iClu].caloHitsPtrVector()[iCry].get()->crystalID()).position()).getX();
+          PosY[ncry] = cal->geomUtil().mu2eToDiskFF(caloClusters[iClu].diskID(), cal->crystal(caloClusters[iClu].caloHitsPtrVector()[iCry].get()->crystalID()).position()).getY();
           IDs[ncry] = caloClusters[iClu].caloHitsPtrVector()[iCry].get()->crystalID();
           whichHit[ncry] = iCry;
           ncry++;
@@ -677,7 +685,7 @@ namespace mu2e{
     float yleft=0;
 
     int diag =0;
-    float halfcrysize = 17.15;
+    float halfcrysize = cryDim/2.;
 
     if(m != 0){
       xup = ((y+halfcrysize)- q)/m;
