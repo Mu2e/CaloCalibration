@@ -1,6 +1,7 @@
 #include "CaloCalibration/SourceCalib/inc/SourceFitter.hh"
 #include "CaloCalibration/SourceCalib/inc/2dcontour.hh"
 #include "RooFFTConvPdf.h"
+#include "RooExponential.h"
 using namespace TMath;
 using namespace RooFit;
 using namespace CaloSourceCalib;
@@ -17,16 +18,22 @@ std::vector<int> SourceFitter::crystalsSecondFitConverged;
 std::vector<int> SourceFitter::crystalsThirdFitConverged;
 std::map<int,int> SourceFitter::thirdFitRetryCount;
 std::vector<std::pair<int,int>> SourceFitter::convFailures; //vector for crystal number of failing status crystals
+int SourceFitter::nAsymErrors = 0;
+std::vector<int> SourceFitter::crystalsWithAsymErrors;
+int SourceFitter::badchi2 = 0;
+std::vector<int> SourceFitter::crystalswithbadchi2;
+int SourceFitter::nHesseFallbacks = 0;
+std::vector<int> SourceFitter::crystalsHesseFallback;
 struct CovarAccumulator {//calculated sum of previous crystals to take avg values to use for second fit
     int count = 0;
-    double sumPeak = 0;
-    double sumWidth = 0;
-    double sumAlpha = 0;
-    //double sumBeta = 0;
-    double sumEvtFull = 0;
-    double sumEvtFst = 0;
-    double sumEvtScd = 0;
-    //double sumEvtBkg = 0;
+    double sumPeak = 0.0;
+    double sumWidth = 0.0;
+    double sumAlpha = 0.0;
+    double sumBeta = 0.0;
+    double sumEvtFull = 0.0;
+    double sumEvtFst = 0.0;
+    double sumEvtScd = 0.0;
+    double sumEvtBkg = 0.0;
     //double sumEvtCompton1 = 0;
     //double sumEvtCompton2 = 0;
     //double sumEvtCompton3 = 0;
@@ -46,9 +53,18 @@ static bool suppress_messages = [](){
 
     return true;
 }();
-void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *covar, Int_t &nEvents,Int_t &convergencestatus, Float_t &fpeak, Float_t &peakerrorhigh,Float_t &peakerrorlo,Float_t &redpeak, Float_t &fsigma,Float_t &widtherrorhigh,Float_t &widtherrorlo, Float_t &chiSq, Float_t &fstpeak, Float_t &scdpeak,Float_t &fcbalphaparam,Float_t &fcbndegparam,Float_t &comCnstparam, Float_t &combetaparam, Float_t &fr_fullparam, Float_t &fr_frstparam,Float_t &fr_scndparam,Float_t &crystalNoparam,Float_t &fr_bkgparam,Float_t &fr_comptonparam1,Float_t &fr_comptonparam2,Float_t &fr_comptonparam3, Float_t &pval,Float_t &h_means,Float_t &h_stddevs, Float_t &unreducedchi2,Float_t &fval,Float_t &mparam,Float_t &etaparam,Int_t &ndof,bool contour,TString xVar, TString yVar, Float_t &errbarhigh, Float_t &errbarlo,Float_t &evtfullerrorhigh,Float_t &evtfullerrorlo,Float_t &Esparam ){//Float_t &fr_comptonparam Float_t &fr_comptonparam1,Float_t &fr_comptonparam2,Float_t &fr_comptonparam3
+void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *covar, Int_t &nEvents,Int_t &convergencestatus, Float_t &fpeak, Float_t &peakerrorhigh,Float_t &peakerrorlo,Float_t &redpeak, Float_t &fsigma,Float_t &widtherrorhigh,Float_t &widtherrorlo, Float_t &chiSq, Float_t &fstpeak, Float_t &scdpeak,Float_t &fcbalphaparam,Float_t &fcbndegparam,Float_t &comCnstparam, Float_t &combetaparam, Float_t &fr_fullparam, Float_t &fr_frstparam,Float_t &fr_scndparam,Float_t &crystalNoparam,Float_t &fr_bkgparam,Float_t &fr_comptonparam1,Float_t &fr_comptonparam2,Float_t &fr_comptonparam3, Float_t &pval,Float_t &h_means,Float_t &h_stddevs, Float_t &unreducedchi2,Float_t &fval,Float_t &mparam,Float_t &etaparam,Int_t &ndof,bool contour,TString xVar, TString yVar, Float_t &errbarhigh, Float_t &errbarlo,Float_t &evtfullerrorhigh,Float_t &evtfullerrorlo,Float_t &Esparam, bool islyso ){//Float_t &fr_comptonparam Float_t &fr_comptonparam1,Float_t &fr_comptonparam2,Float_t &fr_comptonparam3
+convergencestatus = -1;  // Force "Unknown/Fail" state
+bool asymSuccess = false;     // Reset the "Gold Standard" flag
+double currentPeak  = 0.0;
+double currentWidth = 0.0;
+  double currentAlpha = 0.0;
+  double currentBeta  = 0.0;
+  double currentEvtFull = 0.0;
+  double currentEvtFst  = 0.0;
+  double currentEvtScd  = 0.0;
+  double currentEvtBkg  = 0.0;
 
-  // set stlye optionsr
   gStyle -> SetOptFit(1111);
   gStyle -> SetOptStat(0);
   gStyle -> SetPadBottomMargin(0.125);
@@ -60,46 +76,82 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   TCanvas *can = new TCanvas("can", "", 100, 100, 600, 600);
   can -> Draw();
   TString cryNum = to_string(crystalNo);
-  TString oName = "mu2e_simu_fitSpec_"+ opt+"_" + cryNum + ".root";
+  TString materialName = islyso ? "LYSO" : "CsI";
+  TString oName = "mu2e_simu_fitSpec_"+ opt+"_"+ materialName+"_" + cryNum + ".root";
   TString title = "SiPM " + cryNum;
-  //Setting initial guess values for all params
-  double initPeak  = 98.08;
-  double initWidth = 0.5;
-  double initAlpha = 0.5;
-  //double initBeta = 1.0;
-  double initEvtFull = 100000;
-  double initEvtFst = 90000;
-  double initEvtScd = 90000;
-  //double initEvtBkg= 50000;
-  //double initEvtCompton1= 5000;
-  //double initEvtCompton2= 5000;
-  //double initEvtCompton3= 5000;
 
-  double currentPeak  = initPeak;
-  double currentWidth = initWidth;
-  double currentAlpha = initAlpha;
-  //double currentBeta  = initBeta;
-  double currentEvtFull = initEvtFull;
-  double currentEvtFst  = initEvtFst;
-  double currentEvtScd  = initEvtScd;
-  //double currentEvtBkg  = initEvtBkg;
- // double currentEvtCompton1  = initEvtCompton1;
+  double initPeak, initWidth,initAlpha,initEvtFull,initEvtFst,initEvtScd,PeakLow,PeakHigh,EvtFullLow, EvtFullHigh,EvtFstLow, EvtFstHigh,EvtScdLow,EvtScdHigh,initBeta,initEvtBkg;//initEvtCompton1,initEvtCompton2,initEvtCompton3;//initBeta,initEvtBkg
+  int low = h_spec->FindBin(40);
+  int high = h_spec->FindBin(120);
+  int integral_evts = h_spec->Integral(low, high);
+  nEvents = h_spec->GetEntries();
+  float reducedchi2 = 0.0;
+  if (islyso){
+   // LYSO SPECIFIC PARAMETERS
+   initPeak  = 98.08; 
+   PeakLow = 91;
+   PeakHigh = 108;
+   initWidth = 0.5;
+   initAlpha = 1.5;
+   initBeta = -0.05;//3.0;
+   initEvtFull = 9000;
+   EvtFullLow= 0.10*integral_evts;
+   EvtFullHigh = integral_evts;
+   initEvtFst = 9000;
+   EvtFstLow= 0.0;
+   EvtFstHigh = integral_evts;
+   initEvtScd = 9000;
+   EvtScdLow= 0.0;
+   EvtScdHigh = integral_evts;
+   initEvtBkg= 5000;
+   //initEvtCompton1= 5000;
+   //initEvtCompton2= 5000;
+   //initEvtCompton3= 5000;
+  }
+  else{
+   // CsI SPECIFIC PARAMETERS
+   initPeak  = 98.08; 
+   PeakLow = 91;
+   PeakHigh = 108;
+   initWidth = 0.5;
+   initAlpha = 1.5;
+   initBeta = -0.05;//3.0;
+   initEvtFull = 9000;
+   EvtFullLow= 0.05*integral_evts;//0.1
+   EvtFullHigh = integral_evts;
+   initEvtFst = 9000;
+   EvtFstLow= 0.0;
+   EvtFstHigh = integral_evts;
+   initEvtScd = 9000;
+   EvtScdLow= 0.0;
+   EvtScdHigh = integral_evts;
+   initEvtBkg= 5000;
+   //initEvtCompton1= 5000;
+   //initEvtCompton2= 5000;
+   //initEvtCompton3= 5000;
+  }
+   currentPeak  = initPeak;
+   currentWidth = initWidth;
+   currentAlpha = initAlpha;
+   currentBeta  = initBeta;
+   currentEvtFull = initEvtFull;
+   currentEvtFst  = initEvtFst;
+   currentEvtScd  = initEvtScd;
+   currentEvtBkg  = initEvtBkg;
+  //double currentEvtCompton1  = initEvtCompton1;
   //double currentEvtCompton2  = initEvtCompton2;
   //double currentEvtCompton3  = initEvtCompton3;
-
   RooRealVar m_e("m_e", "electron energy in MeV", 0.511);
   RooRealVar crysADC("crysADC", "ADC [counts]", 40, 120);
   RooRealVar E0("E0", "energy offset [MeV]", 0.0); //might need to remove if not added
 
-  // Crystal Ball shape params
-  RooRealVar fcbalpha("fcbalpha", "alpha", initAlpha,0.1, 5.0);
+  RooRealVar fcbalpha("fcbalpha", "alpha", initAlpha,0.1, 5.0);//0.01, 3.0);
   RooRealVar fcbndeg("fcbndeg", "n", 5);
   
-  // Peak parameters in mev
-  RooRealVar fullPeak("fullPeak", "Full peak [ADC]", initPeak, 85, 108);
+  RooRealVar fullPeak("fullPeak", "Full peak [ADC]", initPeak, PeakLow, PeakHigh);
   RooFormulaVar eta("eta", "ADC/MeV", "fullPeak/ (6.13-E0)", RooArgSet(fullPeak, E0));
   RooFormulaVar m("m","Mev/ADC", "(6.13-E0)/fullPeak", RooArgSet(fullPeak, E0));
-  RooFormulaVar Es("Es", "calibrated energy [MeV]", "m*crysADC + E0", RooArgSet(m, crysADC,E0));//Linear energy calibration
+  RooFormulaVar Es("Es", "calibrated energy [MeV]", "m*crysADC + E0", RooArgSet(m, crysADC,E0));//
   RooFormulaVar fstEsPeak("fstEsPeak", "First escape", "fullPeak - m_e*eta", RooArgSet(fullPeak, m_e,eta));
   RooFormulaVar scdEsPeak("scdEsPeak", "Second escape", "fullPeak - (2*m_e)*eta", RooArgSet(fullPeak, m_e,eta));
 
@@ -108,129 +160,48 @@ void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *
   RooRealVar fstesc("fstesc", "first peak [MeV]",5.619);
   RooRealVar scdesc("scdesc", "second peak [MeV]",5.108);
  
-  //three peak crystal ball function
+
   RooCBShape fullErg("fullErg", "Full peak", Es, Egamma, fullWidth, fcbalpha, fcbndeg);
   RooCBShape firsErg("firsErg", "Single escape", Es,fstesc, fullWidth, fcbalpha, fcbndeg);
   RooCBShape secdErg("secdErg", "Double escape", Es, scdesc, fullWidth, fcbalpha, fcbndeg);
-
-  // Yield
-  std::cout << "X axis range: " 
-          << h_spec->GetXaxis()->GetXmin() 
-          << " to " 
-          << h_spec->GetXaxis()->GetXmax() 
-          << std::endl;
-  int low = h_spec->FindBin(40);
-  int high = h_spec->FindBin(120);
-  int inegral_evts = h_spec->Integral(low, high);
-  nEvents = h_spec->GetEntries();
-  RooRealVar evtsFull("evtsFull", "Full peak yield", initEvtFull, 0.05*inegral_evts, inegral_evts);
-  RooRealVar evtsFrst("evtsFrst", "First escape yield", initEvtFst, 0, inegral_evts);
-  RooRealVar evtsScnd("evtsScnd", "Second escape yield", initEvtScd, 0, inegral_evts);
-  //RooRealVar evtsbkg("evtsbkg", "Background yield", initEvtBkg, 0, inegral_evts);
+  
+  /*RooRealVar fullWidth_ADC("fullWidth_ADC", "Full width [ADC]",initWidth,2,20);
+  
+  RooFormulaVar fstesc_ADC("fstesc_ADC", "fullPeak - (0.511/m)",RooArgSet(fullPeak,m));
+  RooFormulaVar scdesc_ADC("scdesc_ADC","fullPeak - (2*0.511/m)",RooArgSet(fullPeak,m));
+  RooCBShape fullErg("fullErg", "Full peak", crysADC, fullPeak, fullWidth_ADC, fcbalpha, fcbndeg);
+  RooCBShape firsErg("firsErg", "Single escape", crysADC,fstesc_ADC, fullWidth_ADC, fcbalpha, fcbndeg);
+  RooCBShape secdErg("secdErg", "Double escape", crysADC, scdesc_ADC, fullWidth_ADC, fcbalpha, fcbndeg);*/
+ 
+  RooRealVar evtsFull("evtsFull", "Full peak yield", initEvtFull, EvtFullLow, EvtFullHigh);
+  RooRealVar evtsFrst("evtsFrst", "First escape yield", initEvtFst, EvtFstLow, EvtFstHigh);
+  RooRealVar evtsScnd("evtsScnd", "Second escape yield", initEvtScd,EvtScdLow,EvtScdHigh);
+  RooRealVar evtsbkg("evtsbkg", "Background yield", initEvtBkg, 0, integral_evts);
 
   /*// Background (logistic)
-  RooRealVar comCnst("comCnst", "Background const", 0.0, 10.0);//4.0
-  RooRealVar combeta("combeta", "Background beta", initBeta, 0.001, 20);
+  RooRealVar comCnst("comCnst", "Background const", 4.0);
+  RooRealVar combeta("combeta", "Background beta", initBeta, 1,200);//0.001, 200);
   RooRealVar bkg_fixed("bkg_fixed", "Background offset", 0.0);//, -10.0, 10.0);
   //logistic background pdf
+  //RooGenericPdf comPdf("comPdf", "logistic background",
+  //  "pow(1.0 + exp((Es - comCnst)/combeta), -1.0) + bkg_fixed",
+  //  RooArgSet(Es, comCnst, combeta,bkg_fixed));
   RooGenericPdf comPdf("comPdf", "logistic background",
-    "pow(1.0 + exp((Es - comCnst)/combeta), -1.0) + bkg_fixed",
-    RooArgSet(Es, comCnst, combeta,bkg_fixed));
-    
-  // Add them to the final list
+    "pow(1.0 + exp((crysADC - comCnst)/combeta), -1.0) + bkg_fixed",
+    RooArgSet(crysADC, comCnst, combeta,bkg_fixed));*/
+    //exponential background
+   RooRealVar combeta("combeta", "Background beta", initBeta, -1.0, -0.001);
+   RooExponential comPdf("comPdf", "exponential background", crysADC, combeta);
+ 
   RooAddPdf fitFun("fitFun", "Total Mu2e Calo Model",
         RooArgList(fullErg, firsErg, secdErg,comPdf ), 
-        RooArgList(evtsFull, evtsFrst, evtsScnd,evtsbkg ) );*/
+        RooArgList(evtsFull, evtsFrst, evtsScnd,evtsbkg ) );
         // Add them to the final list
-  RooAddPdf fitFun("fitFun", "Total Mu2e Calo Model",
+  /*RooAddPdf fitFun("fitFun", "Total Mu2e Calo Model",
         RooArgList(fullErg, firsErg, secdErg ), 
-        RooArgList(evtsFull, evtsFrst, evtsScnd ) );
+        RooArgList(evtsFull, evtsFrst, evtsScnd ) );*/
 
-  /*// ---------------------------------------------------------
-  // MULTI-PEAK COMPTON MODEL (Full + 1st Esc + 2nd Esc)
-  // ---------------------------------------------------------
-
-  // 1. SETUP: Grid & Resolution
-  crysADC.setBins(2000, "cache"); // High binning for FFT precision
-  
-  // Convert resolution (MeV) -> ADC.
-  RooFormulaVar sigmaADC("sigmaADC", "Resolution in ADC", "fullWidth/m", RooArgSet(fullWidth, m));
-  RooRealVar zero("zero", "zero", 0);
-  RooGaussian resKernel("resKernel", "Gaussian Resolution Kernel", crysADC, zero, sigmaADC);
-
-  // 2. CONSTANTS & ENERGY LEVELS
-  // We define the three "Source" energies (Gamma, 1st Esc, 2nd Esc)
-  RooRealVar mass_e("mass_e", "Electron Mass", 0.511);
-  mass_e.setConstant(kTRUE);
-
-  // Peak 1: Full Energy (6.13)
-  RooRealVar E_1("E_1", "Full Energy", 6.13); 
-  E_1.setConstant(kTRUE);
-  
-  // Peak 2: 1st Escape (6.13 - 0.511)
-  RooFormulaVar E_2("E_2", "1st Esc Energy", "E_1 - mass_e", RooArgSet(E_1, mass_e));
-  
-  // Peak 3: 2nd Escape (6.13 - 1.022)
-  RooFormulaVar E_3("E_3", "2nd Esc Energy", "E_1 - 2*mass_e", RooArgSet(E_1, mass_e));
-
-
-  // 3. DEFINE THE 3 EDGES (Physics Formula)
-  // Edge = E * ( (2E/m) / (1 + 2E/m) )
-  //TString edgeFormula = "SourceE * ( (2*SourceE/0.511) / (1 + 2*SourceE/0.511) )";
-  
-  //RooFormulaVar Edge1("Edge1", "Edge Full", edgeFormula, RooArgSet(RooArgList(E_1), RooArgList("SourceE")));
-  //RooFormulaVar Edge2("Edge2", "Edge 1st",  edgeFormula, RooArgSet(RooArgList(E_2), RooArgList("SourceE")));
-  //RooFormulaVar Edge3("Edge3", "Edge 2nd",  edgeFormula, RooArgSet(RooArgList(E_3), RooArgList("SourceE")));
-  // @0 means "The first variable I pass in the list".
-  TString edgeFormula = "@0 * ( (2*@0/0.511) / (1 + 2*@0/0.511) )";
-  
-  // Now we just pass the variable (E_1, E_2, etc.) in a RooArgList.
-  // RooFit automatically plugs E_1 into @0.
-  RooFormulaVar Edge1("Edge1", "Edge Full", edgeFormula, RooArgList(E_1));
-  RooFormulaVar Edge2("Edge2", "Edge 1st",  edgeFormula, RooArgList(E_2));
-  RooFormulaVar Edge3("Edge3", "Edge 2nd",  edgeFormula, RooArgList(E_3));
-
-
-  // 4. DEFINE THE 3 IDEAL PHYSICS SHAPES (Soft Cut + Inverse Square)
-  // We use a helper string to ensure the math is identical for all three.
-  // @0 is Es, @1 is the Edge Energy.
-  // The '0.05' in the exp() is the smoothing width (50 keV).
-  TString shapeExpr = "(1.0 / (1.0 + exp((@0 - @1) / 0.05))) * (1.0 / (pow(@1 - @0, 2) + 0.1))";
-
-  // Ideal PDF 1 (Main)
-  RooGenericPdf ideal1("ideal1", "Ideal Edge 1", shapeExpr, RooArgSet(Es, Edge1));
-  
-  // Ideal PDF 2 (1st Esc)
-  RooGenericPdf ideal2("ideal2", "Ideal Edge 2", shapeExpr, RooArgSet(Es, Edge2));
-
-  // Ideal PDF 3 (2nd Esc)
-  RooGenericPdf ideal3("ideal3", "Ideal Edge 3", shapeExpr, RooArgSet(Es, Edge3));
-
-
-  // 5. CONVOLUTION (Apply Gaussian Smearing)
-  // We create 3 separate FFT PDFs. This gives you distinct objects for the fit.
-  
-  RooFFTConvPdf compton1("compton1", "Compton Full", crysADC, ideal1, resKernel);
-  RooFFTConvPdf compton2("compton2", "Compton 1st",  crysADC, ideal2, resKernel);
-  RooFFTConvPdf compton3("compton3", "Compton 2nd",  crysADC, ideal3, resKernel);
-
-
-  // 6. YIELDS & TOTAL MODEL
-  // We need yields for these new components.
-  // Note: 'evtsbkg' is your old logistic background (keep it if you want the flat noise).
-  RooRealVar evtsCompton1("evtsCompton1", "Yield Compton Full", initEvtCompton1, 0, 0.3*inegral_evts);
-  RooRealVar evtsCompton2("evtsCompton2", "Yield Compton 1st",  initEvtCompton2,  0, 0.3*inegral_evts);
-  RooRealVar evtsCompton3("evtsCompton3", "Yield Compton 2nd",  initEvtCompton3,  0, 0.3*inegral_evts);*/
-  
-  
-  // 2. Define the dependent yields using RooFormulaVar
-/*RooFormulaVar evtsfull("evtsfull", "0.25 * evtsFull", RooArgList(evtsFull));
-RooFormulaVar evtsFrst("evtsFrst", "0.35 * evtsFull", RooArgList(evtsFull));
-RooFormulaVar evtsScnd("evtsScnd", "0.25 * evtsFull", RooArgList(evtsFull));
-RooFormulaVar evtsCompton1("evtsCompton1", "0.05 * evtsFull", RooArgList(evtsFull));
-RooFormulaVar evtsCompton2("evtsCompton2", "0.05 * evtsFull", RooArgList(evtsFull));
-RooFormulaVar evtsCompton3("evtsCompton3", "0.05 * evtsFull", RooArgList(evtsFull));*/
-
+ 
 
 /*//adding an erfc function 
 
@@ -242,78 +213,56 @@ RooRealVar CE3_MeV("CE3_MeV","Theory Edge 3", 4.8640);
 RooFormulaVar edgeADC1("edgeADC1","CE1_MeV/m",RooArgSet(CE1_MeV,m));
 RooFormulaVar edgeADC2("edgeADC2","CE2_MeV/m",RooArgSet(CE2_MeV,m));
 RooFormulaVar edgeADC3("edgeADC3","CE3_MeV/m",RooArgSet(CE3_MeV,m));
-RooRealVar evtsCompton1("evtsCompton1", "Yield Compton Full", initEvtCompton1, 0, 0.3*inegral_evts);
-RooRealVar evtsCompton2("evtsCompton2", "Yield Compton 1st",  initEvtCompton2,  0, 0.3*inegral_evts);
-RooRealVar evtsCompton3("evtsCompton3", "Yield Compton 2nd",  initEvtCompton3,  0, 0.3*inegral_evts);
+
+RooRealVar evtsCompton1("evtsCompton1", "Yield Compton Full", initEvtCompton1, 100, integral_evts);
+RooRealVar evtsCompton2("evtsCompton2", "Yield Compton 1st",  initEvtCompton2,  100, integral_evts);
+RooRealVar evtsCompton3("evtsCompton3", "Yield Compton 2nd",  initEvtCompton3,  100, integral_evts);
 //Mapping: @0 crystADC, @1 edgeADC,@2 sigmaADC
 //Define the smearing (replaces the gaussian kernel)
-TString smearing = "0.5 * TMath::Erfc((@0 - @1) / (1.4142 * @2))";
+//TString smearing = "0.5 * TMath::Erfc((@0 - @1) / (1.4142 * @2))";
 //defining the smear
-TString rise = "1.0 / (pow(@1 - @0, 2) + 0.1)";
+//TString rise = "1.0 / (pow(@1 - @0, 2) + 0.1)";
 //combine two components
 //String erfcFormula = "(1.0/(pow(@0-@1,2)+0.1)) + (0.5*TMath::Erfc((@0-@1)/(TMath::Sqrt(2)*@2))";
-TString fullformula = rise + " * " + smearing;
-RooGenericPdf compton1("compton1", "compton edge 1", fullformula ,RooArgSet(crysADC,edgeADC2,sigmaADC));
+//TString fullformula = rise + " * " + smearing;
+
+TString fullformula = "0.5 * TMath::Erfc((@0-@1)/(TMath::Sqrt(2)*@2))";
+RooGenericPdf compton1("compton1", "compton edge 1", fullformula ,RooArgSet(crysADC,edgeADC1,sigmaADC));
 RooGenericPdf compton2("compton2","compton edge 2",fullformula ,RooArgSet(crysADC,edgeADC2,sigmaADC));
-RooGenericPdf compton3("compton3","comptonedge 3",fullformula ,RooArgSet(crysADC,edgeADC2,sigmaADC));
+RooGenericPdf compton3("compton3","comptonedge 3",fullformula ,RooArgSet(crysADC,edgeADC3,sigmaADC));
 
  // Add them to the final list
   RooAddPdf fitFun("fitFun", "Total Mu2e Calo Model",
         RooArgList(fullErg, firsErg, secdErg,  compton1, compton2, compton3), 
         RooArgList(evtsFull, evtsFrst, evtsScnd, evtsCompton1, evtsCompton2, evtsCompton3) );*/
-        
-
-
-                  
-  // Fix normalization set to crysADC
+          
   fitFun.fixCoefNormalization(RooArgSet(crysADC));
-  //preparing RooPlot
   RooPlot *chFrame = crysADC.frame(Title(title));
   h_spec->Sumw2();
   RooDataHist chSpec("crysADC","crysADC", crysADC, h_spec);
-    // Width of the first bin (in keV if the axis is in keV)
-	double binWidth = h_spec->GetXaxis()->GetBinWidth(500);  
-	std::cout << "Bin width = " << binWidth << " keV" << std::endl; 
-//main function that assignes the values to the params
+	double binWidth = h_spec->GetXaxis()->GetBinWidth(500);  //delete before push
+	std::cout << "Bin width = " << binWidth << " keV" << std::endl; //delete before push
+	 asymSuccess = false; 
+	 int migrad_status = -1;
 auto run_one_fit = [&]() -> bool {
-  // --- Assign starting values ---
     fullPeak.setVal(currentPeak);
-    fullWidth.setVal(currentWidth);
+    fullWidth.setVal(currentWidth);//fullWidth_ADC.setVal(currentWidth);
     fcbalpha.setVal(currentAlpha);
-    //combeta.setVal(currentBeta);
+    combeta.setVal(currentBeta);
     evtsFull.setVal(currentEvtFull);
     evtsFrst.setVal(currentEvtFst);
     evtsScnd.setVal(currentEvtScd);
-    //evtsbkg.setVal(currentEvtBkg);
+    evtsbkg.setVal(currentEvtBkg);
     //evtsCompton1.setVal(currentEvtCompton1);
     //evtsCompton2.setVal(currentEvtCompton2);
     //evtsCompton3.setVal(currentEvtCompton3);
-
-    // --- RUN FIT ---
     RooFitResult *fitRes = nullptr;
 
-    if (opt == "chi2") {
-        /*RooChi2Var chi2Func("chi2", "chi2", fitFun, chSpec,
-                    RooFit::DataError(RooAbsData::SumW2),
-                    RooFit::Range(40, 115.2));
-        RooMinimizer m(chi2Func);
-        m.setStrategy(2);
-        m.setPrintLevel(-1);
-        m.migrad();
-        m.hesse();
-        m.minos();
-        fitRes = m.save();
-        fitFun.getParameters(chSpec)->assign(fitRes->floatParsFinal());
-        unreducedchi2 = chi2Func.getVal(); 
-        //calculating ndof
-        int nBins = chSpec.numEntries();  // number of bins used in fit
-        int nPars = fitRes->floatParsFinal().getSize();
-        ndof = nBins - nPars;//defn for arxiv list
-        */
-        // 1. Create the chi2 using the built-in method (returns a pointer)
+    /*if (opt == "chi2") {
        RooAbsReal* chi2Func = fitFun.createChi2(chSpec,
                               RooFit::DataError(RooAbsData::SumW2),
                               RooFit::Range(40, 115.2));
+
        // 2. Dereference the pointer for RooMinimizer
        RooMinimizer m(*chi2Func);
        m.setStrategy(2);
@@ -330,7 +279,85 @@ auto run_one_fit = [&]() -> bool {
        int nBins = chSpec.numEntries();  // number of bins used in fit
        int nPars = fitRes->floatParsFinal().getSize();
        ndof = nBins - nPars; // defn for arxiv list
+}*/
+
+    if (opt == "chi2") {
+        RooAbsReal* chi2Func = fitFun.createChi2(chSpec,
+                               RooFit::DataError(RooAbsData::SumW2),
+                               RooFit::Range(40, 115.2),RooFit::Extended(true));
+
+        RooMinimizer m(*chi2Func);
+        m.setMinimizerType("Minuit2");
+        m.setPrintLevel(-1);
+        m.setStrategy(1);
+        m.simplex();
+        m.migrad();
+        
+        fitRes = m.save();
+        if (fitRes->status() != 0) {
+            m.setStrategy(2);
+            m.migrad();
+            delete fitRes;
+            fitRes = m.save();
+        }
+
+        m.hesse();
+        RooArgSet* fitParams = chi2Func->getVariables(); 
+        RooRealVar* minosTarget = dynamic_cast<RooRealVar*>(fitParams->find("fullPeak"));
+        if (minosTarget) {
+            m.minos(RooArgSet(*minosTarget));
+        }
+        delete fitRes; 
+        fitRes = m.save(); 
+        //=-------------------
+        //delete once converging
+        if (convergencestatus != 0) {
+          std::cout << "[DEBUG] Fit Status History for Crystal " << crystalNo << ":" << std::endl;
+       		for (UInt_t i = 0; i < fitRes->numStatusHistory(); i++) {
+           		std::cout << "    Step " << i << ": " 
+                  << fitRes->statusLabelHistory(i) << " = " 
+                  << fitRes->statusCodeHistory(i) << std::endl;
+    }
 }
+		//--------------------
+		
+    	for (UInt_t i = 0; i < fitRes->numStatusHistory(); i++) {
+        	if (TString(fitRes->statusLabelHistory(i)).Contains("MIGRAD")) {
+            	migrad_status = fitRes->statusCodeHistory(i);
+        }
+    }
+
+
+        /*RooRealVar* finalPeak = dynamic_cast<RooRealVar*>(fitRes->floatParsFinal().find("fullPeak"));
+        
+        if (finalPeak) {
+            fpeak = finalPeak->getVal(); 
+            
+            // Temporary debug print so we aren't flying blind:
+            std::cout << "Crystal Peak - hasAsym: " << finalPeak->hasAsymError() 
+                      << " | ErrHi: " << finalPeak->getErrorHi() 
+                      << " | ErrLo: " << finalPeak->getErrorLo() 
+                      << " | SymErr: " << finalPeak->getError() << std::endl;
+            
+            // Check if it has asymmetric errors AND ensure the lower error didn't fail to a zero value
+            if (finalPeak->hasAsymError() && finalPeak->getErrorLo() != 0.0) {
+                peakerrorhigh = finalPeak->getErrorHi(); 
+                peakerrorlo   = -finalPeak->getErrorLo(); // Flip the negative to positive for plotting
+            } else {
+                // If MINOS failed or returned 0, use the symmetric MIGRAD error for both
+                peakerrorhigh = finalPeak->getError();
+                peakerrorlo   = finalPeak->getError(); 
+            }
+        }*/
+        unreducedchi2 = chi2Func->getVal(); 
+        int nBins = chSpec.numEntries();  
+        int nPars = fitRes->floatParsFinal().getSize();
+        ndof = nBins - nPars; 
+        reducedchi2= unreducedchi2/ndof;
+        std::cout << "chi2/ndof for fit" << reducedchi2<< std::endl;
+        if (chi2Func) delete chi2Func;
+    }
+
     else if (opt == "nll") {
         RooAbsReal *nll = fitFun.createNLL(chSpec, Range(40,115.2));
         RooMinimizer m(*nll);
@@ -345,8 +372,8 @@ auto run_one_fit = [&]() -> bool {
     convergencestatus = fitRes->status();
 
     // --- Extract peak & width with errors ---
-    RooRealVar* peak = dynamic_cast<RooRealVar*>(fitRes->floatParsFinal().find("fullPeak"));
-    RooRealVar* width= dynamic_cast<RooRealVar*>(fitRes->floatParsFinal().find("fullWidth"));
+    /*RooRealVar* peak = dynamic_cast<RooRealVar*>(fitRes->floatParsFinal().find("fullPeak"));
+    RooRealVar* width= dynamic_cast<RooRealVar*>(fitRes->floatParsFinal().find("fullWidth_ADC"));//changed line
 
     if (peak) {
         fpeak         = peak->getVal(crysADC);
@@ -360,42 +387,65 @@ auto run_one_fit = [&]() -> bool {
         fsigma        = width->getVal();
         widtherrorhigh= width->getAsymErrorHi();
         widtherrorlo  = width->getAsymErrorLo();
+    }*/
+
+    RooRealVar* peak = dynamic_cast<RooRealVar*>(fitRes->floatParsFinal().find("fullPeak"));
+    RooRealVar* width= dynamic_cast<RooRealVar*>(fitRes->floatParsFinal().find("fullWidth"));
+
+    if (peak) {
+        fpeak = peak->getVal(); 
+            std::cout << "Crystal Peak - hasAsym: " << peak->hasAsymError() 
+                      << " | ErrHi: " << peak->getErrorHi() 
+                      << " | ErrLo: " << peak->getErrorLo() 
+                      << " | SymErr: " << peak->getError() << std::endl;
+           
+        
+        // Robust error extraction
+        if (peak->hasAsymError() && std::abs(peak->getErrorLo()) > 0.01 && std::abs(peak->getErrorHi())>0.01) {
+            peakerrorhigh = peak->getErrorHi();
+            peakerrorlo   = -peak->getErrorLo();
+            asymSuccess   = true; 
+        } else {
+            peakerrorhigh = peak->getError();
+            peakerrorlo   = peak->getError();
+            asymSuccess   = false; 
+        }
+        
+        fullPeak.setVal(fpeak); 
+        
+    }
+    if (width) {
+        fsigma        = width->getVal();
+        widtherrorhigh= width->getError();
+        widtherrorlo  = 0;//width->getAsymErrorLo(); probably do not need asym error
     }
 
-    // --- event yield extraction ---
     RooRealVar* evtfull = dynamic_cast<RooRealVar*>(fitRes->floatParsFinal().find("evtsFull"));
     if (evtfull) {
         //eventsFull      = evtfull->getVal();
-        evtfullerrorhigh= evtfull->getAsymErrorHi();
-        evtfullerrorlo  = evtfull->getAsymErrorLo();
+        evtfullerrorhigh= evtfull->getError();
+        evtfullerrorlo  = 0;//evtfull->getAsymErrorLo();//probablydo not need asym error
     }
-    return (convergencestatus == 0);
-};
 
-  // -----------------------
-  // 1) First attempt: start from init values 
-  // -----------------------
-bool first_ok = run_one_fit(); //run with init guesses
-//add to counter to calculae avg of all values
+    return (convergencestatus == 0||migrad_status == 0);
+};
+//bool first_ok = run_one_fit(); 
+bool is_perfect = (convergencestatus == 0 && reducedchi2 <= 1.8 && asymSuccess);
 covarAcc.count++;
 covarAcc.sumPeak     += fpeak;
 covarAcc.sumWidth    += fsigma;
 covarAcc.sumAlpha    += fcbalphaparam;
-//covarAcc.sumBeta     += combetaparam;
+covarAcc.sumBeta     += combetaparam;
 covarAcc.sumEvtFull  += fr_fullparam*nEvents;
 covarAcc.sumEvtFst   += fr_frstparam*nEvents;
 covarAcc.sumEvtScd   += fr_scndparam*nEvents;
-//covarAcc.sumEvtBkg   += fr_bkgparam*nEvents;
+covarAcc.sumEvtBkg   += fr_bkgparam*nEvents;
 //covarAcc.sumEvtCompton1   += fr_comptonparam1*nEvents;
 //covarAcc.sumEvtCompton2   += fr_comptonparam2*nEvents;
 //covarAcc.sumEvtCompton3   += fr_comptonparam3*nEvents;
-bool second_ok = true;
-
-/* -------------------------------------------------------------------
-   FIRST FIT FAILED --> REFIT USING COVARIANCE MEAN
-   ------------------------------------------------------------------- */
-if (!first_ok)
-{
+//bool second_ok = true;
+if (!is_perfect){
+//if (!first_ok || reducedchi2 > 1.8 ||  asymSuccess){
     std::cout << "======================================================================\n";
     std::cout << "needs refit (crystal " << crystalNo << ")\n";
     std::cout << "======================================================================\n";
@@ -406,39 +456,53 @@ if (!first_ok)
     double newPeakGuess     = covarAcc.sumPeak     / covarAcc.count;
     double newSigmaGuess    = covarAcc.sumWidth    / covarAcc.count;
     double newAlphaGuess    = covarAcc.sumAlpha    / covarAcc.count;
-    //double newCombetaGuess  = covarAcc.sumBeta     / covarAcc.count;
+    double newCombetaGuess  = covarAcc.sumBeta     / covarAcc.count;
     double newevtsFullGuess = covarAcc.sumEvtFull  / covarAcc.count;
     double newevtsFstGuess  = covarAcc.sumEvtFst   / covarAcc.count;
     double newevtsScdGuess  = covarAcc.sumEvtScd   / covarAcc.count;
-   // double newevtsBkgGuess  = covarAcc.sumEvtBkg   / covarAcc.count;
+    double newevtsBkgGuess  = covarAcc.sumEvtBkg   / covarAcc.count;
     //double newevtsComptonGuess1  = covarAcc.sumEvtCompton1   /covarAcc.count;
     //double newevtsComptonGuess2  = covarAcc.sumEvtCompton2   /covarAcc.count;
     //double newevtsComptonGuess3  = covarAcc.sumEvtCompton3   /covarAcc.count;
-    //set new values for the starting point of params
+
     currentPeak   = newPeakGuess;
     currentWidth  = newSigmaGuess;
     currentAlpha  = newAlphaGuess;
-    //currentBeta   = newCombetaGuess;
+    currentBeta   = newCombetaGuess;
     currentEvtFull = newevtsFullGuess;
     currentEvtFst  = newevtsFstGuess;
     currentEvtScd  = newevtsScdGuess;
-    //currentEvtBkg  = newevtsBkgGuess;
+    currentEvtBkg  = newevtsBkgGuess;
     //currentEvtCompton1  = newevtsComptonGuess1;
     //currentEvtCompton2  = newevtsComptonGuess2;
     //currentEvtCompton3  = newevtsComptonGuess3;
     
+    //second_ok = run_one_fit();
+    run_one_fit();
 
-    /* ---- RUN SECOND FIT ---- */
-    second_ok = run_one_fit();//run with updated values
-
-    if (second_ok) {
+    //if (second_ok && reducedchi2 <= 1.8 && asymSuccess) {
+    if(is_perfect){
         SourceFitter::nSecondFitConverged++;
         SourceFitter::crystalsSecondFitConverged.push_back(crystalNo);
         std::cout << "[SourceFitter] Second fit SUCCESS for crystal " << crystalNo << "\n";
     } 
-    else {  // second fit failed, try third fit
+    /*else {  
         SourceFitter::nThirdFits++;
         SourceFitter::crystalsThirdFit.push_back(crystalNo);
+        auto reset_to_defaults = [&]() {
+   		 currentPeak    = initPeak;      // Assigning double to double
+   		 currentWidth   = initWidth;
+    	 currentAlpha   = initAlpha;
+    	 currentBeta    = initBeta;
+    	 currentEvtFull = initEvtFull;
+    	 currentEvtFst  = initEvtFst;
+    	 currentEvtScd  = initEvtScd;       
+   		 currentEvtBkg  = initEvtBkg;
+   		 //currentEvtCompton1  = initEvtCompton1;
+   		// currentEvtCompton2  = initEvtCompton2;
+   		// currentEvtCompton3  = initEvtCompton3;
+		};
+		reset_to_defaults();
 
         // Lambda: randomize all parameters
         auto randomize_all_parameters = [&]() {
@@ -446,17 +510,17 @@ if (!first_ok)
                 return min + (max - min) * ((double)rand() / RAND_MAX);
             };
 
-            currentPeak     = randomDouble(85.0, 108.0);
-            currentWidth    = randomDouble(0.2, 1.5);
+            currentPeak     = randomDouble(91.0, 108.0);
+            currentWidth    = randomDouble(2, 20);;//randomDouble(0.2, 1.5); //changed line
             currentAlpha    = randomDouble(0.6, 1.7);
-            //currentBeta     = randomDouble(0.2, 1.6);
-            currentEvtFull  = randomDouble(0.05 * inegral_evts, inegral_evts);
-            currentEvtFst   = randomDouble(0.05 * inegral_evts, inegral_evts);
-            currentEvtScd   = randomDouble(0.05 * inegral_evts, inegral_evts);
-            //currentEvtBkg   = randomDouble(0.05 * inegral_evts, inegral_evts);
-            //currentEvtCompton1   = randomDouble(0.05 * inegral_evts, inegral_evts);
-            //currentEvtCompton2   = randomDouble(0.05 * inegral_evts, inegral_evts);
-            //currentEvtCompton3   = randomDouble(0.05 * inegral_evts, inegral_evts);
+            currentBeta     = randomDouble(1, 200);//randomDouble(0.01, 20);
+            currentEvtFull  = randomDouble(0.05 * integral_evts, integral_evts);
+            currentEvtFst   = randomDouble(0.05 * integral_evts, integral_evts);
+            currentEvtScd   = randomDouble(0.05 * integral_evts, integral_evts);
+            currentEvtBkg   = randomDouble(0.05 * integral_evts, integral_evts);
+            //currentEvtCompton1   = randomDouble(0.05 * integral_evts, integral_evts);
+            //currentEvtCompton2   = randomDouble(0.05 * integral_evts, integral_evts);
+            //currentEvtCompton3   = randomDouble(0.05 * integral_evts, integral_evts);
         };
 
         // Lambda: retry third fit
@@ -464,21 +528,201 @@ if (!first_ok)
         auto retry_third_fit = [&](int crystal) -> bool {
             int tries = 0;
             bool converged = false;
+            //adding new variables to remember best fit if all else fails
+            bool hesse_fallback = false;
+            double chi2_fallback = 9999.0;
+            double fb_peak,fb_width,fb_frfull,fb_frfrst,fb_frscd,fb_alpha,fb_beta,fb_bkg;
+
+            
 
             for (tries = 1; tries <= MAX_THIRD_TRIES; ++tries) {
                 randomize_all_parameters();
 
-                if (run_one_fit()) {
+                if (run_one_fit() && reducedchi2 <= 1.8 && asymSuccess) {
                     converged = true;
                     break;
+                }
+                
+                else {
+                	if(reducedchi2<chi2_fallback){
+                	chi2_fallback = reducedchi2;
+                	hesse_fallback = true;
+                	fb_peak = currentPeak;
+                	fb_width = currentWidth;
+                	fb_frfull = currentEvtFull;
+                	fb_frfrst = currentEvtFst;
+                	fb_frscd = currentEvtScd;
+                	fb_alpha = currentAlpha;
+                	fb_beta = currentBeta;
+                	fb_bkg = currentEvtBkg;
+                	
+                	}
+                
                 }
             }
 
             SourceFitter::thirdFitRetryCount[crystal] = tries;
-            return converged;
+            if (converged){
+            	return true;
+            }
+            if(hesse_fallback){
+            	std::cout<< "[SourceFitter] Exhausted 40 tries for Asym Errors on crystal " << crystal<< ". Resolving to best HESSE fit (chi2 = " << chi2_fallback << ").\n";
+            	// Load up the best fallback parameters we saved
+                currentPeak    = fb_peak;
+                currentWidth   = fb_width;
+                currentAlpha   = fb_alpha;
+                currentBeta    = fb_beta;
+                currentEvtFull = fb_frfull;
+                currentEvtFst  = fb_frfrst;
+                currentEvtScd  = fb_frscd;
+                currentEvtBkg  = fb_bkg;
+                fullPeak.removeAsymError();
+                //run_one_fit();
+                RooAbsReal* chi2Func = fitFun.createChi2(chSpec, RooFit::DataError(RooAbsData::SumW2), RooFit::Range(40, 115.2), RooFit::Extended(true));
+    			RooMinimizer m(*chi2Func);
+    			m.setPrintLevel(-1);
+    			m.migrad();
+    			m.hesse(); // Run HESSE only
+    			RooFitResult* res = m.save();
+    			// --- THE MIGRAD CHECK ---
+            	// 4. Extract actual MIGRAD status from history
+    			int migrad_status = -1; 
+    			for (UInt_t i = 0; i < res->numStatusHistory(); i++) {
+       		 		if (TString(res->statusLabelHistory(i)).Contains("MIGRAD")) {
+            			migrad_status = res->statusCodeHistory(i);
+        			}
+    			}
+    			convergencestatus = migrad_status;
+                if(migrad_status == 0){
+                	SourceFitter::nHesseFallbacks++;
+                	SourceFitter::crystalsHesseFallback.push_back(crystal);
+                	// Update variables manually for the plot
+    				fpeak         = fullPeak.getVal();
+    				peakerrorhigh = fullPeak.getError();
+    				peakerrorlo   = fullPeak.getError();
+   					asymSuccess   = false; // Ensure it's marked as symmetric
+                	delete res;
+                	return true;
+                
+                }
+               delete res;
+               return false;
+            }
+            return false;
+        };*/
+        else {  
+        SourceFitter::nThirdFits++;
+        SourceFitter::crystalsThirdFit.push_back(crystalNo);
+
+        auto reset_to_defaults = [&]() {
+            currentPeak    = initPeak;
+            currentWidth   = initWidth;
+            currentAlpha   = initAlpha;
+            currentBeta    = initBeta;
+            currentEvtFull = initEvtFull;
+            currentEvtFst  = initEvtFst;
+            currentEvtScd  = initEvtScd;       
+            currentEvtBkg  = initEvtBkg;
+        };
+        reset_to_defaults();
+
+        auto randomize_all_parameters = [&]() {
+            auto randomDouble = [](double min, double max) {
+                return min + (max - min) * ((double)rand() / RAND_MAX);
+            };
+            currentPeak    = randomDouble(91.0, 108.0);
+            currentWidth   = randomDouble(2, 20);
+            currentAlpha   = randomDouble(0.6, 1.7);
+            currentBeta    = randomDouble(-1.0, -0.001);
+            currentEvtFull = randomDouble(0.05 * integral_evts, integral_evts);
+            currentEvtFst  = randomDouble(0.05 * integral_evts, integral_evts);
+            currentEvtScd  = randomDouble(0.05 * integral_evts, integral_evts);
+            currentEvtBkg  = randomDouble(0.05 * integral_evts, integral_evts);
         };
 
-        // Run third fit
+        struct FitCandidate {
+            double chi2;
+            std::map<std::string, double> p; 
+        };
+        auto retry_third_fit = [&](int cId) -> bool {
+            std::vector<FitCandidate> leaderboard;
+            const int MAX_THIRD_TRIES = 40;
+            int tries = 0;
+             migrad_status = -1;
+
+            for ( tries = 0; tries <= MAX_THIRD_TRIES; ++tries) {
+                randomize_all_parameters();
+
+                if (run_one_fit()) {
+                    if (convergencestatus == 0 &&reducedchi2 <= 1.8 && asymSuccess) {
+                    	SourceFitter::thirdFitRetryCount[cId] = tries;
+                        return true;
+                    }
+
+                    if (migrad_status == 0) {
+                        FitCandidate cand;
+                        cand.chi2 = reducedchi2;
+                        cand.p["pk"] = currentPeak;   cand.p["wd"] = currentWidth;
+                        cand.p["al"] = currentAlpha;  cand.p["bt"] = currentBeta;
+                        cand.p["ef"] = currentEvtFull; cand.p["e1"] = currentEvtFst;
+                        cand.p["e2"] = currentEvtScd;  cand.p["eb"] = currentEvtBkg;
+                        leaderboard.push_back(cand);
+                    }
+                }
+            }
+            SourceFitter::thirdFitRetryCount[cId] = MAX_THIRD_TRIES;
+
+            // --- Fallback Stage ---
+            if (leaderboard.empty()) return false;
+
+            std::sort(leaderboard.begin(), leaderboard.end(), [](const FitCandidate& a, const FitCandidate& b) {
+                return a.chi2 < b.chi2;
+            });
+
+            int to_try = std::min((int)leaderboard.size(), 5);
+            std::cout << "[DEBUG] Crystal " << cId << " starting fallback: testing " << to_try << " candidates." << std::endl;
+            for (int i = 0; i < to_try; i++) {
+                auto& best = leaderboard[i];
+                currentPeak = best.p["pk"]; currentWidth = best.p["wd"];
+                currentAlpha = best.p["al"]; currentBeta = best.p["bt"];
+                currentEvtFull = best.p["ef"]; currentEvtFst = best.p["e1"];
+                currentEvtScd = best.p["e2"]; currentEvtBkg = best.p["eb"];
+
+                fullPeak.removeAsymError();
+
+                RooAbsReal* chi2Func = fitFun.createChi2(chSpec, RooFit::DataError(RooAbsData::SumW2),RooFit::Range(40, 115.2), RooFit::Extended(true));
+                RooMinimizer m(*chi2Func);
+                m.setPrintLevel(-1);
+                m.migrad();
+                m.hesse();
+                RooFitResult* res = m.save();
+
+                /*//int migrad_status = -1;
+                for (UInt_t j = 0; j < res->numStatusHistory(); j++) {
+                    if (TString(res->statusLabelHistory(j)).Contains("MIGRAD")) 
+                        migrad_status = res->statusCodeHistory(j);
+                }*/
+
+                if (res->status() == 0 ) {
+               		 std::cout << "[DEBUG] Crystal " << cId << " converged on fallback candidate #" << i << " (chi2=" << best.chi2 << ")" << std::endl;
+                    convergencestatus = 0;
+                    asymSuccess = false;
+                    fpeak = fullPeak.getVal();
+                    peakerrorhigh = fullPeak.getError();
+                    peakerrorlo = fullPeak.getError();
+                    SourceFitter::nHesseFallbacks++;
+                    SourceFitter::crystalsHesseFallback.push_back(cId);
+                    delete res; delete chi2Func;
+                    return true;
+                }
+                std::cout << "[DEBUG] Crystal " << cId << " fallback candidate #" << i << " failed (MIGRAD=" << res->status() << ")" << std::endl;
+                delete res; delete chi2Func;
+            }
+            return false;
+        }; // End of lambda
+        
+
+
         bool third_ok = retry_third_fit(crystalNo);
 
         if (third_ok) {
@@ -498,29 +742,31 @@ if (!first_ok)
 
 }
 
-/* -------------------------------------------------------------------
-   FIRST FIT OK (simple case)
-   ------------------------------------------------------------------- */
 else {
     std::cout << "[SourceFitter] Fit ok for crystal " << crystalNo
               << " fpeak=" << fpeak << "\n";
     nFirstFitConverged++;
 }
 
-
-/* -------------------------------------------------------------------
-   Record convergence status
-   ------------------------------------------------------------------- */
-if (convergencestatus > 0) {
+//if (convergencestatus > 0) {
+if (migrad_status>0){
     SourceFitter::convFailures.push_back({crystalNo, convergencestatus});
 }
-//check to make sure the plot is cleared 
+else if (asymSuccess && convergencestatus == 0) {
+    SourceFitter::nAsymErrors++;
+    SourceFitter::crystalsWithAsymErrors.push_back(crystalNo);
+}
+if (reducedchi2 > 1.8){
+	SourceFitter::badchi2++;
+	SourceFitter::crystalswithbadchi2.push_back(crystalNo);
+}
+/*//check to make sure the plot is cleared 
 std::cout << "Before clear: " << chFrame->numItems() << std::endl;
 
   while (chFrame->numItems() > 0) {
     chFrame->remove();   // removes last-added item
 }
-  std::cout << "After clear: " << chFrame->numItems() << std::endl;
+  std::cout << "After clear: " << chFrame->numItems() << std::endl;*/
   //get values for parameters that will populate the arxiv table
   TF1* totalModelFunc = fitFun.asTF(RooArgList(crysADC));
 // 2. Find the X-value where this function is at its maximum height
@@ -531,15 +777,15 @@ redpeak = totalModelFunc->GetMaximumX(40.0, 115.2);
   scdpeak = scdEsPeak.getVal();
   fcbalphaparam = fcbalpha.getVal();
   fcbndegparam = fcbndeg.getVal();
-  comCnstparam = 0;//comCnst.getVal();
-  combetaparam = 0;//combeta.getVal();
-  fr_fullparam = evtsFull.getVal()/inegral_evts;
-  fr_frstparam = evtsFrst.getVal()/inegral_evts;
-  fr_scndparam = evtsScnd.getVal()/inegral_evts;
-  fr_bkgparam = 0;//evtsbkg.getVal()/inegral_evts;
-  fr_comptonparam1 = 0;//evtsCompton1.getVal()/inegral_evts;
-  fr_comptonparam2 = 0;//evtsCompton2.getVal()/inegral_evts;
-  fr_comptonparam3 = 0;//evtsCompton3.getVal()/inegral_evts;
+  comCnstparam =0;// comCnst.getVal();
+  combetaparam = combeta.getVal();
+  fr_fullparam = evtsFull.getVal()/integral_evts;
+  fr_frstparam = evtsFrst.getVal()/integral_evts;
+  fr_scndparam = evtsScnd.getVal()/integral_evts;
+  fr_bkgparam = evtsbkg.getVal()/integral_evts;
+  fr_comptonparam1 = 0;//evtsCompton1.getVal()/integral_evts;
+  fr_comptonparam2 = 0;//evtsCompton2.getVal()/integral_evts;
+  fr_comptonparam3 = 0;//evtsCompton3.getVal()/integral_evts;
   crystalNoparam = crystalNo;                   
   pval = TMath::Prob(chiSq*11, 11);
   mparam = m.getVal();
@@ -552,14 +798,30 @@ redpeak = totalModelFunc->GetMaximumX(40.0, 115.2);
   chSpec.plotOn(chFrame, MarkerColor(kBlack), LineColor(kBlack), MarkerSize(0.5), Name("chSpec"));
   fitFun.plotOn(chFrame, LineColor(kRed), LineStyle(1), Name("fit"));
   chiSq = chFrame->chiSquare("fit", "chSpec", 8);
-  std::cout<<"reduced chi2 calculated by func"<<chiSq<<std::endl;
+  //std::cout<<"reduced chi2 calculated by func"<<chiSq<<std::endl;
   fitFun.plotOn(chFrame, Components(fullErg), LineColor(kOrange), LineStyle(5), Name("main"));
   fitFun.plotOn(chFrame, Components(firsErg), LineColor(kViolet), LineStyle(5), Name("fescape"));
   fitFun.plotOn(chFrame, Components(secdErg), LineColor(kCyan), LineStyle(5), Name("sescape"));
-  //fitFun.plotOn(chFrame, Components(comPdf), LineColor(kBlue), LineStyle(5), Name("background"));
+  fitFun.plotOn(chFrame, Components(comPdf), LineColor(kBlue), LineStyle(5), Name("background"));
   //fitFun.plotOn(chFrame, Components(compton1), LineColor(kGreen), LineStyle(5), Name("compton1"));
   //fitFun.plotOn(chFrame, Components(compton2), LineColor(kGreen+2), LineStyle(5), Name("compton2"));
   //fitFun.plotOn(chFrame, Components(compton3), LineColor(kGreen+4), LineStyle(5), Name("compton3"));
+  //draw vertical lines at the theorectical peak locations:
+  double xLines[] = {98.08, 89.904, 81.728};
+  int colors[] = {kOrange-2, kViolet-9, kCyan-9}; 
+  for (int i = 0; i < 3; i++) {
+    // TLine(x1, y1, x2, y2)
+    // We use chFrame->GetMinimum() and GetMaximum() to span the full height
+    double yMax = chFrame->GetMaximum() > 0 ? chFrame->GetMaximum() : 10000;
+    TLine *line = new TLine(xLines[i], 0, xLines[i], 0.5*yMax);
+
+    line->SetLineColor(colors[i]); // Professional dark gray
+    line->SetLineStyle(2);       // Dashed line
+    line->SetLineWidth(2);
+    
+    // Add to frame so it draws with the axes
+    chFrame->addObject(line);
+}
 
   //make pretty plots
   TPaveLabel *ptitle = new TPaveLabel(0.80, 0.90, 0.85, 0.80, Form("Mu2e Simulation"), "brNDC");
@@ -587,7 +849,7 @@ redpeak = totalModelFunc->GetMaximumX(40.0, 115.2);
   pchi2 -> SetFillColor(kWhite);
   chFrame -> addObject(pchi2);
   TPaveLabel *fpk = new TPaveLabel(0.15, 0.65, 0.25, 0.55, Form("#mu_{main} = %.2f^{+%.2f}_{-%.2f}", fpeak, peakerrorhigh,peakerrorlo), "brNDC");
-  std::cout<<"fpeak value at plotting" << fpeak<<std::endl;
+  //std::cout<<"fpeak value at plotting" << fpeak<<std::endl;
   fpk -> SetFillStyle(0);
   fpk -> SetBorderSize(0);
   fpk -> SetTextSize(0.4);
@@ -595,7 +857,7 @@ redpeak = totalModelFunc->GetMaximumX(40.0, 115.2);
   fpk -> SetTextColor(kBlack);
   fpk -> SetFillColor(kWhite);
   chFrame -> addObject(fpk);
-  TPaveLabel *fsg = new TPaveLabel(0.15, 0.55, 0.25, 0.45, Form("#sigma_{main} =%.2f^{+%.4f}_{-%.4f}", fsigma,widtherrorhigh,widtherrorlo), "brNDC");
+  TPaveLabel *fsg = new TPaveLabel(0.15, 0.55, 0.25, 0.45, Form("#sigma_{main} =%.2f #pm %.2f", fsigma,widtherrorhigh), "brNDC");
   fsg -> SetFillStyle(0);
   fsg -> SetBorderSize(0);
   fsg -> SetTextSize(0.4);
@@ -609,7 +871,7 @@ redpeak = totalModelFunc->GetMaximumX(40.0, 115.2);
 	pad1->SetBottomMargin(0.035); 
 	pad1->Draw();
 	pad1->cd();  // switch to top pad
-  chFrame -> SetYTitle("Events per 0.4 keV");
+  chFrame -> SetYTitle("Event count");
   //chFrame -> GetYaxis()->SetTitleOffset(1.0);
   //chFrame -> GetYaxis()->SetRangeUser(0, 20000);
   chFrame -> Draw();
@@ -619,7 +881,7 @@ redpeak = totalModelFunc->GetMaximumX(40.0, 115.2);
   legend->AddEntry("main", "main (eqv. 6.13MeV)", "L");
   legend->AddEntry("fescape", "first escape", "L");
   legend->AddEntry("sescape", "second escape", "L");
-  //legend->AddEntry("background", "background", "L");
+  legend->AddEntry("background", "background", "L");
   //legend->AddEntry("compton1", "compton1", "L");
   //legend->AddEntry("compton2", "compton2", "L");
   //legend->AddEntry("compton3", "compton3", "L");
@@ -628,7 +890,7 @@ redpeak = totalModelFunc->GetMaximumX(40.0, 115.2);
 	can->cd();
 	// Create bottom pad for residuals
 	TPad *pad2 = new TPad("pad2", "Bottom pad", 0, 0.0, 1, 0.25);
-	pad2->SetTopMargin(0.05);
+	pad2->SetTopMargin(0.07);
 	pad2->SetBottomMargin(0.3); // room for X-axis labels
 	pad2->Draw();
 	pad2->cd();
@@ -654,12 +916,17 @@ for (int i = startBin; i <= h_spec->GetNbinsX(); ++i) {
     hresidual->SetBinContent(i - startBin + 1, res);
 }
 // Draw residual histogram
+hresidual->SetStats(0); //dont want a stats box
 hresidual->SetTitle("");
-hresidual->GetYaxis()->SetTitle("Normalized Residuals (data - fit)/#sigma");
-hresidual->GetYaxis()->SetTitleSize(0.12);
+hresidual->GetYaxis()->SetTitle("#splitline{Normalized Residuals}{(data - fit)/#sigma}");
+hresidual->GetYaxis()->CenterTitle(true);
+hresidual->GetYaxis()->SetTitleSize(0.08);
 hresidual->GetYaxis()->SetLabelSize(0.10);
+hresidual->GetYaxis()->SetTitleOffset(0.45); // CRITICAL: Moves title into view
+hresidual->GetYaxis()->SetNdivisions(505);   // Reduces number of ticks for clarity
 hresidual->GetXaxis()->SetTitleSize(0.12);
 hresidual->GetXaxis()->SetLabelSize(0.10);
+hresidual->GetXaxis()->SetTitle("ADC [counts]");
 hresidual->Draw("HIST");
 
   can -> SaveAs(oName); 
@@ -678,7 +945,7 @@ if (contour) {
         fitFun, chSpec, opt, crystalNo,
         xVar, yVar,                // Use the strings passed from command line
         fullPeak,  fpeak,  peakerrorlo,  peakerrorhigh,
-        fullWidth, fsigma, widtherrorlo, widtherrorhigh,
+        fullWidth, fsigma, widtherrorlo, widtherrorhigh, //changed line
         fcbalpha,
         evtsFull,
         evtsFrst,

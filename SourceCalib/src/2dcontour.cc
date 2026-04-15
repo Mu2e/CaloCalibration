@@ -68,13 +68,13 @@ void CaloSourceCalib::MakeContourPlot(
 
         // --- CASE B: Standard RooFit Variables ---
         // These map directly to the RooRealVar objects
-        if      (lowerName == "n_Full") ptr = &varNFull;
+        if      (lowerName == "n_full") ptr = &varNFull;
         else if (lowerName == "alpha")  ptr = &varAlpha;
         else if (lowerName == "n_1st")  ptr = &varN1st;
         else if (lowerName == "n_2nd")  ptr = &varN2nd;
         //else if (lowerName == "N_Bkg")  ptr = &varNBkg;
         //else if (lowerName == "Const")  ptr = &varConst;
-        //else if (lowerName == "Beta")   ptr = &varBeta;
+        //else if (lowerName == "beta")   ptr = &varBeta;
 
         // Extract values automatically for Case B
         if (ptr) {

@@ -35,7 +35,7 @@ namespace CaloSourceCalib {
         RooRealVar& varNFull,
         RooRealVar& varN1st,
         RooRealVar& varN2nd
-        //RooRealVar& varNBkg,
+        //RooRealVar& varNBkg
         //RooRealVar& varConst,
         //RooRealVar& varBeta
     );

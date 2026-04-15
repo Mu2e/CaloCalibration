@@ -3,6 +3,7 @@
 #include "CaloCalibration/SourceCalib/inc/SourcePlotter.hh"
 #include "CaloCalibration/SourceCalib/inc/2dcontour.hh"
 #include "CaloCalibration/SourceCalib/inc/mcinfo.hh"// extracting mc information -- need to be removed for real data
+#include <algorithm>
 //#include "CaloCalibration/SourceCalib/inc/validationfitter.hh"
 
 #include <chrono>
@@ -11,7 +12,8 @@ using namespace std::chrono;
 using namespace CaloSourceCalib;
 
 //method with one big root file
-TString filepath_disk0 = "/exp/mu2e/app/users/hjafree/SourceFitDir/nonoise_smallsample.root";
+TString filepath_disk0 = "/exp/mu2e/app/users/hjafree/gridjobs/30k_w_noise.root";
+//"/exp/mu2e/app/users/hjafree/SourceFitDir/nonoise_smallsample.root";
 //"/exp/mu2e/app/home/mu2epro/sourcecalib/full_containment/newsinglephoton.root";//300k sample
 //"/exp/mu2e/app/home/mu2epro/sourcecalib/full_containment/newsinglephoton.root";
 //"/exp/mu2e/app/home/mu2epro/sourcecalib/full_containment/reconew.root";
@@ -32,7 +34,7 @@ std::pair<TH1F*, TFile*> get_data_histogram(int cryNum, int disk) {
         //if "mc" flag is called
         histPath = (disk == 0) ? "SourceAna/sipm_ADC/sipm_" : "SourceAna/crystals_ADC/cry_";
         //uncomment line below and comment the one above if cut and count needs to be applied to the mc truth histograms
-        //histPath = (disk == 0) ? "SourceAna/crystals_edep_truth/cry_" : "SourceAna/crystals_ADC/cry_";
+       // histPath = (disk == 0) ? "SourceAna/crystals_edep_truth/cry_" : "SourceAna/crystals_ADC/cry_";
     } else if (disk == 1 || disk == 3) {
         filepath = filepath_disk1;
         histPath = (disk == 1) ? "SourceAna/sipm_ADC/sipm_" : "SourceAna/crystals_ADC/cry_";
@@ -66,12 +68,13 @@ std::pair<double, double> ComputeHistogramStats(TH1F* hist) {
     return std::make_pair(mean, stddev);
 }
 
+
 /*main function allows a loop over all crystals or a choice of a single crystal*/
 int main(int argc, char* argv[]) {
     std::cout << "========== Welcome to the Mu2e Source Calibration Analysis ==========" << std::endl;
     //Define allowed params for contour
     std::vector<TString> allowedParams = {
-    	"peak", "width" , "alpha", "n_full" , "n_1st", "n_2nd" 
+    	"peak", "width" , "alpha", "n_full" , "n_1st", "n_2nd","beta"
     }; //, "n_bkg", "beta" , "const"};
     auto isInvalid = [&](TString input){
     	input.ToLower();
@@ -128,8 +131,16 @@ int main(int argc, char* argv[]) {
         		}
         }
         
-        if (arg.Contains("mc"))      isMC      = true;   	
+        if (arg.Contains("mc"))      isMC      = true;  
+         	
     }
+//------------------
+//Caphri crystals
+//------------------
+std::vector<int> lysoSiPMs = {1164,1165,1120,1221,1218,1219,1274,1275};
+std::vector<int> lysoCrystals = {582,610,609,637};//this is only temporary for testing-- will only run for sipms
+bool isSiPMRun = (disk == 0 || disk ==1); //this is only temporary for testing-- will only run for sipms
+std::cout << "\n[INFO] Starting loop from ID" << anacrys_start << " to " << anacrys_end <<std::endl;
     
 // --------------------------------------------------------
 // MC TRUTH BLOCK
@@ -259,6 +270,15 @@ if (isMC) {
     auto [mean, stddev] = ComputeHistogramStats(hSum);
 		h_means   = mean;
 		h_stddevs = stddev;
+		
+	bool islyso = false;
+	if (isSiPMRun){
+		if (std::find(lysoSiPMs.begin(),lysoSiPMs.end(),cryNum) != lysoSiPMs.end()) islyso = true;
+	}
+	else{
+		if(std::find(lysoCrystals.begin(), lysoCrystals.end(), cryNum) != lysoCrystals.end()) islyso = true; 
+	}
+	
     SourceFitter *fit = new SourceFitter();
     fit->FitCrystal(hSum, alg, cryNum, covar, nEvents,convergencestatus, fpeak, peakerrorhigh,peakerrorlo, redpeak,
                     fsigma,widtherrorhigh,widtherrorlo, chiSq, fstpeak, scdpeak,
@@ -267,7 +287,7 @@ if (isMC) {
                     frcomptonparam1,frcomptonparam2,frcomptonparam3,pval,h_means,
                     h_stddevs,unreducedchi2,
                     fval,mparam,etaparam,ndof,contour,xSelect,ySelect,errbarhigh,
-                    errbarlo, evtfullerrorhigh,evtfullerrorlo,Esparam );//frcomptonparam1,frcomptonparam2,frcomptonparam3
+                    errbarlo, evtfullerrorhigh,evtfullerrorlo,Esparam,islyso);//frcomptonparam1,frcomptonparam2,frcomptonparam3
     file->Close();    
     delete file;     
     delete fit;      
@@ -400,12 +420,16 @@ for (const auto &p : SourceFitter::thirdFitRetryCount) {
     std::cout << "  Crystal " << p.first << ": " << p.second << " attempts\n";
 }
 
+printConv("Asymmetric Errors Found", SourceFitter::nAsymErrors, SourceFitter::crystalsWithAsymErrors);
+printConv("Bad chi2", SourceFitter::badchi2, SourceFitter::crystalswithbadchi2);
+printConv("Hesse errors used", SourceFitter::nHesseFallbacks, SourceFitter::crystalsHesseFallback);
 if (!SourceFitter::convFailures.empty()) {
     std::cout << "Crystals with non-zero convergence status:\n";
     for (const auto& [cryNo, status] : SourceFitter::convFailures) {
         std::cout << "Crystal " << cryNo << " : status = " << status << std::endl;
     }
 }
+
 
 std::cout << "================================================" << std::endl;
 

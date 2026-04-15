@@ -543,7 +543,7 @@ for (auto s:convgstatus_vec){
 	else if (s == 3) count3++;	
 	else if (s == 4) count4++;			
 	else if (s == 5) count5++;
-	else if (s>5) countx++;
+	else countx++;
 	}
 if (total == 0) {
     std::cout << "No SiPMs in convgstatus_vec!" << std::endl;
