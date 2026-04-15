@@ -44,7 +44,7 @@ void mcinfo::RunMCTruth(TH1F* hist, int cryNum, int disk, TTree *trueinfo,
     // Logic: The window for a peak ends at its center, and starts right after the previous peak ends.
     
     // 2nd Escape Peak Window: [ (E_2nd - 0.511), E_2nd ]
-    int bin_2nd_low  = ax->FindBin(E_2nd - E_compton);; 
+    int bin_2nd_low  = ax->FindBin(E_2nd - E_compton);
     int bin_2nd_high = bin_2nd_center;
 
     // 1st Escape Peak Window: [ E_2nd + 1 bin, E_1st ]
