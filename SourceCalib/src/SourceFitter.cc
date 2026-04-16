@@ -7,24 +7,24 @@ using namespace RooFit;
 using namespace CaloSourceCalib;
 
 
-int SourceFitter::nSecondFits = 0; //counter for crystals that need a second fit
-int SourceFitter::nThirdFits = 0; // counter for crystals that need a third fit
-std::vector<int> SourceFitter::crystalsSecondFit;//vector of crystal number 
+int SourceFitter::nSecondFits = 0; 
+int SourceFitter::nThirdFits = 0; 
+std::vector<int> SourceFitter::crystalsSecondFit; 
 std::vector<int> SourceFitter::crystalsThirdFit;
-int SourceFitter::nFirstFitConverged = 0;//counter for crystals that converged on first fit
-int SourceFitter::nSecondFitConverged = 0; //counter for crystals that need a second fit
-int SourceFitter::nThirdFitConverged = 0; // counter for crystals that need a third fit
+int SourceFitter::nFirstFitConverged = 0;
+int SourceFitter::nSecondFitConverged = 0; 
+int SourceFitter::nThirdFitConverged = 0;
 std::vector<int> SourceFitter::crystalsSecondFitConverged;
 std::vector<int> SourceFitter::crystalsThirdFitConverged;
 std::map<int,int> SourceFitter::thirdFitRetryCount;
-std::vector<std::pair<int,int>> SourceFitter::convFailures; //vector for crystal number of failing status crystals
+std::vector<std::pair<int,int>> SourceFitter::convFailures;
 int SourceFitter::nAsymErrors = 0;
 std::vector<int> SourceFitter::crystalsWithAsymErrors;
 int SourceFitter::badchi2 = 0;
 std::vector<int> SourceFitter::crystalswithbadchi2;
 int SourceFitter::nHesseFallbacks = 0;
 std::vector<int> SourceFitter::crystalsHesseFallback;
-struct CovarAccumulator {//calculated sum of previous crystals to take avg values to use for second fit
+struct CovarAccumulator {
     int count = 0;
     double sumPeak = 0.0;
     double sumWidth = 0.0;
@@ -54,8 +54,8 @@ static bool suppress_messages = [](){
     return true;
 }();
 void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *covar, Int_t &nEvents,Int_t &convergencestatus, Float_t &fpeak, Float_t &peakerrorhigh,Float_t &peakerrorlo,Float_t &redpeak, Float_t &fsigma,Float_t &widtherrorhigh,Float_t &widtherrorlo, Float_t &chiSq, Float_t &fstpeak, Float_t &scdpeak,Float_t &fcbalphaparam,Float_t &fcbndegparam,Float_t &comCnstparam, Float_t &combetaparam, Float_t &fr_fullparam, Float_t &fr_frstparam,Float_t &fr_scndparam,Float_t &crystalNoparam,Float_t &fr_bkgparam,Float_t &fr_comptonparam1,Float_t &fr_comptonparam2,Float_t &fr_comptonparam3, Float_t &pval,Float_t &h_means,Float_t &h_stddevs, Float_t &unreducedchi2,Float_t &fval,Float_t &mparam,Float_t &etaparam,Int_t &ndof,bool contour,TString xVar, TString yVar, Float_t &errbarhigh, Float_t &errbarlo,Float_t &evtfullerrorhigh,Float_t &evtfullerrorlo,Float_t &Esparam, bool islyso ){//Float_t &fr_comptonparam Float_t &fr_comptonparam1,Float_t &fr_comptonparam2,Float_t &fr_comptonparam3
-convergencestatus = -1;  // Force "Unknown/Fail" state
-bool asymSuccess = false;     // Reset the "Gold Standard" flag
+convergencestatus = -1;  
+bool asymSuccess = false;     
 double currentPeak  = 0.0;
 double currentWidth = 0.0;
   double currentAlpha = 0.0;
@@ -258,29 +258,6 @@ auto run_one_fit = [&]() -> bool {
     //evtsCompton3.setVal(currentEvtCompton3);
     RooFitResult *fitRes = nullptr;
 
-    /*if (opt == "chi2") {
-       RooAbsReal* chi2Func = fitFun.createChi2(chSpec,
-                              RooFit::DataError(RooAbsData::SumW2),
-                              RooFit::Range(40, 115.2));
-
-       // 2. Dereference the pointer for RooMinimizer
-       RooMinimizer m(*chi2Func);
-       m.setStrategy(2);
-       m.setPrintLevel(-1);
-       m.migrad();
-       m.hesse();
-       m.minos();
-       fitRes = m.save();
-       // 3. Assign the fitted parameters back
-       fitFun.getParameters(chSpec)->assign(fitRes->floatParsFinal());
-       // 4. Use the arrow operator to get the value
-       unreducedchi2 = chi2Func->getVal(); 
-       // 5. Calculating ndof
-       int nBins = chSpec.numEntries();  // number of bins used in fit
-       int nPars = fitRes->floatParsFinal().getSize();
-       ndof = nBins - nPars; // defn for arxiv list
-}*/
-
     if (opt == "chi2") {
         RooAbsReal* chi2Func = fitFun.createChi2(chSpec,
                                RooFit::DataError(RooAbsData::SumW2),
@@ -326,29 +303,6 @@ auto run_one_fit = [&]() -> bool {
             	migrad_status = fitRes->statusCodeHistory(i);
         }
     }
-
-
-        /*RooRealVar* finalPeak = dynamic_cast<RooRealVar*>(fitRes->floatParsFinal().find("fullPeak"));
-        
-        if (finalPeak) {
-            fpeak = finalPeak->getVal(); 
-            
-            // Temporary debug print so we aren't flying blind:
-            std::cout << "Crystal Peak - hasAsym: " << finalPeak->hasAsymError() 
-                      << " | ErrHi: " << finalPeak->getErrorHi() 
-                      << " | ErrLo: " << finalPeak->getErrorLo() 
-                      << " | SymErr: " << finalPeak->getError() << std::endl;
-            
-            // Check if it has asymmetric errors AND ensure the lower error didn't fail to a zero value
-            if (finalPeak->hasAsymError() && finalPeak->getErrorLo() != 0.0) {
-                peakerrorhigh = finalPeak->getErrorHi(); 
-                peakerrorlo   = -finalPeak->getErrorLo(); // Flip the negative to positive for plotting
-            } else {
-                // If MINOS failed or returned 0, use the symmetric MIGRAD error for both
-                peakerrorhigh = finalPeak->getError();
-                peakerrorlo   = finalPeak->getError(); 
-            }
-        }*/
         unreducedchi2 = chi2Func->getVal(); 
         int nBins = chSpec.numEntries();  
         int nPars = fitRes->floatParsFinal().getSize();
@@ -370,25 +324,6 @@ auto run_one_fit = [&]() -> bool {
     if (!fitRes) return false;
 
     convergencestatus = fitRes->status();
-
-    // --- Extract peak & width with errors ---
-    /*RooRealVar* peak = dynamic_cast<RooRealVar*>(fitRes->floatParsFinal().find("fullPeak"));
-    RooRealVar* width= dynamic_cast<RooRealVar*>(fitRes->floatParsFinal().find("fullWidth_ADC"));//changed line
-
-    if (peak) {
-        fpeak         = peak->getVal(crysADC);
-        peakerrorhigh = peak->getAsymErrorHi();
-        peakerrorlo   = peak->getAsymErrorLo();
-        fullPeak.setVal(peak->getVal(crysADC));        // Update value
-    }
-
-
-    if (width) {
-        fsigma        = width->getVal();
-        widtherrorhigh= width->getAsymErrorHi();
-        widtherrorlo  = width->getAsymErrorLo();
-    }*/
-
     RooRealVar* peak = dynamic_cast<RooRealVar*>(fitRes->floatParsFinal().find("fullPeak"));
     RooRealVar* width= dynamic_cast<RooRealVar*>(fitRes->floatParsFinal().find("fullWidth"));
 
@@ -399,8 +334,6 @@ auto run_one_fit = [&]() -> bool {
                       << " | ErrLo: " << peak->getErrorLo() 
                       << " | SymErr: " << peak->getError() << std::endl;
            
-        
-        // Robust error extraction
         if (peak->hasAsymError() && std::abs(peak->getErrorLo()) > 0.01 && std::abs(peak->getErrorHi())>0.01) {
             peakerrorhigh = peak->getErrorHi();
             peakerrorlo   = -peak->getErrorLo();
@@ -417,20 +350,20 @@ auto run_one_fit = [&]() -> bool {
     if (width) {
         fsigma        = width->getVal();
         widtherrorhigh= width->getError();
-        widtherrorlo  = 0;//width->getAsymErrorLo(); probably do not need asym error
+        widtherrorlo  = 0;
     }
 
     RooRealVar* evtfull = dynamic_cast<RooRealVar*>(fitRes->floatParsFinal().find("evtsFull"));
     if (evtfull) {
-        //eventsFull      = evtfull->getVal();
         evtfullerrorhigh= evtfull->getError();
-        evtfullerrorlo  = 0;//evtfull->getAsymErrorLo();//probablydo not need asym error
+        evtfullerrorlo  = 0;
     }
 
     return (convergencestatus == 0||migrad_status == 0);
 };
-//bool first_ok = run_one_fit(); 
+run_one_fit(); 
 bool is_perfect = (convergencestatus == 0 && reducedchi2 <= 1.8 && asymSuccess);
+if (convergencestatus == 0 && reducedchi2 <= 1.8) {
 covarAcc.count++;
 covarAcc.sumPeak     += fpeak;
 covarAcc.sumWidth    += fsigma;
@@ -440,12 +373,12 @@ covarAcc.sumEvtFull  += fr_fullparam*nEvents;
 covarAcc.sumEvtFst   += fr_frstparam*nEvents;
 covarAcc.sumEvtScd   += fr_scndparam*nEvents;
 covarAcc.sumEvtBkg   += fr_bkgparam*nEvents;
+}
 //covarAcc.sumEvtCompton1   += fr_comptonparam1*nEvents;
 //covarAcc.sumEvtCompton2   += fr_comptonparam2*nEvents;
 //covarAcc.sumEvtCompton3   += fr_comptonparam3*nEvents;
 //bool second_ok = true;
 if (!is_perfect){
-//if (!first_ok || reducedchi2 > 1.8 ||  asymSuccess){
     std::cout << "======================================================================\n";
     std::cout << "needs refit (crystal " << crystalNo << ")\n";
     std::cout << "======================================================================\n";
@@ -476,140 +409,14 @@ if (!is_perfect){
     //currentEvtCompton1  = newevtsComptonGuess1;
     //currentEvtCompton2  = newevtsComptonGuess2;
     //currentEvtCompton3  = newevtsComptonGuess3;
-    
-    //second_ok = run_one_fit();
+
     run_one_fit();
 
-    //if (second_ok && reducedchi2 <= 1.8 && asymSuccess) {
-    if(is_perfect){
+    if(convergencestatus == 0 && reducedchi2 <= 1.8 && asymSuccess){
         SourceFitter::nSecondFitConverged++;
         SourceFitter::crystalsSecondFitConverged.push_back(crystalNo);
         std::cout << "[SourceFitter] Second fit SUCCESS for crystal " << crystalNo << "\n";
-    } 
-    /*else {  
-        SourceFitter::nThirdFits++;
-        SourceFitter::crystalsThirdFit.push_back(crystalNo);
-        auto reset_to_defaults = [&]() {
-   		 currentPeak    = initPeak;      // Assigning double to double
-   		 currentWidth   = initWidth;
-    	 currentAlpha   = initAlpha;
-    	 currentBeta    = initBeta;
-    	 currentEvtFull = initEvtFull;
-    	 currentEvtFst  = initEvtFst;
-    	 currentEvtScd  = initEvtScd;       
-   		 currentEvtBkg  = initEvtBkg;
-   		 //currentEvtCompton1  = initEvtCompton1;
-   		// currentEvtCompton2  = initEvtCompton2;
-   		// currentEvtCompton3  = initEvtCompton3;
-		};
-		reset_to_defaults();
-
-        // Lambda: randomize all parameters
-        auto randomize_all_parameters = [&]() {
-            auto randomDouble = [](double min, double max) {
-                return min + (max - min) * ((double)rand() / RAND_MAX);
-            };
-
-            currentPeak     = randomDouble(91.0, 108.0);
-            currentWidth    = randomDouble(2, 20);;//randomDouble(0.2, 1.5); //changed line
-            currentAlpha    = randomDouble(0.6, 1.7);
-            currentBeta     = randomDouble(1, 200);//randomDouble(0.01, 20);
-            currentEvtFull  = randomDouble(0.05 * integral_evts, integral_evts);
-            currentEvtFst   = randomDouble(0.05 * integral_evts, integral_evts);
-            currentEvtScd   = randomDouble(0.05 * integral_evts, integral_evts);
-            currentEvtBkg   = randomDouble(0.05 * integral_evts, integral_evts);
-            //currentEvtCompton1   = randomDouble(0.05 * integral_evts, integral_evts);
-            //currentEvtCompton2   = randomDouble(0.05 * integral_evts, integral_evts);
-            //currentEvtCompton3   = randomDouble(0.05 * integral_evts, integral_evts);
-        };
-
-        // Lambda: retry third fit
-        const int MAX_THIRD_TRIES = 40;
-        auto retry_third_fit = [&](int crystal) -> bool {
-            int tries = 0;
-            bool converged = false;
-            //adding new variables to remember best fit if all else fails
-            bool hesse_fallback = false;
-            double chi2_fallback = 9999.0;
-            double fb_peak,fb_width,fb_frfull,fb_frfrst,fb_frscd,fb_alpha,fb_beta,fb_bkg;
-
-            
-
-            for (tries = 1; tries <= MAX_THIRD_TRIES; ++tries) {
-                randomize_all_parameters();
-
-                if (run_one_fit() && reducedchi2 <= 1.8 && asymSuccess) {
-                    converged = true;
-                    break;
-                }
-                
-                else {
-                	if(reducedchi2<chi2_fallback){
-                	chi2_fallback = reducedchi2;
-                	hesse_fallback = true;
-                	fb_peak = currentPeak;
-                	fb_width = currentWidth;
-                	fb_frfull = currentEvtFull;
-                	fb_frfrst = currentEvtFst;
-                	fb_frscd = currentEvtScd;
-                	fb_alpha = currentAlpha;
-                	fb_beta = currentBeta;
-                	fb_bkg = currentEvtBkg;
-                	
-                	}
-                
-                }
-            }
-
-            SourceFitter::thirdFitRetryCount[crystal] = tries;
-            if (converged){
-            	return true;
-            }
-            if(hesse_fallback){
-            	std::cout<< "[SourceFitter] Exhausted 40 tries for Asym Errors on crystal " << crystal<< ". Resolving to best HESSE fit (chi2 = " << chi2_fallback << ").\n";
-            	// Load up the best fallback parameters we saved
-                currentPeak    = fb_peak;
-                currentWidth   = fb_width;
-                currentAlpha   = fb_alpha;
-                currentBeta    = fb_beta;
-                currentEvtFull = fb_frfull;
-                currentEvtFst  = fb_frfrst;
-                currentEvtScd  = fb_frscd;
-                currentEvtBkg  = fb_bkg;
-                fullPeak.removeAsymError();
-                //run_one_fit();
-                RooAbsReal* chi2Func = fitFun.createChi2(chSpec, RooFit::DataError(RooAbsData::SumW2), RooFit::Range(40, 115.2), RooFit::Extended(true));
-    			RooMinimizer m(*chi2Func);
-    			m.setPrintLevel(-1);
-    			m.migrad();
-    			m.hesse(); // Run HESSE only
-    			RooFitResult* res = m.save();
-    			// --- THE MIGRAD CHECK ---
-            	// 4. Extract actual MIGRAD status from history
-    			int migrad_status = -1; 
-    			for (UInt_t i = 0; i < res->numStatusHistory(); i++) {
-       		 		if (TString(res->statusLabelHistory(i)).Contains("MIGRAD")) {
-            			migrad_status = res->statusCodeHistory(i);
-        			}
-    			}
-    			convergencestatus = migrad_status;
-                if(migrad_status == 0){
-                	SourceFitter::nHesseFallbacks++;
-                	SourceFitter::crystalsHesseFallback.push_back(crystal);
-                	// Update variables manually for the plot
-    				fpeak         = fullPeak.getVal();
-    				peakerrorhigh = fullPeak.getError();
-    				peakerrorlo   = fullPeak.getError();
-   					asymSuccess   = false; // Ensure it's marked as symmetric
-                	delete res;
-                	return true;
-                
-                }
-               delete res;
-               return false;
-            }
-            return false;
-        };*/
+    }
         else {  
         SourceFitter::nThirdFits++;
         SourceFitter::crystalsThirdFit.push_back(crystalNo);
@@ -672,7 +479,9 @@ if (!is_perfect){
             }
             SourceFitter::thirdFitRetryCount[cId] = MAX_THIRD_TRIES;
 
-            // --- Fallback Stage ---
+            std::cout << "[DEBUG] Crystal " << cId << " exhausted 40 tries. Leaderboard has " 
+                      << leaderboard.size() << " valid MIGRAD candidates to choose from.\n";
+
             if (leaderboard.empty()) return false;
 
             std::sort(leaderboard.begin(), leaderboard.end(), [](const FitCandidate& a, const FitCandidate& b) {
@@ -696,35 +505,31 @@ if (!is_perfect){
                 m.migrad();
                 m.hesse();
                 RooFitResult* res = m.save();
-
-                /*//int migrad_status = -1;
-                for (UInt_t j = 0; j < res->numStatusHistory(); j++) {
-                    if (TString(res->statusLabelHistory(j)).Contains("MIGRAD")) 
-                        migrad_status = res->statusCodeHistory(j);
-                }*/
-
-                if (res->status() == 0 ) {
-               		 std::cout << "[DEBUG] Crystal " << cId << " converged on fallback candidate #" << i << " (chi2=" << best.chi2 << ")" << std::endl;
-                    convergencestatus = 0;
-                    asymSuccess = false;
-                    fpeak = fullPeak.getVal();
-                    peakerrorhigh = fullPeak.getError();
-                    peakerrorlo = fullPeak.getError();
-                    SourceFitter::nHesseFallbacks++;
-                    SourceFitter::crystalsHesseFallback.push_back(cId);
-                    delete res; delete chi2Func;
-                    return true;
+                bool fallback_ok = run_one_fit(); 
+                if (fallback_ok) { 
+                    if (reducedchi2 <= 1.8) {
+                        std::cout << "[DEBUG] Crystal " << cId << " converged on fallback candidate #"
+                        << i << " (chi2=" << reducedchi2 << ")" << std::endl;
+                        
+                        convergencestatus = 0;
+                        migrad_status = 0;
+                        asymSuccess = false; 
+                        
+                        SourceFitter::nHesseFallbacks++;
+                        SourceFitter::crystalsHesseFallback.push_back(cId);
+                        return true; 
+                    } else {
+                        std::cout << "[DEBUG] Fallback #" << i << " succeeded but chi2 (" 
+                                  << reducedchi2 << ") is still > 1.8. Trying next candidate...\n";
+                    }
                 }
-                std::cout << "[DEBUG] Crystal " << cId << " fallback candidate #" << i << " failed (MIGRAD=" << res->status() << ")" << std::endl;
-                delete res; delete chi2Func;
+                delete res;
+                 delete chi2Func;
             }
             return false;
         }; // End of lambda
         
-
-
         bool third_ok = retry_third_fit(crystalNo);
-
         if (third_ok) {
             SourceFitter::nThirdFitConverged++;
             SourceFitter::crystalsThirdFitConverged.push_back(crystalNo);
@@ -748,7 +553,6 @@ else {
     nFirstFitConverged++;
 }
 
-//if (convergencestatus > 0) {
 if (migrad_status>0){
     SourceFitter::convFailures.push_back({crystalNo, convergencestatus});
 }
@@ -760,17 +564,8 @@ if (reducedchi2 > 1.8){
 	SourceFitter::badchi2++;
 	SourceFitter::crystalswithbadchi2.push_back(crystalNo);
 }
-/*//check to make sure the plot is cleared 
-std::cout << "Before clear: " << chFrame->numItems() << std::endl;
 
-  while (chFrame->numItems() > 0) {
-    chFrame->remove();   // removes last-added item
-}
-  std::cout << "After clear: " << chFrame->numItems() << std::endl;*/
-  //get values for parameters that will populate the arxiv table
-  TF1* totalModelFunc = fitFun.asTF(RooArgList(crysADC));
-// 2. Find the X-value where this function is at its maximum height
-// We search within your fit range (40 to 115.2)
+TF1* totalModelFunc = fitFun.asTF(RooArgList(crysADC));
 redpeak = totalModelFunc->GetMaximumX(40.0, 115.2);
 
   fstpeak = fstEsPeak.getVal();
@@ -794,11 +589,9 @@ redpeak = totalModelFunc->GetMaximumX(40.0, 115.2);
   errbarlo = mparam*(peakerrorlo/fpeak);
   Esparam = Es.getVal();
   
-  //make plot with components
   chSpec.plotOn(chFrame, MarkerColor(kBlack), LineColor(kBlack), MarkerSize(0.5), Name("chSpec"));
   fitFun.plotOn(chFrame, LineColor(kRed), LineStyle(1), Name("fit"));
   chiSq = chFrame->chiSquare("fit", "chSpec", 8);
-  //std::cout<<"reduced chi2 calculated by func"<<chiSq<<std::endl;
   fitFun.plotOn(chFrame, Components(fullErg), LineColor(kOrange), LineStyle(5), Name("main"));
   fitFun.plotOn(chFrame, Components(firsErg), LineColor(kViolet), LineStyle(5), Name("fescape"));
   fitFun.plotOn(chFrame, Components(secdErg), LineColor(kCyan), LineStyle(5), Name("sescape"));
@@ -810,16 +603,11 @@ redpeak = totalModelFunc->GetMaximumX(40.0, 115.2);
   double xLines[] = {98.08, 89.904, 81.728};
   int colors[] = {kOrange-2, kViolet-9, kCyan-9}; 
   for (int i = 0; i < 3; i++) {
-    // TLine(x1, y1, x2, y2)
-    // We use chFrame->GetMinimum() and GetMaximum() to span the full height
     double yMax = chFrame->GetMaximum() > 0 ? chFrame->GetMaximum() : 10000;
     TLine *line = new TLine(xLines[i], 0, xLines[i], 0.5*yMax);
-
-    line->SetLineColor(colors[i]); // Professional dark gray
-    line->SetLineStyle(2);       // Dashed line
+    line->SetLineColor(colors[i]); 
+    line->SetLineStyle(2);       
     line->SetLineWidth(2);
-    
-    // Add to frame so it draws with the axes
     chFrame->addObject(line);
 }
 
@@ -849,7 +637,6 @@ redpeak = totalModelFunc->GetMaximumX(40.0, 115.2);
   pchi2 -> SetFillColor(kWhite);
   chFrame -> addObject(pchi2);
   TPaveLabel *fpk = new TPaveLabel(0.15, 0.65, 0.25, 0.55, Form("#mu_{main} = %.2f^{+%.2f}_{-%.2f}", fpeak, peakerrorhigh,peakerrorlo), "brNDC");
-  //std::cout<<"fpeak value at plotting" << fpeak<<std::endl;
   fpk -> SetFillStyle(0);
   fpk -> SetBorderSize(0);
   fpk -> SetTextSize(0.4);
@@ -866,14 +653,11 @@ redpeak = totalModelFunc->GetMaximumX(40.0, 115.2);
   fsg -> SetFillColor(kWhite);
   chFrame -> addObject(fsg);
 
-  // Create top pad for fit
 	TPad *pad1 = new TPad("pad1", "Top pad", 0, 0.25, 1, 1.0);
 	pad1->SetBottomMargin(0.035); 
 	pad1->Draw();
-	pad1->cd();  // switch to top pad
+	pad1->cd();  
   chFrame -> SetYTitle("Event count");
-  //chFrame -> GetYaxis()->SetTitleOffset(1.0);
-  //chFrame -> GetYaxis()->SetRangeUser(0, 20000);
   chFrame -> Draw();
   TLegend* legend = new TLegend(0.5, 0.7);
   legend->SetBorderSize(0);
@@ -886,21 +670,20 @@ redpeak = totalModelFunc->GetMaximumX(40.0, 115.2);
   //legend->AddEntry("compton2", "compton2", "L");
   //legend->AddEntry("compton3", "compton3", "L");
   legend->Draw();
-  // Back to canvas
 	can->cd();
-	// Create bottom pad for residuals
 	TPad *pad2 = new TPad("pad2", "Bottom pad", 0, 0.0, 1, 0.25);
 	pad2->SetTopMargin(0.07);
-	pad2->SetBottomMargin(0.3); // room for X-axis labels
+	pad2->SetBottomMargin(0.3); 
 	pad2->Draw();
 	pad2->cd();
-// Make residual histogram
+	
+// residual histogram
 double xMin = 40.0;
 double xMax = h_spec->GetXaxis()->GetXmax();
 int nBins   = h_spec->FindBin(xMax) - h_spec->FindBin(xMin) + 1;
 int startBin = h_spec->FindBin(xMin);
 int endBin = h_spec->FindBin(xMax);
-double totalYield = h_spec->Integral(startBin,endBin); // total events in the histogram
+double totalYield = h_spec->Integral(startBin,endBin); 
 TH1F* hresidual = new TH1F("hresidual","", nBins, xMin, xMax);
 
 for (int i = startBin; i <= h_spec->GetNbinsX(); ++i) {
@@ -912,18 +695,16 @@ for (int i = startBin; i <= h_spec->GetNbinsX(); ++i) {
     crysADC.setVal(x);
     double muFit = fitFun.getVal(&vars) * (totalYield) * binW;
     double res = (yErr > 0.0) ? (yData - muFit)/ yErr : 0.0;
-    // shift bin index so we start from 1 inside hresidual
     hresidual->SetBinContent(i - startBin + 1, res);
 }
-// Draw residual histogram
-hresidual->SetStats(0); //dont want a stats box
+hresidual->SetStats(0); 
 hresidual->SetTitle("");
 hresidual->GetYaxis()->SetTitle("#splitline{Normalized Residuals}{(data - fit)/#sigma}");
 hresidual->GetYaxis()->CenterTitle(true);
 hresidual->GetYaxis()->SetTitleSize(0.08);
 hresidual->GetYaxis()->SetLabelSize(0.10);
-hresidual->GetYaxis()->SetTitleOffset(0.45); // CRITICAL: Moves title into view
-hresidual->GetYaxis()->SetNdivisions(505);   // Reduces number of ticks for clarity
+hresidual->GetYaxis()->SetTitleOffset(0.45); 
+hresidual->GetYaxis()->SetNdivisions(505);   
 hresidual->GetXaxis()->SetTitleSize(0.12);
 hresidual->GetXaxis()->SetLabelSize(0.10);
 hresidual->GetXaxis()->SetTitle("ADC [counts]");
@@ -943,9 +724,9 @@ if (contour) {
 
     CaloSourceCalib::MakeContourPlot(
         fitFun, chSpec, opt, crystalNo,
-        xVar, yVar,                // Use the strings passed from command line
+        xVar, yVar,                
         fullPeak,  fpeak,  peakerrorlo,  peakerrorhigh,
-        fullWidth, fsigma, widtherrorlo, widtherrorhigh, //changed line
+        fullWidth, fsigma, widtherrorlo, widtherrorhigh, 
         fcbalpha,
         evtsFull,
         evtsFrst,
@@ -956,32 +737,6 @@ if (contour) {
         //compton stuff added here
     );
 }
-/*if (contour) {
-    // Configure Plot Here -- Just change these two strings to pick your X and Y axes.
-   // Options: "Peak", "Width", "Alpha", "N_Full", "N_1st", 
-   //          "N_2nd", "N_Bkg", "Const", "Beta"
-    TString xSelect = "Peak";    // <--- Change this to "Alpha", "N_Full", etc.
-    TString ySelect = "N_2nd";   // <--- Change this to "Peak", "Const", etc.
-
-    // --------------------------------------------------------
-    // Run Plotter
-    // --------------------------------------------------------
-    CaloSourceCalib::MakeContourPlot(
-        fitFun, chSpec, opt, crystalNo,
-        xSelect, ySelect,         // The selection
-        // Special Manual Vars
-        fullPeak,  fpeak,  peakerrorlo,  peakerrorhigh,
-        fullWidth, fsigma, widtherrorlo, widtherrorhigh,
-        // Standard Vars (Pass the RooRealVars directly)
-        fcbalpha,
-        evtsFull,
-        evtsFrst,
-        evtsScnd);
-        //evtsbkg,
-        //comCnst,
-        //combeta
-    //);
-}*/
 
 }
 
