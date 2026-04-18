@@ -1,8 +1,12 @@
-#ifndef _SourcePlotter_hh
-#define _SourcePlotter_hh
+#ifndef _mcinfo_hh
+#define _mcinfo_hh
 
 #include <fstream>
 #include <iostream>
+#include <chrono>
+#include <numeric>
+#include <iomanip>
+#include <algorithm> 
 #include "RooAbsReal.h"
 #include "TSystem.h"
 #include "TROOT.h"
@@ -33,16 +37,17 @@ using namespace TMath;
 using namespace RooFit;
 
 namespace CaloSourceCalib{
-  class SourcePlotter  {
+  class mcinfo  {
       public:
-        explicit SourcePlotter(){};
-        explicit SourcePlotter(const SourcePlotter &){};
-        SourcePlotter& operator = (const SourcePlotter &);
-        virtual ~SourcePlotter() = default;
+        mcinfo() = default;
+        mcinfo(const mcinfo &) = default;
+        mcinfo& operator=(const mcinfo &) = default;
+        virtual ~mcinfo() = default;
         #ifndef __CINT__
-        void ParamPlots(TTree* t, TFile *inputFile, TFile *outputFile,int cry_start, int cry_end);        
+        void RunMCTruth(TH1F* hist, int cryNum, int disk,TTree *trueinfo,Int_t &cryNumparam,  Int_t &tot_evts,Int_t &mainpeak,Int_t &first_espeak,Int_t &second_espeak,Int_t &background,Float_t &frmainpeak,Float_t &frfirst_espeak,Float_t &frsecond_espeak,Float_t &frbackground); 
+        void FinalizeMCSummary(TTree* trueinfo);      
         #endif
-        ClassDef (SourcePlotter,1);
+        ClassDef (mcinfo,1);
     };
 }
-#endif /* SourcePlotter.hh */
+#endif /* mcinfo.hh */
