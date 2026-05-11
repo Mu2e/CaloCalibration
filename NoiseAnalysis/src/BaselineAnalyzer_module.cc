@@ -19,6 +19,7 @@
 #include "Offline/DAQ/inc/CaloDAQUtilities.hh"
 #include "Offline/DataProducts/inc/CaloConst.hh"
 #include "Offline/RecoDataProducts/inc/CaloDigi.hh"
+#include "Offline/CaloVisualizer/inc/THMu2eCaloDisk.hh"
 #include "artdaq-core-mu2e/Data/EventHeader.hh"
 #include "artdaq-core-mu2e/Overlays/DTCEventFragment.hh"
 #include "artdaq-core-mu2e/Overlays/Decoders/CalorimeterDataDecoder.hh"
@@ -59,8 +60,6 @@
 #include "TText.h"
 #include "TTree.h"
 #include "art_root_io/TFileService.h"
-
-#include "Offline/CaloVisualizer/inc/THMu2eCaloDisk.hh"
 
 namespace mu2e {
 class BaselineAnalyzer : public art::EDAnalyzer {
