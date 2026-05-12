@@ -6,10 +6,6 @@
 #include "art/Framework/Services/Registry/ServiceHandle.h"
 #include "messagefacility/MessageLogger/MessageLogger.h"
 
-#include "TRACE/tracemf.h"
-// #include "artdaq/DAQdata/Globals.hh"
-#define TRACE_NAME "BaselineAnalyzer"
-
 #include "canvas/Utilities/Exception.h"
 #include "canvas/Utilities/InputTag.h"
 
@@ -206,9 +202,9 @@ void mu2e::BaselineAnalyzer::analyze(art::Event const& event) {
 			mu2e::CaloSiPMId SiPMID_(sipmid);
 			if(!SiPMID_.isValid())
 				continue;
-			int BoardChan                = calodaqconds.rawId(SiPMID_).id();
-			int boardID                  = BoardChan / 20;
-			int chanID                   = BoardChan % 20;
+			mu2e::CaloRawSiPMId rawId = calodaqconds.rawId(SiPMID_);
+			int boardID               = rawId.dirac();
+			int chanID                = rawId.ROCchannel();
 			channelType[boardID][chanID] = SiPMID_.detType();
 			TString typeName             = mu2e::CaloConst::detTypeName(channelType[boardID][chanID]);
 			TString htitle               = Form("Baseline of Board %03d channel %02d [%s]", boardID, chanID, typeName.Data());
@@ -225,9 +221,9 @@ void mu2e::BaselineAnalyzer::analyze(art::Event const& event) {
 		mu2e::CaloSiPMId SiPMID_(SiPMID);
 		if(!SiPMID_.isValid())
 			continue;
-		int BoardChan = calodaqconds.rawId(SiPMID_).id();
-		int boardID   = BoardChan / 20;
-		int chanID    = BoardChan % 20;
+		mu2e::CaloRawSiPMId rawId = calodaqconds.rawId(SiPMID_);
+		int boardID               = rawId.dirac();
+		int chanID                = rawId.ROCchannel();
 
 		// Fill hist
 		for(auto sample : waveform) {
