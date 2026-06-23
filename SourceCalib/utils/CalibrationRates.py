@@ -29,12 +29,7 @@ w_bath = 0.16         # width of bath as seen by neutron
 mfp = 3.0             # mean free path of neutron in fluid
 e_bath = 0.88         # geometric efficiency of bath
 
-# =============================================================================
-# To account for changing neutron yield: 
-# Change the neutron rate from the DT generator, R_DT, below and multiply 
-# by the reduced yield.
-# =============================================================================
-R_DT = 3e+08    # neutron rate from DT generator
+R_DT = 3e+08          # neutron rate from DT generator
 
 # =============================================================================
 # Equations from paper:
@@ -45,17 +40,13 @@ density_16N = n_16N / V_bath                                     # Number densit
 V_xtal = 0.0019 / n_xtal                                         # Volume of fluid at a crystal
 n_N_xtal = V_xtal * density_16N * a                              # Number of 16N at crystal
 
-
-# =============================================================================
-# Terminal Interface Logic
-# =============================================================================
 print("\n===========================================")
 print(" Welcome to Calibration Rate Calculator")
 print("===========================================\n")
 
 try:
     option = int(input("What type of information will you input:\n (1) Running time (in minutes) \n (2) Number of calibration gammas (per crystal)\n\nNote: Enter integer value (1 or 2): "))
-    print("") # Print a blank line for readability
+    print("") 
 
     if option == 1:
         # =============================================================================
@@ -63,7 +54,7 @@ try:
         # given calibration time (T_cal)
         # =============================================================================
         time_input = float(input("Please enter time in minutes: "))
-        T_cal = time_input * 60       # time in seconds
+        T_cal = time_input * 60       			   # time in seconds
         n_gam = (e_geom * T_cal * n_N_xtal) / tao  # number of calibration gammas per calibration per crystal
 
         print("\n--- RESULTS ---")

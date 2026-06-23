@@ -120,7 +120,7 @@ namespace mu2e {
         TH1F* list_of_crys_hists_truth[ncrystals];
   };
 
-  
+
   void SourceCalibDigiAna::analyze(const art::Event& event)
   {
       if (diagLevel_ > 0) std::cout<<"[SourceCalibDigiAna::analyze] begin"<<std::endl;
@@ -160,13 +160,13 @@ namespace mu2e {
   //------------------------------------------------------------------------------------------------------------
   void SourceCalibDigiAna::extractRecoDigi(const art::ValidHandle<CaloDigiCollection>& caloDigisHandle, const art::ValidHandle<CaloShowerSimCollection>& caloSimHandle,double pbtOffset)
   {
-      
+
       const auto& caloDigis = *caloDigisHandle;
       const auto& caloSims = *caloSimHandle;
 
       double totEnergyReco(0);
       std::vector<double> x{},y{};
-      
+
       // for reco
       std::vector<int> crystals_in_event;
       std::vector<int> sipms_in_event;
@@ -199,16 +199,16 @@ namespace mu2e {
               double eDep      = waveformProcessor_->amplitude(i);
               if (SiPMID%2==0) totEnergyReco += eDep;
               if (chi2/float(ndf) > maxChi2Cut_) continue;
-              
+
               if(crystals_in_event.size() !=0 ) {
                 if (Contains(crystals_in_event, SiPMID/2) == 0) {
                   crystals_in_event.push_back(SiPMID/2);
                   total_energy_in_crystal[SiPMID/2] = eDep;
-                } else{ 
+                } else{
                   total_energy_in_crystal[SiPMID/2]+= eDep;
                 }
               } else crystals_in_event.push_back(SiPMID/2);
-                
+
                 if (Contains(sipms_in_event, caloDigi.SiPMID()) == 0) {
                   sipms_in_event.push_back(caloDigi.SiPMID());
                   total_energy_in_sipm[caloDigi.SiPMID()] = eDep;
@@ -224,7 +224,7 @@ namespace mu2e {
       std::vector<double> true_total_energy_in_crystal(ncrystals, 0);
       std::vector<double> true_total_energy_in_sipm(nsipms, 0);
       for (const auto& caloSim : caloSims)
-      { 
+      {
           int    cryID   = caloSim.crystalID();
           double eDep       = caloSim.energyDepG4();
           //std::cout<<"cryID"<<cryID<<" edep "<<edep<<std::endl;
@@ -235,7 +235,7 @@ namespace mu2e {
             if (Contains(true_crystals_in_event, cryID) == 0) {
               true_crystals_in_event.push_back(cryID);
               true_total_energy_in_crystal[cryID] = eDep;
-            } else{ 
+            } else{
               true_total_energy_in_crystal[cryID]+= eDep;
             }
           } else true_crystals_in_event.push_back(cryID);
@@ -243,9 +243,9 @@ namespace mu2e {
       */
 
       // For crystals cuts, Reco
-      bool passes_time_cry = true; 
+      bool passes_time_cry = true;
       bool passes_ratio_cry = true;
-      
+
       double difTime_cry = 0;
       if(time.size() !=0) {
         sort(time.begin(), time.end());
@@ -272,21 +272,21 @@ namespace mu2e {
           if(total_energy_in_sipm[id_sipm1]!=0) list_of_sipm_hists[id_sipm1]->Fill(total_energy_in_sipm[id_sipm1]);
           if(total_energy_in_sipm[id_sipm2]!=0) list_of_sipm_hists[id_sipm2]->Fill(total_energy_in_sipm[id_sipm2]);
           for (const auto& caloSim : caloSims)
-          { 
+          {
               int    cryID   = caloSim.crystalID();
               double eDep       = caloSim.energyDepG4();
               if(id_sipm1/2 == cryID) list_of_crys_hists_truth[id_sipm1/2]->Fill(eDep);
           }
         }
-        /*if (passes_time and passes_ratio and Contains(badcrys, id) == 1) { 
+        /*if (passes_time and passes_ratio and Contains(badcrys, id) == 1) {
           badfile<<id<<","<<passes_time<<","<<passes_ratio<<","<<total_energy_in_crystal[id]<<std::endl;
         }*/
       }
-      
-     
-      
+
+
+
       // For SiPMs
-      /*bool passes_time_sipm = true; 
+      /*bool passes_time_sipm = true;
       bool passes_ratio_sipm = true;
       double difTime_sipm = 0;
       if(time.size() !=0) {

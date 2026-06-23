@@ -669,7 +669,7 @@ for (size_t i = 0; i < crystalNos.size(); ++i) {
 }
 
 // Prepare data for plots
-std::vector<Double_t> sipm0_peaks, sipm1_peaks, pair_diffs, crystal_ids;
+std::vector<Double_t> sipm0_peaks, sipm1_peaks, pair_diffs, pair_avg, crystal_ids;
 
 for (const auto& [crystal, sipm_map] : sipm_peaks_by_crystal) {
     if (sipm_map.size() != 2) {
@@ -687,7 +687,8 @@ for (const auto& [crystal, sipm_map] : sipm_peaks_by_crystal) {
 
     sipm0_peaks.push_back(p0);
     sipm1_peaks.push_back(p1);
-    pair_diffs.push_back(p0 - p1);
+    pair_diffs.push_back((p0 - p1));
+    pair_avg.push_back((p0+p1)/2.0);
     crystal_ids.push_back(crystal);
 }
 
@@ -799,25 +800,111 @@ c45->SaveAs("OddEven_45deg.root");
 
 //----------------------------------------------//
 
-// --- Difference plot: Peak0 - Peak1 vs crystal number ---
-TGraph grDiff(crystal_ids.size(), &crystal_ids[0], &pair_diffs[0]);
-grDiff.SetTitle("SiPM Peak Difference (0 - 1);Crystal Number;Peak Difference");
-grDiff.SetMarkerStyle(21);
-grDiff.SetMarkerColor(kGreen + 2);
-grDiff.SetMarkerSize(0.9);
-
-TCanvas canvasDiff("canvasDiff", "SiPM Peak Difference", 800, 600);
-grDiff.Draw("AP");
-
-TLine zeroLine(*std::min_element(crystal_ids.begin(), crystal_ids.end()), 0,
-               *std::max_element(crystal_ids.begin(), crystal_ids.end()), 0);
-zeroLine.SetLineColor(kRed);
-zeroLine.SetLineStyle(2);
-zeroLine.Draw("same");
-
+// --- Difference histogram: |Peak0 - Peak1| ---
+{
+double d_min = *std::min_element(pair_diffs.begin(), pair_diffs.end());
+double d_max = *std::max_element(pair_diffs.begin(), pair_diffs.end());
+double d_mg  = 0.05 * (d_max - d_min);
+d_min -= d_mg; d_max += d_mg;
+TH1D* hDiffAbs = new TH1D("hDiffAbs","SiPM Peak Difference;Peak0 - Peak1;Counts",50,d_min,d_max);
+for (double v : pair_diffs) hDiffAbs->Fill(v);
+TF1* gausDiff = new TF1("gausDiff","gaus",d_min,d_max);
+hDiffAbs->Fit(gausDiff,"Q");
+TCanvas canvasDiff("canvasDiff","SiPM Peak Difference",800,600);
+hDiffAbs->SetLineColor(kGreen+2); hDiffAbs->SetLineWidth(2); hDiffAbs->Draw();
+gausDiff->SetLineColor(kRed); gausDiff->SetLineWidth(2); gausDiff->Draw("same");
 outputFile->cd();
-grDiff.Write("SiPM_Peak_Difference");
+hDiffAbs->Write("SiPM_Peak_Difference");
 canvasDiff.SaveAs("SiPM_Peak_Difference.root");
+}
+
+// --- Avg Difference histogram: Peak0 - Peak1 / ((Peak0 + Peak1)/2) ---
+{
+std::vector<Double_t> pair_norm_diffs;
+for (size_t i = 0; i < pair_diffs.size(); ++i)
+    pair_norm_diffs.push_back(pair_avg[i] > 0 ? pair_diffs[i] / pair_avg[i] : 0.0);
+double n_min = *std::min_element(pair_norm_diffs.begin(), pair_norm_diffs.end());
+double n_max = *std::max_element(pair_norm_diffs.begin(), pair_norm_diffs.end());
+double n_mg  = 0.05 * (n_max - n_min);
+n_min -= n_mg; n_max += n_mg;
+TH1D* hNormDiff = new TH1D("hNormDiff","Normalized SiPM Peak Difference;Peak0 - Peak1 / Avg;Counts",50,n_min,n_max);
+for (double v : pair_norm_diffs) hNormDiff->Fill(v);
+TF1* gausNorm = new TF1("gausNorm","gaus",n_min,n_max);
+hNormDiff->Fit(gausNorm,"Q");
+TCanvas canvasNormDiff("canvasNormDiff","SiPM Normalized Diff",800,600);
+hNormDiff->SetLineColor(kGreen+2); hNormDiff->SetLineWidth(2); hNormDiff->Draw();
+gausNorm->SetLineColor(kRed); gausNorm->SetLineWidth(2); gausNorm->Draw("same");
+std::cout << "Normalized Diff Fit: Mean = " << gausNorm->GetParameter(1)
+          << ", Sigma = " << gausNorm->GetParameter(2) << std::endl;
+outputFile->cd();
+hNormDiff->Write("SiPM_Peak_AVGDifference");
+gausNorm->Write("SiPM_Peak_AVGDifference_GausFit");
+canvasNormDiff.SaveAs("SiPM_Peak_AVGDifference.root");
+}
+
+// --- Avg Difference histogram (CsI only) ---
+{
+std::set<long> lyso_crystal_ids;
+for (long sid : lyso_ids) lyso_crystal_ids.insert(sid / 2);
+
+std::vector<Double_t> pair_norm_diffs_csi;
+for (size_t i = 0; i < pair_diffs.size(); ++i) {
+    long cid = std::lround(crystal_ids[i]);
+    if (!lyso_crystal_ids.count(cid) && pair_avg[i] > 0)
+        pair_norm_diffs_csi.push_back(pair_diffs[i] / pair_avg[i]);
+}
+if (!pair_norm_diffs_csi.empty()) {
+    double n_min = *std::min_element(pair_norm_diffs_csi.begin(), pair_norm_diffs_csi.end());
+    double n_max = *std::max_element(pair_norm_diffs_csi.begin(), pair_norm_diffs_csi.end());
+    double n_mg  = 0.05 * (n_max - n_min);
+    n_min -= n_mg; n_max += n_mg;
+    TH1D* hNormDiffCsI = new TH1D("hNormDiffCsI","Normalized SiPM Peak Difference (CsI);Peak0 - Peak1 / Avg;Counts",50,n_min,n_max);
+    for (double v : pair_norm_diffs_csi) hNormDiffCsI->Fill(v);
+    TF1* gausNormCsI = new TF1("gausNormCsI","gaus",n_min,n_max);
+    hNormDiffCsI->Fit(gausNormCsI,"Q");
+    TCanvas canvasNormDiffCsI("canvasNormDiffCsI","SiPM Normalized Diff (CsI)",800,600);
+    hNormDiffCsI->SetLineColor(kViolet+2); hNormDiffCsI->SetLineWidth(2); hNormDiffCsI->Draw();
+    gausNormCsI->SetLineColor(kRed); gausNormCsI->SetLineWidth(2); gausNormCsI->Draw("same");
+    std::cout << "CsI Normalized Diff Fit: Mean = " << gausNormCsI->GetParameter(1)
+              << ", Sigma = " << gausNormCsI->GetParameter(2) << std::endl;
+    outputFile->cd();
+    hNormDiffCsI->Write("SiPM_Peak_AVGDifference_CsI");
+    gausNormCsI->Write("SiPM_Peak_AVGDifference_CsI_GausFit");
+    canvasNormDiffCsI.SaveAs("SiPM_Peak_AVGDifference_CsI.root");
+}
+}
+
+// --- Avg Difference histogram (LYSO only) ---
+{
+std::set<long> lyso_crystal_ids;
+for (long sid : lyso_ids) lyso_crystal_ids.insert(sid / 2);
+
+std::vector<Double_t> pair_norm_diffs_lyso;
+for (size_t i = 0; i < pair_diffs.size(); ++i) {
+    long cid = std::lround(crystal_ids[i]);
+    if (lyso_crystal_ids.count(cid) && pair_avg[i] > 0)
+        pair_norm_diffs_lyso.push_back(pair_diffs[i] / pair_avg[i]);
+}
+if (!pair_norm_diffs_lyso.empty()) {
+    double n_min = *std::min_element(pair_norm_diffs_lyso.begin(), pair_norm_diffs_lyso.end());
+    double n_max = *std::max_element(pair_norm_diffs_lyso.begin(), pair_norm_diffs_lyso.end());
+    double n_mg  = 0.05 * (n_max - n_min);
+    n_min -= n_mg; n_max += n_mg;
+    TH1D* hNormDiffLYSO = new TH1D("hNormDiffLYSO","Normalized SiPM Peak Difference (LYSO);Peak0 - Peak1 / Avg;Counts",50,n_min,n_max);
+    for (double v : pair_norm_diffs_lyso) hNormDiffLYSO->Fill(v);
+    TF1* gausNormLYSO = new TF1("gausNormLYSO","gaus",n_min,n_max);
+    hNormDiffLYSO->Fit(gausNormLYSO,"Q");
+    TCanvas canvasNormDiffLYSO("canvasNormDiffLYSO","SiPM Normalized Diff (LYSO)",800,600);
+    hNormDiffLYSO->SetLineColor(kAzure-3); hNormDiffLYSO->SetLineWidth(2); hNormDiffLYSO->Draw();
+    gausNormLYSO->SetLineColor(kRed); gausNormLYSO->SetLineWidth(2); gausNormLYSO->Draw("same");
+    std::cout << "LYSO Normalized Diff Fit: Mean = " << gausNormLYSO->GetParameter(1)
+              << ", Sigma = " << gausNormLYSO->GetParameter(2) << std::endl;
+    outputFile->cd();
+    hNormDiffLYSO->Write("SiPM_Peak_AVGDifference_LYSO");
+    gausNormLYSO->Write("SiPM_Peak_AVGDifference_LYSO_GausFit");
+    canvasNormDiffLYSO.SaveAs("SiPM_Peak_AVGDifference_LYSO.root");
+}
+}
 
 // --- Projection: Histogram of Peak Differences and Gaussian Fit ---
 int nbins = 50;
