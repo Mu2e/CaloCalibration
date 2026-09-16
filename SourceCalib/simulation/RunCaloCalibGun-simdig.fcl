@@ -32,7 +32,8 @@ physics: {
         phimax : 2.0
         tmin  :  0.
         tmax : 100000.//Off-spill
-        nDisk : 0 //Change me to run over other disk
+        disks : [0] //Change to [0,1] to run over both disks or chane 0 -> 1 to run over other disk
+        multiphotons : false
       }
 
       g4run : @local::g4run
