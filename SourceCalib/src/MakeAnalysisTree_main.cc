@@ -10,26 +10,14 @@ using namespace std::chrono;
 
 using namespace CaloSourceCalib;
 
-//method with one big root file
-TString filepath_disk0 = "/pnfs/mu2e/scratch/users/hjafree/fixedgeom_both_disks.root";
-
-TString filepath_disk1 = "/exp/mu2e/app/home/mu2epro/sourcecalib/disk1/nts.mu2e.SourceCalibAna1e9.0.root";
+TString filepath = "/pnfs/mu2e/scratch/users/hjafree/fixedgeom_both_disks.root";//change file here
 
 
-std::pair<TH1F*, TFile*> get_data_histogram(int cryNum, int disk) {
-    TString filepath;
-    TString histPath;
-    // Currently the disk can be toggled between sipms (disk 0 or 1) vs crystals (disk 2 or 3-- representing 0 and 1 respectively) as input. This is a temporary switch being used for studies and will be removed before the final data run.
-    if (disk == 0 || disk == 2) {
-        filepath = filepath_disk0;
-        histPath = (disk == 0) ? "SourceAna/sipm_ADC/sipm_" : "SourceAna/crystals_ADC/cry_";
-        //uncomment line below and comment the one above if cut and count needs to be applied to the mc truth histograms
-        //histPath = (disk == 0) ? "SourceAna/crystals_edep_truth/cry_" : "SourceAna/crystals_ADC/cry_";
-    } else if (disk == 1 || disk == 3) {
-        filepath = filepath_disk0;
-        histPath = (disk == 1) ? "SourceAna/sipm_ADC/sipm_" : "SourceAna/crystals_ADC/cry_";
-    }
- 
+std::pair<TH1F*, TFile*> get_data_histogram(int cryNum, bool isSiPMRun) {
+    TString histPath = isSiPMRun ? "SourceAna/sipm_ADC/sipm_" : "SourceAna/crystals_ADC/cry_";
+    //uncomment line below and comment the one above if cut and count needs to be applied to the mc truth histograms
+    //histPath = isSiPMRun ? "SourceAna/crystals_edep_truth/cry_" : "SourceAna/crystals_ADC/cry_";
+
     TFile *f = new TFile(filepath);
     TString crystalNumber = to_string(cryNum);
     TH1F* hist = (TH1F*)f->Get(histPath + crystalNumber);
@@ -63,7 +51,7 @@ int main(int argc, char* argv[]) {
     std::cout << "========== Welcome to the Mu2e Source Calibration Analysis ==========" << std::endl;
     std::vector<TString> allowedParams = {
     	"peak" , "alpha", "n_full" , "n_1st", "n_2nd","beta"
-    }; //, "n_bkg", "beta" , "const", "width"};
+    }; 
     auto isInvalid = [&](TString input){
     	input.ToLower();
     	for (const auto& p : allowedParams) {
@@ -72,9 +60,9 @@ int main(int argc, char* argv[]) {
     	return true;
     };
 
-    if (argc < 5) {
+    if (argc < 6) {
         std::cerr << "[ERROR] Missing arguments.\n";
-        std::cerr << "Usage: " << argv[0] << " <start_cry> <end_cry> <alg> <disk> [flags: overlay, contour, mc, singlesided]\n";
+        std::cerr << "Usage: " << argv[0] << " <start_cry> <end_cry> <alg> <disk> <readout: sipm|crystal> [flags: overlay, contour, mc, singlesided]\n";
         return 1;
     }
 
@@ -84,13 +72,21 @@ int main(int argc, char* argv[]) {
     TString alg       = argv[3];
     int disk          = std::atoi(argv[4]);
 
+    TString readout = argv[5];
+    readout.ToLower();
+    if (readout != "sipm" && readout != "crystal") {
+        std::cerr << "[ERROR] Invalid readout '" << argv[5] << "' - must be 'sipm' or 'crystal'\n";
+        return 1;
+    }
+    bool isSiPMRun = (readout == "sipm");
+
     // 3. Initialize Flags
     bool doOverlay = false;
     bool contour   = false;
     TString xSelect = "Peak"; 
     TString ySelect = "Width"; 
     bool isMC      = false;
-    for (int i = 5; i < argc; i++) {
+    for (int i = 6; i < argc; i++) {
         TString arg = argv[i];
         arg.ToLower(); 
         
@@ -116,8 +112,8 @@ int main(int argc, char* argv[]) {
         if (arg.Contains("mc"))      isMC      = true;  
         if(arg.Contains("singlesided")) SourceFitter::singlesided = true;
         if (arg.Contains("help")) {
-            std::cout << "Usage: " << argv[0] << " <start_cry> <end_cry> <alg> <disk> [flags: overlay, contour, mc, singlesided]\n";
-            std::cout << "Example: " << argv[0] << " 0 10 fit disk0 overlay\n";
+            std::cout << "Usage: " << argv[0] << " <start_cry> <end_cry> <alg> <disk> <readout: sipm|crystal> [flags: overlay, contour, mc, singlesided]\n";
+            std::cout << "Example: " << argv[0] << " 0 10 fit 0 sipm overlay\n";
             return 0;
         }
          	
@@ -126,8 +122,7 @@ int main(int argc, char* argv[]) {
 //Caphri crystals
 //------------------
 std::vector<int> lysoSiPMs = {1164,1165,1220,1221,1218,1219,1274,1275};
-std::vector<int> lysoCrystals = {582,610,609,637};//this is only temporary for testing-- will only run for sipms
-bool isSiPMRun = (disk == 0 || disk ==1); //this is only temporary for testing-- will only run for sipms
+std::vector<int> lysoCrystals = {582,610,609,637};
 std::cout << "\n[INFO] Starting loop from ID" << anacrys_start << " to " << anacrys_end <<std::endl;
     
 // --------------------------------------------------------
@@ -186,7 +181,7 @@ if (isMC) {
     truthfit->Branch("ndof",       &truth_ndof,     "truth_ndof/I");
 
     for (int cryNum = anacrys_start; cryNum < anacrys_end; cryNum++) {
-        auto [hist, file] = get_data_histogram(cryNum, disk);
+        auto [hist, file] = get_data_histogram(cryNum, isSiPMRun);
         if (!hist) {
             if (file) { file->Close(); delete file; }
             continue;
@@ -209,7 +204,7 @@ if (isMC) {
                                  truth_peak_mev, truth_fr_full, truth_fr_1st, truth_fr_2nd,
                                  truth_fr_c1, truth_fr_c2, truth_fr_c3,truth_fr_ebk,
                                  truth_width, truth_alpha, truth_chi2, truth_ndof,false);
-                                 // false = exponential background, true = Compton erfc
+
 
         file->Close();
         delete file;
@@ -221,7 +216,7 @@ if (isMC) {
 
     truthtable->cd();
     trueinfo->Write();
-    truthfit->Write();  // Write fitted results too
+    truthfit->Write();  
     truthtable->Write();
     truthtable->Close();
 
@@ -240,7 +235,7 @@ if (isMC) {
   frScndparam,crystalNoparam,frBKGparam,frcomptonparam1,frcomptonparam2,frcomptonparam3,
   pval,h_means,h_stddevs,unreducedchi2,fval,mparam,etaparam,widtherrorhigh,
   widtherrorlo,errbarhigh,errbarlo,evtfullerrorhigh,evtfullerrorlo,
-  Esparam,Aparam,Aperr,Bparam,Berr,Cparam,Cerr;// frcomptonparam1,frcomptonparam2,frcomptonparam3,
+  Esparam,Aparam,Aperr,Bparam,Berr,Cparam,Cerr;
   Int_t ndof;
 
   // MC Truth reference branches (for comparison diagnostics)
@@ -270,7 +265,6 @@ if (isMC) {
   covar->Branch("frFrst", &frFrstparam,"frFrstparam/F");
   covar->Branch("frScnd", &frScndparam,"frScndparam/F");
   covar->Branch("frBKG", &frBKGparam,"frBKGparam/F");
-  //covar->Branch("frCompton", &frcomptonparam,"frComptonparam/F");
   covar->Branch("frcompton1", &frcomptonparam1,"frcomptonparam1/F");
   covar->Branch("frcompton2", &frcomptonparam2,"frcomptonparam2/F");
   covar->Branch("frcompton3", &frcomptonparam3,"frcomptonparam3/F");
@@ -335,7 +329,7 @@ if (isMC) {
 
   auto start_bin = high_resolution_clock::now();
   for(int cryNum=anacrys_start; cryNum<anacrys_end; cryNum++){
-    auto [hSum, file] = get_data_histogram(cryNum, disk);
+    auto [hSum, file] = get_data_histogram(cryNum, isSiPMRun);
     auto [mean, stddev] = ComputeHistogramStats(hSum);
 		h_means   = mean;
 		h_stddevs = stddev;
@@ -356,7 +350,7 @@ if (isMC) {
                     frcomptonparam1,frcomptonparam2,frcomptonparam3,pval,h_means,
                     h_stddevs,unreducedchi2,
                     fval,mparam,etaparam,ndof,contour,xSelect,ySelect,errbarhigh,
-                    errbarlo, evtfullerrorhigh,evtfullerrorlo,Esparam,Aparam,Aperr,Bparam,Berr,Cparam,Cerr,fcbalphaRparam,fcbndegRparam,islyso);//frcomptonparam1,frcomptonparam2,frcomptonparam3
+                    errbarlo, evtfullerrorhigh,evtfullerrorlo,Esparam,Aparam,Aperr,Bparam,Berr,Cparam,Cerr,fcbalphaRparam,fcbndegRparam,islyso);
     file->Close();
     delete file;
 
@@ -396,8 +390,8 @@ if (isMC) {
 if (doOverlay) {
 	for (int cryNum = anacrys_start; cryNum + 1 < anacrys_end; cryNum += 2) {
 
-    auto [hist_even, file_even] = get_data_histogram(cryNum, disk);
-    auto [hist_odd, file_odd]  = get_data_histogram(cryNum + 1, disk);	 
+    auto [hist_even, file_even] = get_data_histogram(cryNum, isSiPMRun);
+    auto [hist_odd, file_odd]  = get_data_histogram(cryNum + 1, isSiPMRun);
      hist_even->SetDirectory(0);
      hist_odd->SetDirectory(0);
     hist_even->SetLineColor(kBlue);

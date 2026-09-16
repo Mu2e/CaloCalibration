@@ -9,7 +9,7 @@ using namespace std::chrono;
 using namespace CaloSourceCalib;
 
 /* function to make global plots of the fit outputs*/
-void SourcePlotter::ParamPlots(TTree* inputTree, TFile *inputFile, TFile *outputFile,int cry_start, int cry_end, bool isSiPMRun) {//add param as plot range
+void SourcePlotter::ParamPlots(TTree* inputTree, TFile *inputFile, TFile *outputFile,int cry_start, int cry_end, bool isSiPMRun) {
     float crystalNo, Peak, ChiSq, PeakErrHigh,PeakErrLo,CompositePeak,h_means,
     h_stds,frFull,frFrst,frScnd,firstPeak,secondPeak,Width,WidthErrHigh,WidthErrLo,
     unreducedchi2;
@@ -22,7 +22,7 @@ void SourcePlotter::ParamPlots(TTree* inputTree, TFile *inputFile, TFile *output
     inputTree-> SetBranchAddress("ChiSq", &ChiSq);
     inputTree-> SetBranchAddress("nEvents", &nEvents); 
     inputTree-> SetBranchAddress("h_means", &h_means); 
-    inputTree-> SetBranchAddress("h_stds", &h_stds); 
+    inputTree-> SetBranchAddress("h_stddevs", &h_stds);
     inputTree-> SetBranchAddress("frFull", &frFull);
     inputTree-> SetBranchAddress("frFrst", &frFrst);
     inputTree-> SetBranchAddress("frScnd", &frScnd); 
@@ -79,30 +79,14 @@ firstPeak_vec,secondPeak_vec,Widths,WidthErrHighs,WidthErrLos,unreducedchi2s,ndo
     double peakerrlo_sum = std::accumulate(PeakErrLos.begin(), PeakErrLos.end(), 0.0);
     double avgpeakerr_hi = peakerrhi_sum / PeakErrHighs.size();
     double avgpeakerr_lo = peakerrlo_sum / PeakErrLos.size();
-    
-    std::cout << " peak 2 std dev " << Peaks_stddev * 2 << std::endl;
-    std::cout << " peak std dev " << Peaks_stddev << std::endl;
-    std::cout << " ------------ " << std::endl;
+    double peakerrhi_stddev = TMath::StdDev(PeakErrHighs.begin(), PeakErrHighs.end());
+    double peakerrlo_stddev = TMath::StdDev(PeakErrLos.begin(), PeakErrLos.end());
 
-//----create loop to count and print how many crys/sipms have pear error larger than 2 stdev----     
-    int countHighPeakErrHighs = 0;
-    for (size_t i = 0; i < PeakErrHighs.size(); ++i) {
-        if (PeakErrHighs[i] > 2 * Peaks_stddev) {
-            ++countHighPeakErrHighs;
-            std::cout << "Crystal " << crystalNos[i] 
-                      << " has PeakErrHigh = " << PeakErrHighs[i] 
-                      << " > 2*Peaks_stddev (" << 2 * Peaks_stddev << ")\n";
-        }
-    }
-    int countHighPeakErrLos = 0;
-    for (size_t i = 0; i < PeakErrLos.size(); ++i) {
-        if (PeakErrLos[i] > 2 * Peaks_stddev) {
-            ++countHighPeakErrLos;
-            std::cout << "Crystal " << crystalNos[i] 
-                      << " has PeakErrLos = " << PeakErrLos[i] 
-                      << " > 2*Peaks_stddev (" << 2 * Peaks_stddev << ")\n";
-        }
-    }
+    int countHighPeakErrHighs = std::count_if(PeakErrHighs.begin(), PeakErrHighs.end(),
+        [&](double v){ return v > avgpeakerr_hi + 2*peakerrhi_stddev; });
+    int countHighPeakErrLos = std::count_if(PeakErrLos.begin(), PeakErrLos.end(),
+        [&](double v){ return v > avgpeakerr_lo + 2*peakerrlo_stddev; });
+
     std::cout << "Number of PeakErrHighs > 2 stdev " << countHighPeakErrHighs << std::endl;
     std::cout << " ------------ " << std::endl;
     std::cout << "Number of PeakErrLos > 2 stdev " << countHighPeakErrLos << std::endl;
@@ -112,13 +96,10 @@ firstPeak_vec,secondPeak_vec,Widths,WidthErrHighs,WidthErrLos,unreducedchi2s,ndo
     double ChiSqs_sum = std::accumulate(ChiSqs.begin(), ChiSqs.end(), 0.0);
     double ChiSqs_avg = ChiSqs_sum / ChiSqs.size();
     double ChiSqs_stddev = TMath::StdDev(ChiSqs.begin(), ChiSqs.end());
-    std::cout << " std dev of chi2 " << ChiSqs_stddev << std::endl;
-    std::cout << " 2 std dev of chi2 " << 2 * ChiSqs_stddev << std::endl;
-    
     double Events_sum = std::accumulate(Events.begin(), Events.end(), 0.0);
     double Events_avg = Events_sum / Events.size();
     double Events_stddev = TMath::StdDev(Events.begin(), Events.end());
-    std::cout << " std dev of events " << Events_stddev << std::endl;
+
 
     // =======================================================
     // SPLIT DATA INTO SUBSETS
@@ -448,8 +429,8 @@ firstPeak_vec,secondPeak_vec,Widths,WidthErrHighs,WidthErrLos,unreducedchi2s,ndo
         return std::make_tuple(avgL, hiL, loL);
     };
 
-    auto [avgOddL,  hiOddL,  loOddL ] = MakeLines(cry_start1, cry_end1, avgOdd,  stdOdd);
-    auto [avgEvenL, hiEvenL, loEvenL] = MakeLines(cry_start1, cry_end1, avgEven, stdEven);
+    auto [avgOddL,  hiOddL,  loOddL ] = MakeLines(cry_start, cry_end, avgOdd,  stdOdd);
+    auto [avgEvenL, hiEvenL, loEvenL] = MakeLines(cry_start, cry_end, avgEven, stdEven);
     auto [avgR1L,   hiR1L,   loR1L  ] = MakeLines(cry_start1, cry_end1, avgR1,   stdR1);
     auto [avgR2L,   hiR2L,   loR2L  ] = MakeLines(cry_start2, cry_end2, avgR2,   stdR2);
 
@@ -831,15 +812,13 @@ double n_min = *std::min_element(pair_norm_diffs.begin(), pair_norm_diffs.end())
 double n_max = *std::max_element(pair_norm_diffs.begin(), pair_norm_diffs.end());
 double n_mg  = 0.05 * (n_max - n_min);
 n_min -= n_mg; n_max += n_mg;
-TH1D* hNormDiff = new TH1D("hNormDiff","Normalized SiPM Peak Difference;Peak0 - Peak1 / Avg;Counts",50,n_min,n_max);
+TH1D* hNormDiff = new TH1D("hNormDiff","Normalised Peak Difference;Peak0 - Peak1 / Avg;Counts",50,n_min,n_max);
 for (double v : pair_norm_diffs) hNormDiff->Fill(v);
 TF1* gausNorm = new TF1("gausNorm","gaus",n_min,n_max);
 hNormDiff->Fit(gausNorm,"Q");
 TCanvas canvasNormDiff("canvasNormDiff","SiPM Normalized Diff",800,600);
 hNormDiff->SetLineColor(kGreen+2); hNormDiff->SetLineWidth(2); hNormDiff->Draw();
 gausNorm->SetLineColor(kRed); gausNorm->SetLineWidth(2); gausNorm->Draw("same");
-std::cout << "Normalized Diff Fit: Mean = " << gausNorm->GetParameter(1)
-          << ", Sigma = " << gausNorm->GetParameter(2) << std::endl;
 outputFile->cd();
 hNormDiff->Write("SiPM_Peak_AVGDifference");
 gausNorm->Write("SiPM_Peak_AVGDifference_GausFit");
@@ -869,8 +848,6 @@ if (!pair_norm_diffs_csi.empty()) {
     TCanvas canvasNormDiffCsI("canvasNormDiffCsI","SiPM Normalized Diff (CsI)",800,600);
     hNormDiffCsI->SetLineColor(kViolet+2); hNormDiffCsI->SetLineWidth(2); hNormDiffCsI->Draw();
     gausNormCsI->SetLineColor(kRed); gausNormCsI->SetLineWidth(2); gausNormCsI->Draw("same");
-    std::cout << "CsI Normalized Diff Fit: Mean = " << gausNormCsI->GetParameter(1)
-              << ", Sigma = " << gausNormCsI->GetParameter(2) << std::endl;
     outputFile->cd();
     hNormDiffCsI->Write("SiPM_Peak_AVGDifference_CsI");
     gausNormCsI->Write("SiPM_Peak_AVGDifference_CsI_GausFit");
@@ -901,58 +878,12 @@ if (!pair_norm_diffs_lyso.empty()) {
     TCanvas canvasNormDiffLYSO("canvasNormDiffLYSO","SiPM Normalized Diff (LYSO)",800,600);
     hNormDiffLYSO->SetLineColor(kAzure-3); hNormDiffLYSO->SetLineWidth(2); hNormDiffLYSO->Draw();
     gausNormLYSO->SetLineColor(kRed); gausNormLYSO->SetLineWidth(2); gausNormLYSO->Draw("same");
-    std::cout << "LYSO Normalized Diff Fit: Mean = " << gausNormLYSO->GetParameter(1)
-              << ", Sigma = " << gausNormLYSO->GetParameter(2) << std::endl;
     outputFile->cd();
     hNormDiffLYSO->Write("SiPM_Peak_AVGDifference_LYSO");
     gausNormLYSO->Write("SiPM_Peak_AVGDifference_LYSO_GausFit");
     canvasNormDiffLYSO.SaveAs("SiPM_Peak_AVGDifference_LYSO.root");
 }
 }
-
-// --- Projection: Histogram of Peak Differences and Gaussian Fit ---
-int nbins = 50;
-double diff_min = *std::min_element(pair_diffs.begin(), pair_diffs.end());
-double diff_max = *std::max_element(pair_diffs.begin(), pair_diffs.end());
-
-// Add some margin to bin edges
-double margin = 0.05 * (diff_max - diff_min);
-diff_min -= margin;
-diff_max += margin;
-
-// Create histogram
-TH1D* hDiff = new TH1D("hPeakDiff", "Histogram of SiPM Peak Differences;Peak0 - Peak1;Counts", nbins, diff_min, diff_max);
-
-// Fill histogram
-for (double diff : pair_diffs) {
-    hDiff->Fill(diff);
-}
-
-// Fit with Gaussian
-TF1* gausFit = new TF1("gausFit", "gaus", diff_min, diff_max);
-hDiff->Fit(gausFit, "Q");  // "Q" suppresses fit printing
-
-// Draw
-TCanvas canvasHist("canvasHist", "Peak Difference Histogram", 800, 600);
-hDiff->SetLineColor(kBlue + 1);
-hDiff->SetLineWidth(2);
-hDiff->Draw();
-
-gausFit->SetLineColor(kRed);
-gausFit->SetLineWidth(2);
-gausFit->Draw("same");
-
-// Print fit parameters
-double mean = gausFit->GetParameter(1);
-double sigma = gausFit->GetParameter(2);
-std::cout << "Gaussian Fit Results: Mean = " << mean << ", Sigma = " << sigma << std::endl;
-
-// Save to file
-outputFile->cd();
-hDiff->Write("PeakDiff_Histogram");
-gausFit->Write("PeakDiff_GaussianFit");
-canvasHist.SaveAs("PeakDiff_Histogram.root");
-
 
 //----Plots for means and std devs of the histrogrammed data----
 std::map<int, std::map<int, double>> sipm_hmeans_by_crystal;
@@ -985,12 +916,12 @@ for (const auto& [crystal, map_stds] : sipm_hstds_by_crystal) {
 }
 // For h_means
 TGraph grHMeans(sipm0_hmeans.size(), &sipm0_hmeans[0], &sipm1_hmeans[0]);
-grHMeans.SetTitle("SiPM Pair h_means;SiPM 0 h_mean;SiPM 1 h_mean");
+grHMeans.SetTitle("SiPM Pair Histogram Data Mean;SiPM 0 Hist Data Mean;SiPM 1 Hist Data Mean");
 grHMeans.SetMarkerStyle(20);
 grHMeans.SetMarkerColor(kBlue);
 grHMeans.SetMarkerSize(0.9);
 
-TCanvas canvasHMeans("canvasHMeans", "h_means Scatter", 800, 600);
+TCanvas canvasHMeans("canvasHMeans", "Histogram Data Mean Scatter", 800, 600);
 grHMeans.Draw("AP");
 
 double min_hmean = std::min(*std::min_element(sipm0_hmeans.begin(), sipm0_hmeans.end()),
@@ -1003,9 +934,14 @@ identityHMean.SetLineColor(kRed);
 identityHMean.SetLineStyle(2);
 identityHMean.Draw("same");
 
+TLegend legHMean(0.15, 0.78, 0.5, 0.85);
+legHMean.AddEntry(&identityHMean, "y = x (identity line)", "l");
+legHMean.SetBorderSize(0);
+legHMean.Draw("same");
+
 outputFile->cd();
-grHMeans.Write("SiPM_hmeans_Scatter");
-canvasHMeans.SaveAs("SiPM_hmeans_Scatter.root");
+grHMeans.Write("SiPM_HistDataMean_Scatter");
+canvasHMeans.SaveAs("SiPM_HistDataMean_Scatter.root");
 
 // for h_stds
 if (!sipm0_hstds.empty() && !sipm1_hstds.empty()) {
