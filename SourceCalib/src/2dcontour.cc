@@ -28,10 +28,10 @@ void CaloSourceCalib::MakeContourPlot(
     // --- Special Variables ---
     // Manual values passed for complex variables like Peak/Width
     RooRealVar& varPeak,  double valPeak,  double errLoPeak,  double errHiPeak,
-    RooRealVar& varWidth, double valWidth, double errLoWidth, double errHiWidth,
+   // RooRealVar& varWidth, double valWidth, double errLoWidth, double errHiWidth,
     // --- Standard Variables ---
     // Direct references to RooFit variables for other parameters
-    RooRealVar& varAlpha,
+    //RooRealVar& varAlpha,
     RooRealVar& varNFull,
     RooRealVar& varN1st,
     RooRealVar& varN2nd
@@ -61,15 +61,15 @@ void CaloSourceCalib::MakeContourPlot(
             ptr = &varPeak; val = valPeak; eLo = errLoPeak; eHi = errHiPeak;
             return;
         }
-        if (lowerName == "width") {
+        /*if (lowerName == "width") {
             ptr = &varWidth; val = valWidth; eLo = errLoWidth; eHi = errHiWidth;
             return;
-        }
+        }*/
 
         // --- CASE B: Standard RooFit Variables ---
         // These map directly to the RooRealVar objects
         if      (lowerName == "n_full") ptr = &varNFull;
-        else if (lowerName == "alpha")  ptr = &varAlpha;
+       // else if (lowerName == "alpha")  ptr = &varAlpha;
         else if (lowerName == "n_1st")  ptr = &varN1st;
         else if (lowerName == "n_2nd")  ptr = &varN2nd;
         //else if (lowerName == "N_Bkg")  ptr = &varNBkg;
