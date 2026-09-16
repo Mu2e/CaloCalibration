@@ -98,6 +98,8 @@ namespace CaloSourceCalib{
 		//counter for hesse fallbacks
 		static int nHesseFallbacks;
 		static std::vector<int> crystalsHesseFallback;
+		// fit-model toggle: true = single-sided crystal ball, false = double-sided crystal ball
+		static bool singlesided;
 
         //#endif
 

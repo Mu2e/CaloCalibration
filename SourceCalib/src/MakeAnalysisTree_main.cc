@@ -11,23 +11,10 @@ using namespace std::chrono;
 using namespace CaloSourceCalib;
 
 //method with one big root file
-TString filepath_disk0 = "/pnfs/mu2e/scratch/users/hjafree/higherstats_sample.root";
-//"/pnfs/mu2e/scratch/users/hjafree/no_leakage.root";
-//"/exp/mu2e/app/users/hjafree/SourceFitDir/prototype_cry/lab_crystal.root";
-//"/pnfs/mu2e/scratch/users/hjafree/validation.root";
-//"/pnfs/mu2e/scratch/users/hjafree/higherstats_sample.root";
-//"/pnfs/mu2e/scratch/users/hjafree/nonoise_sample.root";
-//"/exp/mu2e/app/users/hjafree/SourceFitDir/nonoise_smallsample.root";
-//"/exp/mu2e/app/home/mu2epro/sourcecalib/full_containment/newsinglephoton.root";//300k sample
-//"/exp/mu2e/app/home/mu2epro/sourcecalib/full_containment/newsinglephoton.root";
-//"/exp/mu2e/app/home/mu2epro/sourcecalib/full_containment/reconew.root";
-//"/exp/mu2e/app/home/mu2epro/sourcecalib/disk0/SourceAna1e9.root";
-//"/exp/mu2e/app/home/mu2epro/sourcecalib/full_containment/singlephoton.root";
-//"/exp/mu2e/app/home/mu2epro/sourcecalib/full_containment/multiphoton.root";
+TString filepath_disk0 = "/pnfs/mu2e/scratch/users/hjafree/fixedgeom_both_disks.root";
 
 TString filepath_disk1 = "/exp/mu2e/app/home/mu2epro/sourcecalib/disk1/nts.mu2e.SourceCalibAna1e9.0.root";
 
-//TString filepath_disk1 = "/exp/mu2e/app/users/hjafree/SourceFitDir/combined_disk1.root";
 
 std::pair<TH1F*, TFile*> get_data_histogram(int cryNum, int disk) {
     TString filepath;
@@ -39,7 +26,7 @@ std::pair<TH1F*, TFile*> get_data_histogram(int cryNum, int disk) {
         //uncomment line below and comment the one above if cut and count needs to be applied to the mc truth histograms
         //histPath = (disk == 0) ? "SourceAna/crystals_edep_truth/cry_" : "SourceAna/crystals_ADC/cry_";
     } else if (disk == 1 || disk == 3) {
-        filepath = filepath_disk1;
+        filepath = filepath_disk0;
         histPath = (disk == 1) ? "SourceAna/sipm_ADC/sipm_" : "SourceAna/crystals_ADC/cry_";
     }
  
@@ -87,7 +74,7 @@ int main(int argc, char* argv[]) {
 
     if (argc < 5) {
         std::cerr << "[ERROR] Missing arguments.\n";
-        std::cerr << "Usage: " << argv[0] << " <start_cry> <end_cry> <alg> <disk> [flags: overlay, contour, mc]\n";
+        std::cerr << "Usage: " << argv[0] << " <start_cry> <end_cry> <alg> <disk> [flags: overlay, contour, mc, singlesided]\n";
         return 1;
     }
 
@@ -127,12 +114,18 @@ int main(int argc, char* argv[]) {
         }
         
         if (arg.Contains("mc"))      isMC      = true;  
+        if(arg.Contains("singlesided")) SourceFitter::singlesided = true;
+        if (arg.Contains("help")) {
+            std::cout << "Usage: " << argv[0] << " <start_cry> <end_cry> <alg> <disk> [flags: overlay, contour, mc, singlesided]\n";
+            std::cout << "Example: " << argv[0] << " 0 10 fit disk0 overlay\n";
+            return 0;
+        }
          	
     }
 //------------------
 //Caphri crystals
 //------------------
-std::vector<int> lysoSiPMs = {1164,1165,1120,1221,1218,1219,1274,1275};
+std::vector<int> lysoSiPMs = {1164,1165,1220,1221,1218,1219,1274,1275};
 std::vector<int> lysoCrystals = {582,610,609,637};//this is only temporary for testing-- will only run for sipms
 bool isSiPMRun = (disk == 0 || disk ==1); //this is only temporary for testing-- will only run for sipms
 std::cout << "\n[INFO] Starting loop from ID" << anacrys_start << " to " << anacrys_end <<std::endl;
@@ -491,7 +484,7 @@ if (doOverlay) {
   std::cout<<" ******** Av. Time take to fit crystal: "<<duration_cast<seconds>((end_bin - start_bin)/(anacrys_end-anacrys_start))<<std::endl;
   TFile *globalPlots = new TFile("globalPlots.root", "RECREATE");
   SourcePlotter *plot = new SourcePlotter();
-  plot->ParamPlots(covar, table, globalPlots, anacrys_start, anacrys_end);
+  plot->ParamPlots(covar, table, globalPlots, anacrys_start, anacrys_end, isSiPMRun);
 
   // Cleanup MC truth file if loaded
   if (truthfile && truthfile->IsOpen()) {

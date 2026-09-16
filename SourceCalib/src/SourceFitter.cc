@@ -40,14 +40,14 @@ std::vector<int> SourceFitter::crystalswithbadchi2;
 std::map<int,float> SourceFitter::badchi2Values;
 int SourceFitter::nHesseFallbacks = 0;
 std::vector<int> SourceFitter::crystalsHesseFallback;
+bool SourceFitter::singlesided = false;
 struct CovarAccumulator {
    int count = 0;
    double sumPeak = 0.0;
    //double sumWidth = 0.0;
    double sumAlpha = 0.0;
    double sumn = 0.0;
-   double sumAlphaR = 0.0;
-   //double sumnR = 0.0;//comment for double sided
+   double sumAlphaR = 0.0; 
    double sumBeta = 0.0;
    double sumEvtFull = 0.0;
    double sumEvtFst = 0.0;
@@ -108,7 +108,8 @@ double currentEvtBkg  = 0.0;
  gStyle -> SetTitleOffset(1.75, "y");
 
 
- TCanvas *can = new TCanvas("can", "", 100, 100, 600, 600);
+ TCanvas *can = new TCanvas("can", "", 100, 100, 600, 600);//uncomment for regular sim
+ //TCanvas *can = new TCanvas("can", "", 210, 210, 600, 600);//only for lab sim
  can -> Draw();
  TString cryNum = to_string(crystalNo);
  TString materialName = islyso ? "LYSO" : "CsI";
@@ -117,16 +118,81 @@ double currentEvtBkg  = 0.0;
 
 
  double initPeak,initEvtFull,initEvtFst,initEvtScd,PeakLow,PeakHigh,EvtFullLow, EvtFullHigh,EvtFstLow, EvtFstHigh,EvtScdLow,EvtScdHigh,
- initEvtBkg,initBeta,initAlpha,initn,initAlphaR,initNdegR;
+ initEvtBkg,initBeta,initAlpha,initn,initAlphaR = 0,initNdegR = 0 ;
  //initEvtCompton1,initEvtCompton2,initEvtCompton3;;//,initWidth,
+
  int low = h_spec->FindBin(40);
  int high = h_spec->FindBin(115);
- //int low = h_spec->FindBin(140);
- //int high = h_spec->FindBin(220);
- int integral_evts = h_spec->Integral(low, high);
- nEvents = h_spec->GetEntries();
+ int integral_evts = h_spec->Integral(low, high);  //uncomment for regular sim
+ nEvents = integral_evts;
+
+ /*int low = h_spec->FindBin(100);//only for lab crystal
+ int high = h_spec->FindBin(210);//only for lab crystal
+ int integral_evts  = h_spec->Integral(low, high);//only for lab crystal*/
+ 
+
  float reducedchi2 = 0.0;
- int nPars = 8;
+ int nPars = 9;
+ if (singlesided){
+    if (islyso){
+  // LYSO SPECIFIC PARAMETERS
+  initPeak  = 95.08;
+  PeakLow = 85;
+  PeakHigh = 105;
+  //initWidth = 0.5;
+  initAlpha  = 0.8;
+  initn = 2;
+  initBeta = -0.09;//3.0;
+  initEvtFull = 9000;
+  EvtFullLow= 0.10*integral_evts;
+  EvtFullHigh =  integral_evts;
+  initEvtFst = 9000;
+  EvtFstLow= 0.2*integral_evts;
+  EvtFstHigh = 0.5*integral_evts;
+  initEvtScd = 9000;
+  EvtScdLow= 0.05*integral_evts;
+  EvtScdHigh = 0.2*integral_evts;
+  initEvtBkg= 5000;
+ }
+ else{
+   // CsI SPECIFIC PARAMETERS
+  initPeak  = 85;//95
+  PeakLow = 85;//85
+  PeakHigh = 108;
+  initAlpha  = 0.5;
+  initn = 1;
+  initBeta = -0.09;//3.0;
+  initEvtFull = 9000;
+  EvtFullLow= 0.05*integral_evts;//0.1
+  EvtFullHigh =  0.6*integral_evts;
+  initEvtFst = 9000;
+  EvtFstLow= 0.2*integral_evts;
+  EvtFstHigh = integral_evts;
+  initEvtScd = 9000;
+  EvtScdLow= 0.05*integral_evts;
+  EvtScdHigh = integral_evts;
+  initEvtBkg= 5000;//uncommend for regular sim
+  /*//only for lab crystal
+  initPeak  = 180;//95
+  PeakLow = 170;//85
+  PeakHigh = 200;
+  initAlpha  = 0.5;
+  initn = 1;
+  initBeta = -0.09;//3.0;
+  initEvtFull = 90000;
+  EvtFullLow= 0;//0.05*integral_evts;//0.1
+  EvtFullHigh =  integral_evts;
+  initEvtFst = 90000;
+  EvtFstLow= 0;//0.2*integral_evts;
+  EvtFstHigh = integral_evts;//0.5*integral_evts;
+  initEvtScd = 90000;
+  EvtScdLow= 0;//0.05*integral_evts;
+  EvtScdHigh = integral_evts;//0.3*integral_evts;
+  initEvtBkg= 50000;
+  //-------*/
+ }
+ }
+ else{
  if (islyso){
   // LYSO SPECIFIC PARAMETERS
   initPeak  = 95.08;
@@ -134,10 +200,9 @@ double currentEvtBkg  = 0.0;
   PeakHigh = 105;
   //initWidth = 0.5;
   initAlpha  = 0.8;
-  initAlphaR = 3.0;//uncomment for double sided
-  initNdegR  = 10;//uncomment for double sided
-  initn = 10;
-  //initn = 1;//for single sided
+  initAlphaR = 3.0;
+  initNdegR  = 10;
+  initn = 10; 
   initBeta = -0.09;//3.0;
   initEvtFull = 9000;
   EvtFullLow= 0.10*integral_evts;
@@ -155,53 +220,53 @@ double currentEvtBkg  = 0.0;
  }
  else{
   // CsI SPECIFIC PARAMETERS
-  initPeak  = 85;
-  PeakLow = 85;
+  initPeak  = 85;//95
+  PeakLow = 85;//85
   PeakHigh = 108;
   //initWidth = 0.5;
   initAlpha  = 0.5;
-  initAlphaR = 2.0;//uncomment for double sided
-  initNdegR  = 10;//uncomment for double sided
-  initn = 10;
-  //initn = 1;//for single sided
-  initBeta = -0.09;//3.0;
+  initAlphaR = 2.0;
+  initNdegR  = 10;
+  initn = 10;  
+  initBeta = -0.09;
   initEvtFull = 9000;
-  EvtFullLow= 0.05*integral_evts;//0.1
+  EvtFullLow= 0.05*integral_evts;
   EvtFullHigh =  0.6*integral_evts;
-  //EvtFullHigh =  integral_evts;
   initEvtFst = 9000;
   EvtFstLow= 0.2*integral_evts;
   EvtFstHigh = integral_evts;
-  //EvtFstHigh = 0.5*integral_evts;
   initEvtScd = 9000;
   EvtScdLow= 0.05*integral_evts;
   EvtScdHigh = integral_evts;
   initEvtBkg= 5000;
-  //initEvtCompton1= 5000;
-  //initEvtCompton2= 5000;
-  //initEvtCompton3= 5000;
+
  }
+}
+if(singlesided){
   currentPeak  = initPeak;
-  //currentWidth = initWidth;
   currentAlpha = initAlpha;
   currentn = initn;
-  currentAlphaR = initAlphaR;
-  //currentnR = initNdegR;
   currentBeta  = initBeta;
   currentEvtFull = initEvtFull;
   currentEvtFst  = initEvtFst;
   currentEvtScd  = initEvtScd;
   currentEvtBkg  = initEvtBkg;
-  //currentEvtCompton1  = initEvtCompton1;
-  //currentEvtCompton2  = initEvtCompton2;
-  //currentEvtCompton3  = initEvtCompton3;
+}
+else{
+   currentPeak  = initPeak;
+  currentn = initn;
+  currentAlphaR = initAlphaR;
+  currentBeta  = initBeta;
+  currentEvtFull = initEvtFull;
+  currentEvtFst  = initEvtFst;
+  currentEvtScd  = initEvtScd;
+  currentEvtBkg  = initEvtBkg;
+}
  RooRealVar m_e("m_e", "electron energy in MeV", 0.511);
- RooRealVar crysADC("crysADC", "ADC [counts]", 40, 115);
- //RooRealVar crysADC("crysADC", "ADC [counts]", 140, 220);
+ RooRealVar crysADC("crysADC", "ADC [counts]", 40, 115); //uncomment for regular sim
+// RooRealVar crysADC("crysADC", "ADC [counts]", 100, 210);//only for lab crystal
  RooRealVar E0("E0", "energy offset [MeV]", 0.0); //might need to remove if not 
- 
- //RooRealVar fcbndeg("fcbndeg", "n", 5, 6, 7);//only for single sided
- //fcbndeg.setConstant(kTRUE);//only for single sided
+
  RooRealVar fullPeak("fullPeak", "Full peak [ADC]", initPeak, PeakLow, PeakHigh);
  RooFormulaVar eta("eta", "ADC/MeV", "fullPeak/ (6.13-E0)", RooArgSet(fullPeak, E0));
  RooFormulaVar m("m","Mev/ADC", "(6.13-E0)/fullPeak", RooArgSet(fullPeak, E0));
@@ -209,10 +274,6 @@ double currentEvtBkg  = 0.0;
  RooFormulaVar fstEsPeak("fstEsPeak", "First escape", "fullPeak - m_e*eta", RooArgSet(fullPeak, m_e,eta));
  RooFormulaVar scdEsPeak("scdEsPeak", "Second escape", "fullPeak - (2*m_e)*eta", RooArgSet(fullPeak, m_e,eta));
 
-
- //RooRealVar fullWidth("fullWidth", "Full width [MeV]",initWidth,0.2,1.5);
- //comment after test data test
- //RooRealVar fullWidth("fullWidth", "Full width [MeV]",0.5,0.2,1.5);
  RooRealVar Egamma("Egamma", "Full peak [MeV]",6.13);
  RooRealVar fstesc("fstesc", "first peak [MeV]",5.619);
  RooRealVar scdesc("scdesc", "second peak [MeV]",5.108);
@@ -246,149 +307,56 @@ double currentEvtBkg  = 0.0;
  //RooFormulaVar scdwidth ("scdwidth",  "second width [MeV]", "C+scdesc", RooArgSet(C, scdesc));
  
  //a b and c terma
- /*RooFormulaVar fullWidth("fullWidth", "Full width [MeV]", "A*std::sqrt(Egamma) + B*Egamma+C", RooArgSet(A, Egamma, B,C));
+ /*RooFormulaVar fullWidth("fullWidth", "Full width [MeV]", "A*std::sqrt(Egamma) + B*Egamma+C", R. ooArgSet(A, Egamma, B,C));
  RooFormulaVar fstwidth ("fstwidth",  "first width [MeV]",  "A*std::sqrt(fstesc) + B*fstesc+C",  RooArgSet(A, fstesc, B,C));
  RooFormulaVar scdwidth ("scdwidth",  "second width [MeV]", "A*std::sqrt(scdesc) + B*scdesc+C", RooArgSet(A, scdesc, B,C));*/
 
-
- //Single sided crystal ball w SAME width 
- //RooCBShape fullErg("fullErg", "Full peak", Es, Egamma, fullWidth, fcbalpha, fcbndeg);
-// RooCBShape firsErg("firsErg", "Single escape", Es,fstesc, fullWidth, fcbalpha, fcbndeg);
- //RooCBShape secdErg("secdErg", "Double escape", Es, scdesc, fullWidth, fcbalpha, fcbndeg);
-  //for single sided
- /*RooRealVar fcbalpha("fcbalpha", "alpha", initAlpha,0.1, 5.0);//0.01, 3.0);
- fcbalpha.setConstant(kFALSE);
- RooRealVar fcbndeg("fcbndeg", "n", initn, 5, 10);
- fcbndeg.setConstant(kFALSE);
- //Single sided crystal ball w different width using A/B/C
- RooCBShape fullErg("fullErg", "Full peak", Es, Egamma, fullWidth, fcbalpha, fcbndeg);
- RooCBShape firsErg("firsErg", "Single escape", Es,fstesc, fstwidth, fcbalpha, fcbndeg);
- RooCBShape secdErg("secdErg", "Double escape", Es, scdesc, scdwidth, fcbalpha, fcbndeg);*/
-
- 
- //for Double sided
-RooRealVar fcbalpha("fcbalpha", "alpha", initAlpha,0.1, 5.0);//0.01, 3.0);
- fcbalpha.setConstant(kTRUE);
- RooRealVar fcbndeg("fcbndeg", "n", initn, 5, 20);
- fcbndeg.setConstant(kFALSE);
-
- RooRealVar fcbalphaR("fcbalphaR", "alpha R", initAlphaR, 0.1, 3.5);
- fcbalphaR.setConstant(kFALSE);
- RooRealVar fcbndegR("fcbndegR", "n R", initNdegR, 1, 15);
- fcbndegR.setConstant(kTRUE);
- //Double sided crystal ball with Diferent widths and same alpha L/R an N l/r
- RooCrystalBall fullErg("fullErg", "Full peak", Es, Egamma, fullWidth, fcbalpha, fcbndeg, fcbalphaR, fcbndegR);
- //trying with one single sided cb
- //RooCBShape fullErg("fullErg", "Full peak", Es, Egamma, fullWidth, fcbalpha, fcbndeg);
- RooCrystalBall firsErg("firsErg", "Single escape", Es, fstesc, fstwidth, fcbalpha, fcbndeg, fcbalphaR, fcbndegR);
- RooCrystalBall secdErg("secdErg", "Double escape", Es, scdesc, scdwidth, fcbalpha, fcbndeg, fcbalphaR, fcbndegR);
-/*
-RooAbsPdf* fullErg = nullptr;
-RooAbsPdf* firsErg = nullptr;
-RooAbsPdf* secdErg = nullptr;
-if (islyso) {
-    // Instantiate Single-Sided Crystal Ball for LYSO
-    fullErg = new RooCBShape("fullErg", "Full peak", Es, Egamma, fullWidth, fcbalpha, fcbndeg);
-    firsErg = new RooCBShape("firsErg", "Single escape", Es, fstesc, fstwidth, fcbalpha, fcbndeg);
-    secdErg = new RooCBShape("secdErg", "Double escape", Es, scdesc, scdwidth, fcbalpha, fcbndeg); 
+// CB shape parameters and PDFs are heap-allocated so they outlive the if/else
+// scope and stay valid for fitFun, plotting, the contour block, etc. They are
+// deleted at the very end of FitCrystal.
+// fcbalphaR / fcbndegR only exist in the double-sided model (nullptr otherwise).
+ RooRealVar *fcbalpha  = nullptr;
+ RooRealVar *fcbndeg   = nullptr;
+ RooRealVar *fcbalphaR = nullptr;
+ RooRealVar *fcbndegR  = nullptr;
+ RooAbsPdf  *fullErg   = nullptr;
+ RooAbsPdf  *firsErg   = nullptr;
+ RooAbsPdf  *secdErg   = nullptr;
+if(singlesided){
+ //Single sided crystal ball (RooCBShape) w different width using A/B/C
+ fcbalpha = new RooRealVar("fcbalpha", "alpha", initAlpha, 0.1, 3.0);//0.01, 3.0);
+ fcbalpha->setConstant(kFALSE);
+ fcbndeg  = new RooRealVar("fcbndeg", "n", initn, 1, 4);
+ fcbndeg->setConstant(kFALSE);
+ fullErg = new RooCBShape("fullErg", "Full peak", Es, Egamma, fullWidth, *fcbalpha, *fcbndeg);
+ firsErg = new RooCBShape("firsErg", "Single escape", Es, fstesc, fstwidth, *fcbalpha, *fcbndeg);
+ secdErg = new RooCBShape("secdErg", "Double escape", Es, scdesc, scdwidth, *fcbalpha, *fcbndeg);
 }
-else {
-    // Instantiate Double-Sided Crystal Ball for CsI (Notice the fixed semicolon at the end!)
-    fullErg = new RooCrystalBall("fullErg", "Full peak", Es, Egamma, fullWidth, fcbalpha, fcbndeg, fcbalphaR, fcbndegR);
-    firsErg = new RooCrystalBall("firsErg", "Single escape", Es, fstesc, fstwidth, fcbalpha, fcbndeg, fcbalphaR, fcbndegR);
-    secdErg = new RooCrystalBall("secdErg", "Double escape", Es, scdesc, scdwidth, fcbalpha, fcbndeg, fcbalphaR, fcbndegR);
-}*/
- /*//unique alpha for full peak
- RooRealVar fcbalpha_full("fcbalpha_full", "alpha for full", 1.6,0.1,5.0);
- RooRealVar fcbndeg_full("fcbndeg_full", "n for full", 10);
- RooCBShape fullErg("fullErg", "Full peak", Es, Egamma, fullWidth, fcbalpha_full, fcbndeg_full);
- RooCBShape secdErg("secdErg", "Double escape", Es, scdesc, fullWidth, fcbalpha_full, fcbndeg_full);*/
-
-
- 
-  //Double sided crystal ball with same widths and alpha L/R an N l/r
- //RooCrystalBall fullErg("fullErg", "Full peak", Es, Egamma, fullWidth, fcbalpha, fcbndeg, fcbalphaR, fcbndegR);
- //RooCrystalBall firsErg("firsErg", "Single escape", Es, fstesc, fullWidth, fcbalpha, fcbndeg, fcbalphaR, fcbndegR);
- //RooCrystalBall secdErg("secdErg", "Double escape", Es, scdesc, fullWidth, fcbalpha, fcbndeg, fcbalphaR, fcbndegR);
- //Gaussian w same widths
- //RooGaussian fullErg("fullErg", "Full peak", Es, Egamma, fullWidth);
- //RooGaussian firsErg("firsErg", "Single escape", Es, fstesc, fullWidth);
- //RooGaussian secdErg("secdErg", "Double escape", Es, scdesc, fullWidth);
-  /*RooRealVar fullWidth_ADC("fullWidth_ADC", "Full width [ADC]",initWidth,2,20);
-  RooFormulaVar fstesc_ADC("fstesc_ADC", "fullPeak - (0.511/m)",RooArgSet(fullPeak,m));
- RooFormulaVar scdesc_ADC("scdesc_ADC","fullPeak - (2*0.511/m)",RooArgSet(fullPeak,m));
- RooCBShape fullErg("fullErg", "Full peak", crysADC, fullPeak, fullWidth_ADC, fcbalpha, fcbndeg);
- RooCBShape firsErg("firsErg", "Single escape", crysADC,fstesc_ADC, fullWidth_ADC, fcbalpha, fcbndeg);
- RooCBShape secdErg("secdErg", "Double escape", crysADC, scdesc_ADC, fullWidth_ADC, fcbalpha, fcbndeg);*/
+else{
+ //Double sided crystal ball (RooCrystalBall) with different widths and same alpha L/R and N L/R
+ fcbalpha = new RooRealVar("fcbalpha", "alpha", initAlpha, 0.1, 5.0);//0.01, 3.0);
+ fcbalpha->setConstant(kTRUE);
+ fcbndeg  = new RooRealVar("fcbndeg", "n", initn, 5, 20);
+ fcbndeg->setConstant(kFALSE);
+ fcbalphaR = new RooRealVar("fcbalphaR", "alpha R", initAlphaR, 0.1, 3.5);
+ fcbalphaR->setConstant(kFALSE);
+ fcbndegR = new RooRealVar("fcbndegR", "n R", initNdegR, 1, 15);
+ fcbndegR->setConstant(kTRUE);
+ fullErg = new RooCrystalBall("fullErg", "Full peak", Es, Egamma, fullWidth, *fcbalpha, *fcbndeg, *fcbalphaR, *fcbndegR);
+ firsErg = new RooCrystalBall("firsErg", "Single escape", Es, fstesc, fstwidth, *fcbalpha, *fcbndeg, *fcbalphaR, *fcbndegR);
+ secdErg = new RooCrystalBall("secdErg", "Double escape", Es, scdesc, scdwidth, *fcbalpha, *fcbndeg, *fcbalphaR, *fcbndegR);
+}
  RooRealVar evtsFull("evtsFull", "Full peak yield", initEvtFull, EvtFullLow, EvtFullHigh);
  RooRealVar evtsFrst("evtsFrst", "First escape yield", initEvtFst, EvtFstLow, EvtFstHigh);
  RooRealVar evtsScnd("evtsScnd", "Second escape yield", initEvtScd,EvtScdLow,EvtScdHigh);
  RooRealVar evtsbkg("evtsbkg", "Background yield", initEvtBkg, 100, integral_evts);
-
-
- /*// Background (logistic)
- RooRealVar comCnst("comCnst", "Background const", 4.0);
- RooRealVar combeta("combeta", "Background beta", initBeta, 1,200);//0.001, 200);
- RooRealVar bkg_fixed("bkg_fixed", "Background offset", 0.0);//, -10.0, 10.0);
- //logistic background pdf
- //RooGenericPdf comPdf("comPdf", "logistic background",
- //  "pow(1.0 + exp((Es - comCnst)/combeta), -1.0) + bkg_fixed",
- //  RooArgSet(Es, comCnst, combeta,bkg_fixed));
- RooGenericPdf comPdf("comPdf", "logistic background",
-   "pow(1.0 + exp((crysADC - comCnst)/combeta), -1.0) + bkg_fixed",
-   RooArgSet(crysADC, comCnst, combeta,bkg_fixed));*/
    //exponential background
   // Lower bound -0.06: gives ~100:1 ratio from ADC=40 to ADC=115, already steep for Compton continuum.
   RooRealVar combeta("combeta", "Background beta", initBeta, -1.0, 1.0);
   RooExponential comPdf("comPdf", "exponential background", crysADC, combeta);
  RooAddPdf fitFun("fitFun", "Total Mu2e Calo Model",
-       RooArgList(fullErg, firsErg, secdErg,comPdf ),
+       RooArgList(*fullErg, *firsErg, *secdErg,comPdf ),
        RooArgList(evtsFull, evtsFrst, evtsScnd,evtsbkg ) );
-       // Add them to the final list
- /*RooAddPdf fitFun("fitFun", "Total Mu2e Calo Model",
-       RooArgList(fullErg, firsErg, secdErg ),
-       RooArgList(evtsFull, evtsFrst, evtsScnd ) );*/
-
-
-
-
-/*//adding an erfc function
-
-
-//erfc centered at edge, with width sigmaADC
-RooFormulaVar sigmaADC("sigmaADC","fullWidth/m",RooArgSet(fullWidth,m));
-RooRealVar CE1_MeV("CE1_MeV", "Theory Edge 1",5.8842);
-RooRealVar CE2_MeV("CE2_MeV","Theory Edge 2",5.3741);
-RooRealVar CE3_MeV("CE3_MeV","Theory Edge 3", 4.8640);
-RooFormulaVar edgeADC1("edgeADC1","CE1_MeV/m",RooArgSet(CE1_MeV,m));
-RooFormulaVar edgeADC2("edgeADC2","CE2_MeV/m",RooArgSet(CE2_MeV,m));
-RooFormulaVar edgeADC3("edgeADC3","CE3_MeV/m",RooArgSet(CE3_MeV,m));
-
-
-RooRealVar evtsCompton1("evtsCompton1", "Yield Compton Full", initEvtCompton1, 0, integral_evts);
-RooRealVar evtsCompton2("evtsCompton2", "Yield Compton 1st",  initEvtCompton2,  0, integral_evts);
-RooRealVar evtsCompton3("evtsCompton3", "Yield Compton 2nd",  initEvtCompton3,  0, integral_evts);
-//Mapping: @0 crystADC, @1 edgeADC,@2 sigmaADC
-//Define the smearing (replaces the gaussian kernel)
-//TString smearing = "0.5 * TMath::Erfc((@0 - @1) / (1.4142 * @2))";
-//defining the smear
-//TString rise = "1.0 / (pow(@1 - @0, 2) + 0.1)";
-//combine two components
-//String erfcFormula = "(1.0/(pow(@0-@1,2)+0.1)) + (0.5*TMath::Erfc((@0-@1)/(TMath::Sqrt(2)*@2))";
-//TString fullformula = rise + " * " + smearing;
-
-
-TString fullformula = "0.5 * TMath::Erfc((@0-@1)/(TMath::Sqrt(2)*@2))";
-// RooArgList preserves insertion order so @0=crysADC, @1=edgeADC, @2=sigmaADC
-RooGenericPdf compton1("compton1", "compton edge 1", fullformula, RooArgList(crysADC,edgeADC1,sigmaADC));
-RooGenericPdf compton2("compton2", "compton edge 2", fullformula, RooArgList(crysADC,edgeADC2,sigmaADC));
-RooGenericPdf compton3("compton3", "compton edge 3", fullformula, RooArgList(crysADC,edgeADC3,sigmaADC));
-
-
-// Add them to the final list
- RooAddPdf fitFun("fitFun", "Total Mu2e Calo Model",
-       RooArgList(fullErg, firsErg, secdErg,  compton1, compton2, compton3),
-       RooArgList(evtsFull, evtsFrst, evtsScnd, evtsCompton1, evtsCompton2, evtsCompton3) );*/
         
  fitFun.fixCoefNormalization(RooArgSet(crysADC));
  RooPlot *chFrame = crysADC.frame(Title(title));
@@ -397,34 +365,32 @@ RooGenericPdf compton3("compton3", "compton edge 3", fullformula, RooArgList(cry
     asymSuccess = false;
     int migrad_status = -1;
 auto run_one_fit = [&]() -> bool {
-   fullPeak.setVal(currentPeak);
-   //fullWidth.setVal(currentWidth);//fullWidth_ADC.setVal(currentWidth);
-   //fcbalpha.setVal(initAlpha); 
-   fcbndeg.setVal(currentn);
-   fcbalphaR.setVal(initAlphaR); 
-   //fcbndegR.setVal(currentnR);
-   combeta.setVal(currentBeta);
-   evtsFull.setVal(currentEvtFull);
-   evtsFrst.setVal(currentEvtFst);
-   evtsScnd.setVal(currentEvtScd);
-   evtsbkg.setVal(currentEvtBkg);
-   //evtsCompton1.setVal(currentEvtCompton1);
-   //evtsCompton2.setVal(currentEvtCompton2);
-   //evtsCompton3.setVal(currentEvtCompton3);
+    if(singlesided){
+        fcbalpha->setVal(currentAlpha);
+        fcbndeg->setVal(currentn);
+    }
+    else{
+        fcbndeg->setVal(currentn);
+        fcbalphaR->setVal(currentAlphaR);
+}
+     fullPeak.setVal(currentPeak);
+    combeta.setVal(currentBeta);
+    evtsFull.setVal(currentEvtFull);
+    evtsFrst.setVal(currentEvtFst);
+    evtsScnd.setVal(currentEvtScd);
+    evtsbkg.setVal(currentEvtBkg);
    RooFitResult *fitRes = nullptr;
 
-
    if (opt == "chi2") {
-       // NOTE: DataError::Expected uses (O-E)^2/E; if E->0 but O>0 (e.g. near ADC=40),
-       // chi2->inf. Switch to SumW2 to use (O-E)^2/O instead, which stays finite.
-       //   RooFit::DataError(RooAbsData::SumW2),
-      /*RooAbsReal* chi2Func = fitFun.createChi2(chSpec,
-                              RooFit::DataError(RooAbsData::Expected),
-                              RooFit::Range(40, 115.2),RooFit::Extended(true));*/
+   //uncomment for regular sim
        RooAbsReal* chi2Func = fitFun.createChi2(chSpec,
                               RooFit::DataError(RooAbsData::Expected),
-                              RooFit::Range(40, 115.2),RooFit::Extended(true));//RooFit::Range(40, 115.2),RooFit::Extended(true)
-
+                              RooFit::Range(40, 115.2),RooFit::Extended(true));
+                              
+       //only for lab test crys
+       /*RooAbsReal* chi2Func = fitFun.createChi2(chSpec,
+                              RooFit::DataError(RooAbsData::Expected),
+                              RooFit::Range(100, 210),RooFit::Extended(true));*/
 
        RooMinimizer m(*chi2Func);
        m.setMinimizerType("Minuit2");
@@ -468,20 +434,21 @@ auto run_one_fit = [&]() -> bool {
        }
    }
        unreducedchi2 = chi2Func->getVal();
-       // chSpec.numEntries() returns ALL bins in [40,120], not just the fit range [40,115.2].
-       // Count only bins whose centers fall inside the fit range.
-       //int nBins = h_spec->FindBin(115.2) - h_spec->FindBin(40.0) + 1;
        int nBins = chSpec.numEntries();
        nPars = fitRes->floatParsFinal().getSize();
        ndof = nBins - nPars;
        reducedchi2= unreducedchi2/ndof;
+       std::cout << "unreduced chi2" << unreducedchi2<< std::endl;
+       std::cout << "nPars" << nPars<< std::endl;
+       std::cout << "nBins" << nBins<< std::endl;
+       std::cout << "ndof" << ndof<< std::endl;
        std::cout << "chi2/ndof for fit" << reducedchi2<< std::endl;
        if (chi2Func) delete chi2Func;
    }
 
 
    else if (opt == "nll") {
-       RooAbsReal *nll = fitFun.createNLL(chSpec, Range(40,115.2));//Range(40,115.2)
+       RooAbsReal *nll = fitFun.createNLL(chSpec, Range(40,115.2));
        RooMinimizer m(*nll);
        m.migrad();
        m.hesse();
@@ -495,9 +462,6 @@ auto run_one_fit = [&]() -> bool {
 
    convergencestatus = fitRes->status();
    RooRealVar* peak = dynamic_cast<RooRealVar*>(fitRes->floatParsFinal().find("fullPeak"));
-   //coment after test data test is done
-   //RooRealVar* widthpar = dynamic_cast<RooRealVar*>(fitRes->floatParsFinal().find("fullWidth"));
-
 
    if (peak) {
        fpeak = peak->getVal();
@@ -570,21 +534,20 @@ auto run_one_fit = [&]() -> bool {
 run_one_fit();
 bool is_perfect = (convergencestatus == 0 && reducedchi2 <= 1.6 && asymSuccess);
 if (convergencestatus == 0 && reducedchi2 <= 1.6) {
+    if (singlesided){
+        covarAcc.sumAlpha    += fcbalphaparam;
+    }
+    else{
+        covarAcc.sumAlphaR    += fcbalphaRparam;
+    }
 covarAcc.count++;
 covarAcc.sumPeak     += fpeak;
-//covarAcc.sumWidth    += fsigma;
-covarAcc.sumAlpha    += fcbalphaparam;//comment for double sided
 covarAcc.sumn    += fcbndegparam;
-covarAcc.sumAlphaR    += fcbalphaRparam;
-//covarAcc.sumnR    += fcbndegRparam;
 covarAcc.sumBeta     += combetaparam;
 covarAcc.sumEvtFull  += fr_fullparam*nEvents;
 covarAcc.sumEvtFst   += fr_frstparam*nEvents;
 covarAcc.sumEvtScd   += fr_scndparam*nEvents;
 covarAcc.sumEvtBkg   += fr_bkgparam*nEvents;
-//covarAcc.sumEvtCompton1   += fr_comptonparam1*nEvents;
-//covarAcc.sumEvtCompton2   += fr_comptonparam2*nEvents;
-//covarAcc.sumEvtCompton3   += fr_comptonparam3*nEvents;
 }
 
 
@@ -597,38 +560,28 @@ if (!is_perfect){
 
    SourceFitter::nSecondFits++;
    SourceFitter::crystalsSecondFit.push_back(crystalNo);
-
-
    double newPeakGuess     = covarAcc.sumPeak     / covarAcc.count;
-   //double newSigmaGuess    = covarAcc.sumWidth    / covarAcc.count;
-   //double newAlphaGuess    = covarAcc.sumAlpha    / covarAcc.count;
    double newnGuess    = covarAcc.sumn    / covarAcc.count;
-   double newAlphaRGuess    = covarAcc.sumAlphaR    / covarAcc.count;//uncomment for double sided
-   //double newnRGuess    = covarAcc.sumnR    / covarAcc.count;//comment for double sided
    double newCombetaGuess  = covarAcc.sumBeta     / covarAcc.count;
    double newevtsFullGuess = covarAcc.sumEvtFull  / covarAcc.count;
    double newevtsFstGuess  = covarAcc.sumEvtFst   / covarAcc.count;
    double newevtsScdGuess  = covarAcc.sumEvtScd   / covarAcc.count;
    double newevtsBkgGuess  = covarAcc.sumEvtBkg   / covarAcc.count;
-   //double newevtsComptonGuess1  = covarAcc.sumEvtCompton1   /covarAcc.count;
-   //double newevtsComptonGuess2  = covarAcc.sumEvtCompton2   /covarAcc.count;
-   //double newevtsComptonGuess3  = covarAcc.sumEvtCompton3   /covarAcc.count;
+   if (singlesided){
+        currentAlpha  = covarAcc.sumAlpha  / covarAcc.count;
+   }
+   else{
+        currentAlphaR = covarAcc.sumAlphaR / covarAcc.count;
+   }
 
 
    currentPeak   = newPeakGuess;
-   //currentWidth  = newSigmaGuess;
-   //currentAlpha  = newAlphaGuess;
    currentn  = newnGuess;
-   currentAlphaR = newAlphaRGuess;
-   //currentnR = newnRGuess;
    currentBeta   = newCombetaGuess;
    currentEvtFull = newevtsFullGuess;
    currentEvtFst  = newevtsFstGuess;
    currentEvtScd  = newevtsScdGuess;
    currentEvtBkg  = newevtsBkgGuess;
-   //currentEvtCompton1  = newevtsComptonGuess1;
-   //currentEvtCompton2  = newevtsComptonGuess2;
-   //currentEvtCompton3  = newevtsComptonGuess3;
 
 
    run_one_fit();
@@ -645,20 +598,19 @@ if (!is_perfect){
 
 
        auto reset_to_defaults = [&]() {
+            if (singlesided){
+                currentAlpha   = initAlpha;
+            }
+            else{
+                currentAlphaR   = initAlphaR;
+            }
            currentPeak    = initPeak;
-           //currentWidth   = initWidth;
-           //currentAlpha   = initAlpha;
            currentn   = initn;
-           currentAlphaR   = initAlphaR;
-           //currentnR   = initnR
            currentBeta    = initBeta;
            currentEvtFull = initEvtFull;
            currentEvtFst  = initEvtFst;
            currentEvtScd  = initEvtScd;      
            currentEvtBkg  = initEvtBkg;
-           //currentEvtCompton1  = initEvtCompton1;
-           //currentEvtCompton2  = initEvtCompton2;
-           //currentEvtCompton3  = initEvtCompton3;
        };
        reset_to_defaults();
 
@@ -667,21 +619,21 @@ if (!is_perfect){
            auto randomDouble = [](double min, double max) {
                return min + (max - min) * ((double)rand() / RAND_MAX);
            };
-           currentPeak    = randomDouble(91.0, 108.0);
-           //currentWidth   = randomDouble(0.2, 1.5);
-           //currentAlpha   = randomDouble(0.6, 1.7);
-           currentn   = randomDouble(5.0, 10);
-           currentAlphaR = randomDouble(0.1, 3.5);//uncoment for double sided
-           //currentnR = randomDouble(5.0, 200);
+           if (singlesided){
+            currentAlpha   = randomDouble(0.6, 1.7);
+            currentn       = randomDouble(1.0, 4.0); 
+           }
+           else{
+            currentAlphaR = randomDouble(0.1, 3.5);
+            currentn      = randomDouble(5.0, 20.0); 
+           }
+           currentPeak    = randomDouble(91.0, 108.0);//uncomment for regular sim
+           //currentPeak    = randomDouble(100.0, 210.0);//only for lab crystal
            currentBeta    = randomDouble(-1.0, -0.001);
            currentEvtFull = randomDouble(0.05 * integral_evts, integral_evts);
            currentEvtFst  = randomDouble(0.2 * integral_evts, integral_evts);
-           //currentEvtFst  = randomDouble(0.2 * integral_evts, 0.5*integral_evts);
            currentEvtScd  = randomDouble(0.05 * integral_evts, integral_evts);
            currentEvtBkg  = randomDouble(0.05 * integral_evts, integral_evts);
-           //currentEvtCompton1  = randomDouble(0.01 * integral_evts, 0.1*integral_evts);
-           //currentEvtCompton2  = randomDouble(0.01 * integral_evts, 0.1*integral_evts);
-           //currentEvtCompton3  = randomDouble(0.01 * integral_evts, 0.1*integral_evts);
        };
 
 
@@ -709,21 +661,20 @@ if (!is_perfect){
 
                    if (migrad_status == 0) {
                        FitCandidate cand;
+                       if (singlesided){
+                        cand.p["al"] = currentAlpha;
+                       }
+                       else{
+                        cand.p["alR"] = currentAlphaR; 
+                       }
                        cand.chi2 = reducedchi2;
                        cand.p["pk"] = currentPeak;  
-                       //cand.p["wd"] = currentWidth;
-                       //cand.p["al"] = currentAlpha;
                        cand.p["n"] = currentn;
-                       cand.p["alR"] = currentAlphaR;//uncomment for double sided
-                       //cand.p["nR"] = currentnR;
                        cand.p["bt"] = currentBeta;
                        cand.p["ef"] = currentEvtFull;
                        cand.p["e1"] = currentEvtFst;
                        cand.p["e2"] = currentEvtScd; 
                        cand.p["eb"] = currentEvtBkg;
-                       //cand.p["ec1"] = currentEvtCompton1;
-                       //cand.p["ec2"] = currentEvtCompton2;
-                       //cand.p["ec3"] = currentEvtCompton3;
                        leaderboard.push_back(cand);
                    }
                }
@@ -753,25 +704,21 @@ if (!is_perfect){
 
            for (int i = 0; i < to_try; i++) {
                auto& cand = leaderboard[i];
+               if (singlesided){
+                currentAlpha    = cand.p["al"];
+               }
+               else{
+                currentAlphaR   = cand.p["alR"]; 
+               }
                currentPeak     = cand.p["pk"];
-               //currentWidth    = cand.p["wd"];
-               currentAlpha    = cand.p["al"];
                currentn        = cand.p["n"];
-               //currentAlphaR   = cand.p["alR"];//uncomment for double sided
-               //currentnR        = cand.p["nR"];
                currentBeta     = cand.p["bt"];
                currentEvtFull  = cand.p["ef"];
                currentEvtFst   = cand.p["e1"];
                currentEvtScd   = cand.p["e2"];
                currentEvtBkg   = cand.p["eb"];
-               //cand.p["ec1"] = currentEvtCompton1;
-               //cand.p["ec2"] = currentEvtCompton2;
-               //cand.p["ec3"] = currentEvtCompton3;
-
-
                fullPeak.removeAsymError();
-
-
+               
                bool fallback_ok = run_one_fit();
                if (fallback_ok) {
                    if (reducedchi2 <= 1.6) {
@@ -795,20 +742,19 @@ if (!is_perfect){
            // No candidate met <= 1.6 — restore and re-run the best found
            if (bestCandIdx >= 0) {
                auto& best = leaderboard[bestCandIdx];
+               if (singlesided){
+                 currentAlpha    = best.p["al"];
+               }
+               else{
+                currentAlphaR   = best.p["alR"];
+               }
                currentPeak     = best.p["pk"];
-               //currentWidth    = best.p["wd"];
-               //currentAlpha    = best.p["al"];
                currentn        = best.p["n"];
-               currentAlphaR   = best.p["alR"];//uncomment for double sided
-               //currentnR        = best.p["nR"];
                currentBeta     = best.p["bt"];
                currentEvtFull  = best.p["ef"];
                currentEvtFst   = best.p["e1"];
                currentEvtScd   = best.p["e2"];
                currentEvtBkg   = best.p["eb"];
-               //currentEvtCompton1 = best.p["ec1"];
-               //currentEvtCompton2 = best.p["ec2"];
-               //currentEvtCompton3 = best.p["ec3"];
                fullPeak.removeAsymError();
                bool final_ok = run_one_fit();
                if (final_ok) {
@@ -864,24 +810,29 @@ else if (!asymSuccess && convergencestatus == 0) {
 
 
 TF1* totalModelFunc = fitFun.asTF(RooArgList(crysADC));
-redpeak = totalModelFunc->GetMaximumX(40.0, 115.2);
-
-
+redpeak = totalModelFunc->GetMaximumX(40.0, 115.2);;//uncomment for regular sim
+//redpeak = totalModelFunc->GetMaximumX(100.0, 210);//only for lab crystal
+std::cout << "composite peak location" <<redpeak<<std::endl;
+if(singlesided){
+    fcbalphaparam  = fcbalpha->getVal();
+    fcbndegparam   = fcbndeg->getVal();
+    fcbalphaRparam = 0;
+    fcbndegRparam  = 0;
+}
+else{
+    fcbalphaRparam = fcbalphaR->getVal();
+    fcbndegRparam  = fcbndegR->getVal();
+    fcbalphaparam  = fcbalpha->getVal();
+    fcbndegparam   = fcbndeg->getVal();
+}
  fstpeak = fstEsPeak.getVal();
  scdpeak = scdEsPeak.getVal();
- fcbalphaparam  = fcbalpha.getVal();
- fcbndegparam   = fcbndeg.getVal();
- fcbalphaRparam = fcbalphaR.getVal();
- fcbndegRparam  = fcbndegR.getVal();
  comCnstparam =0;// comCnst.getVal();
  combetaparam = combeta.getVal();
  fr_fullparam = evtsFull.getVal()/integral_evts;
  fr_frstparam = evtsFrst.getVal()/integral_evts;
  fr_scndparam = evtsScnd.getVal()/integral_evts;
  fr_bkgparam = evtsbkg.getVal()/integral_evts;
- fr_comptonparam1 =0;//evtsCompton1.getVal()/integral_evts;
- fr_comptonparam2 =0;//evtsCompton2.getVal()/integral_evts;
- fr_comptonparam3 =0;//evtsCompton3.getVal()/integral_evts;
  crystalNoparam = crystalNo;       
  etaparam = eta.getVal();
  errbarhigh = mparam*(peakerrorhigh/fpeak);
@@ -891,19 +842,16 @@ redpeak = totalModelFunc->GetMaximumX(40.0, 115.2);
  if (ndof > 0) {
    pval = TMath::Prob(unreducedchi2, ndof); 
 } else {
-   pval = -1.0;  // flag for error
+   pval = -1.0; 
 }
 
 
-  chSpec.plotOn(chFrame, MarkerColor(kBlack), LineColor(kBlack), MarkerSize(0.5), Name("chSpec"));
+ chSpec.plotOn(chFrame, MarkerColor(kBlack), LineColor(kBlack), MarkerSize(0.5), Name("chSpec"));
  fitFun.plotOn(chFrame, LineColor(kRed), LineStyle(1), Name("fit"));
- fitFun.plotOn(chFrame, Components(fullErg), LineColor(kOrange), LineStyle(5), Name("main"));
- fitFun.plotOn(chFrame, Components(firsErg), LineColor(kViolet), LineStyle(5), Name("fescape"));
- fitFun.plotOn(chFrame, Components(secdErg), LineColor(kCyan), LineStyle(5), Name("sescape"));
+ fitFun.plotOn(chFrame, Components(*fullErg), LineColor(kOrange), LineStyle(5), Name("main"));
+ fitFun.plotOn(chFrame, Components(*firsErg), LineColor(kViolet), LineStyle(5), Name("fescape"));
+ fitFun.plotOn(chFrame, Components(*secdErg), LineColor(kCyan), LineStyle(5), Name("sescape"));
  fitFun.plotOn(chFrame, Components(comPdf), LineColor(kBlue), LineStyle(5), Name("background"));
- //fitFun.plotOn(chFrame, Components(compton1), LineColor(kGreen), LineStyle(5), Name("compton1"));
- //fitFun.plotOn(chFrame, Components(compton2), LineColor(kGreen+2), LineStyle(5), Name("compton2"));
- //fitFun.plotOn(chFrame, Components(compton3), LineColor(kGreen+4), LineStyle(5), Name("compton3"));
  chiSq = chFrame->chiSquare("fit", "chSpec", nPars);
  std::cout << "[CHI2 COMPARE] SiPM " << crystalNo
            << "  reducedchi2 (minimizer, ndof=" << ndof << ") = " << reducedchi2
@@ -914,7 +862,7 @@ redpeak = totalModelFunc->GetMaximumX(40.0, 115.2);
    SourceFitter::badchi2Values[crystalNo] = reducedchi2;
  }
  mparam = m.getVal();
- //draw vertical lines at the theorectical peak locations:
+ //delete for real data
  double xLines[] = {98.08, 89.904, 81.728};
  int colors[] = {kOrange-2, kViolet-9, kCyan-9};
  for (int i = 0; i < 3; i++) {
@@ -959,7 +907,7 @@ redpeak = totalModelFunc->GetMaximumX(40.0, 115.2);
  fpk -> SetTextColor(kBlack);
  fpk -> SetFillColor(kWhite);
  chFrame -> addObject(fpk);
- TPaveLabel *fsg = new TPaveLabel(0.15, 0.55, 0.25, 0.45, Form("#sigma_{main} =%.2f #pm %.2f", fsigma,widtherrorhigh), "brNDC");
+ TPaveLabel *fsg = new TPaveLabel(0.15, 0.55, 0.25, 0.45, Form("#sigma_{main} =%.2f #pm %.3f", fsigma,widtherrorhigh), "brNDC");
  fsg -> SetFillStyle(0);
  fsg -> SetBorderSize(0);
  fsg -> SetTextSize(0.4);
@@ -967,6 +915,15 @@ redpeak = totalModelFunc->GetMaximumX(40.0, 115.2);
  fsg -> SetTextColor(kBlack);
  fsg -> SetFillColor(kWhite);
  chFrame -> addObject(fsg);
+ TString cbModelLabel = singlesided ? "Single-sided CB" : "Double-sided CB";
+ TPaveLabel *pmodel = new TPaveLabel(0.15, 0.45, 0.28, 0.35, cbModelLabel, "brNDC");
+ pmodel -> SetFillStyle(0);
+ pmodel -> SetBorderSize(0);
+ pmodel -> SetTextSize(0.4);
+ pmodel -> SetTextFont(42);
+ pmodel -> SetTextColor(kBlack);
+ pmodel -> SetFillColor(kWhite);
+ chFrame -> addObject(pmodel);
 
 
    TPad *pad1 = new TPad("pad1", "Top pad", 0, 0.25, 1, 1.0);
@@ -982,9 +939,6 @@ redpeak = totalModelFunc->GetMaximumX(40.0, 115.2);
  legend->AddEntry("fescape", "first escape", "L");
  legend->AddEntry("sescape", "second escape", "L");
  legend->AddEntry("background", "background", "L");
- //legend->AddEntry("compton1", "compton1", "L");
- //legend->AddEntry("compton2", "compton2", "L");
- //legend->AddEntry("compton3", "compton3", "L");
  legend->Draw();
    can->cd();
    TPad *pad2 = new TPad("pad2", "Bottom pad", 0, 0.0, 1, 0.25);
@@ -994,15 +948,19 @@ redpeak = totalModelFunc->GetMaximumX(40.0, 115.2);
    pad2->cd();
   
 // residual histogram
+//uncomment for regular sim
 double xMin = 40.0;
 double xMax = 115.0;//h_spec->GetXaxis()->GetXmax();
+//only for lab crystal
+//double xMin = 100.0;
+//double xMax = 210.0;//h_spec->GetXaxis()->GetXmax();
 int nBins   = h_spec->FindBin(xMax) - h_spec->FindBin(xMin) + 1;
 int startBin = h_spec->FindBin(xMin);
 int endBin = h_spec->FindBin(xMax);
 double totalYield = h_spec->Integral(startBin,endBin);
 TH1F* hresidual = new TH1F("hresidual","", nBins, xMin, xMax);
 
-
+ //uncomment for regular sim
 for (int i = startBin; i <= h_spec->GetNbinsX(); ++i) {
    double x     = h_spec->GetBinCenter(i);
    double yData = h_spec->GetBinContent(i);
@@ -1014,6 +972,18 @@ for (int i = startBin; i <= h_spec->GetNbinsX(); ++i) {
    double res = (yErr > 0.0) ? (yData - muFit)/ yErr : 0.0;
    hresidual->SetBinContent(i - startBin + 1, res);
 }
+//only for lab crystals
+/*for (int i = startBin; i <= endBin; ++i) {
+   double x     = h_spec->GetBinCenter(i);
+   double yData = h_spec->GetBinContent(i);
+   double yErr  = h_spec->GetBinError(i);
+   double binW  = h_spec->GetBinWidth(i);
+   RooArgSet vars(crysADC);
+   crysADC.setVal(x);
+   double muFit = fitFun.getVal(&vars) * (totalYield) * binW;
+   double res = (yErr > 0.0) ? (yData - muFit)/ yErr : 0.0;
+   hresidual->SetBinContent(i - startBin + 1, res);
+}*/
 hresidual->SetStats(0);
 hresidual->SetTitle("");
 hresidual->GetYaxis()->SetTitle("#splitline{Normalized Residuals}{(data - fit)/#sigma}");
@@ -1058,6 +1028,14 @@ if (contour) {
    );
 }
 
+// clean up heap-allocated CB shapes/parameters (delete PDFs before their vars)
+delete fullErg;
+delete firsErg;
+delete secdErg;
+delete fcbalpha;
+delete fcbndeg;
+delete fcbalphaR;   
+delete fcbndegR;    
 
 }
 

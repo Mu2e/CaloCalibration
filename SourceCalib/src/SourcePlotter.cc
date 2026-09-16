@@ -9,7 +9,7 @@ using namespace std::chrono;
 using namespace CaloSourceCalib;
 
 /* function to make global plots of the fit outputs*/
-void SourcePlotter::ParamPlots(TTree* inputTree, TFile *inputFile, TFile *outputFile,int cry_start, int cry_end) {//add param as plot range
+void SourcePlotter::ParamPlots(TTree* inputTree, TFile *inputFile, TFile *outputFile,int cry_start, int cry_end, bool isSiPMRun) {//add param as plot range
     float crystalNo, Peak, ChiSq, PeakErrHigh,PeakErrLo,CompositePeak,h_means,
     h_stds,frFull,frFrst,frScnd,firstPeak,secondPeak,Width,WidthErrHigh,WidthErrLo,
     unreducedchi2;
@@ -125,8 +125,12 @@ firstPeak_vec,secondPeak_vec,Widths,WidthErrHighs,WidthErrLos,unreducedchi2s,ndo
     // Logic: The 8 specific IDs are LYSO. The rest are CsI.
     // =======================================================
     // Using long and lround to ensure ID matching works even if crystalNos are floats
+    // lyso_ids stays in SiPM-ID space (used by the SiPM-pair section below, which always
+    // operates on raw SiPM numbers). For classifying entries in this tree, use crystal IDs
+    // instead when crystalNo already holds a crystal number (i.e. not a SiPM run).
     std::set<long> lyso_ids = {1164, 1165, 1220, 1221, 1218, 1219, 1274, 1275};
-    
+    std::set<long> lyso_classify_ids = isSiPMRun ? lyso_ids : std::set<long>{582, 610, 609, 637};
+
     // Vectors for LYSO (The 8 specific IDs)
     std::vector<double> crys_Lyso, peaks_Lyso,ADCpeaks_Lyso, errlo_Lyso, errhi_Lyso, compositepeak_Lyso; 
     // Vectors for CsI (The rest)
@@ -136,7 +140,7 @@ firstPeak_vec,secondPeak_vec,Widths,WidthErrHighs,WidthErrLos,unreducedchi2s,ndo
         // Use rounding to ensure 1120.00 matches 1120
         long id = std::lround(crystalNos[i]);
         
-        if(lyso_ids.count(id)) {
+        if(lyso_classify_ids.count(id)) {
             // It IS one of the 8 -> LYSO
             crys_Lyso.push_back(crystalNos[i]);
             peaks_Lyso.push_back(Peaks[i]);
@@ -185,7 +189,7 @@ firstPeak_vec,secondPeak_vec,Widths,WidthErrHighs,WidthErrLos,unreducedchi2s,ndo
     grpeaks.SetLineColor(kBlue);
     grpeaks.Draw("AP");
     padTop->Update();
-    grpeaks.GetYaxis()->SetRangeUser(0.05, 0.08);
+    grpeaks.GetYaxis()->SetRangeUser(0.059, 0.066);
 
     // Lines for Top
     TLine *avgpeak = new TLine(cry_start, Peaks_avg, cry_end, Peaks_avg);
@@ -233,7 +237,7 @@ firstPeak_vec,secondPeak_vec,Widths,WidthErrHighs,WidthErrLos,unreducedchi2s,ndo
     grCsI->SetMarkerColor(kViolet+2); grCsI->SetLineColor(kViolet+2);
     grCsI->Draw("AP");
     padBL->Update();
-    grCsI->GetYaxis()->SetRangeUser(0.05, 0.08);
+    grCsI->GetYaxis()->SetRangeUser(0.059, 0.066);
 
     TLine *l_avg_C = new TLine(padBL->GetUxmin(), avg_val_C, padBL->GetUxmax(), avg_val_C);
     TLine *l_hi_C  = new TLine(padBL->GetUxmin(), avg_val_C + 2*std_val_C, padBL->GetUxmax(), avg_val_C + 2*std_val_C);
@@ -272,7 +276,7 @@ firstPeak_vec,secondPeak_vec,Widths,WidthErrHighs,WidthErrLos,unreducedchi2s,ndo
     grLYSO->SetMarkerColor(kAzure-3); grLYSO->SetLineColor(kAzure-3);
     grLYSO->Draw("AP");
     padBR->Update();
-    grLYSO->GetYaxis()->SetRangeUser(0.05, 0.08);
+    grLYSO->GetYaxis()->SetRangeUser(0.059, 0.066);
 
     TLine *l_avg_L = new TLine(padBR->GetUxmin(), avg_val_L, padBR->GetUxmax(), avg_val_L);
     TLine *l_hi_L  = new TLine(padBR->GetUxmin(), avg_val_L + 2*std_val_L, padBR->GetUxmax(), avg_val_L + 2*std_val_L);
