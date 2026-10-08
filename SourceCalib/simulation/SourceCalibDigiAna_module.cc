@@ -15,6 +15,7 @@
 #include "Offline/CaloReco/inc/CaloTemplateWFProcessor.hh"
 #include "Offline/CaloReco/inc/CaloRawWFProcessor.hh"
 #include "Offline/DAQConditions/inc/EventTiming.hh"
+#include "Offline/DataProducts/inc/CaloConst.hh"
 #include "TH1F.h"
 #include <iostream>
 #include <string>
@@ -48,7 +49,6 @@ namespace mu2e {
            fhicl::Atom<art::InputTag>                          caloShowerSimCollection  { Name("caloShowerSimCollection"),  Comment("Calo Sim module label") };
            fhicl::Atom<art::InputTag>                          pbttoken            { Name("ProtonBunchTimeTag"),  Comment("ProtonBunchTime producer")};
            fhicl::Atom<std::string>                            processorStrategy   { Name("processorStrategy"),   Comment("Digi reco processor name") };
-           fhicl::Atom<double>                                 digiSampling        { Name("digiSampling"),        Comment("Calo ADC sampling time (ns)") };
            fhicl::Atom<double>                                 maxChi2Cut          { Name("maxChi2Cut"),          Comment("Chi2 cut for keeping reco digi") };
            fhicl::Atom<double>                                 ratioCut          { Name("ratioCut"),          Comment("ratio of energy in crystal to others"), 0.8 };
            fhicl::Atom<double>                                timeCut          { Name("timeCut"),          Comment("time for digis in same event"), 20 };
@@ -63,7 +63,6 @@ namespace mu2e {
            caloShowerSimToken_ {consumes<CaloShowerSimCollection>(config().caloShowerSimCollection())},
            pbttoken_          {consumes<ProtonBunchTime>(config().pbttoken())},
            processorStrategy_ (config().processorStrategy()),
-           digiSampling_      (config().digiSampling()),
            maxChi2Cut_        (config().maxChi2Cut()),
            ratioCut_          (config().ratioCut()),
            timeCut_          (config().timeCut()),
@@ -107,7 +106,6 @@ namespace mu2e {
         const  art::ProductToken<CaloShowerSimCollection> caloShowerSimToken_;
         const  art::ProductToken<ProtonBunchTime>    pbttoken_;
         const  std::string                           processorStrategy_;
-        double                                       digiSampling_;
         double                                       maxChi2Cut_;
         double                                       ratioCut_;
         double                                       timeCut_;
@@ -176,7 +174,7 @@ namespace mu2e {
       for (const auto& caloDigi : caloDigis)
       {
           int    SiPMID   = caloDigi.SiPMID();
-          double t0       = caloDigi.t0();
+          double t0       = caloDigi.t0()*CaloConst::_digitizationPeriod; // CaloDigi t0 is in digitizer clock ticks
           time.push_back(t0);
           const std::vector<int>& waveform = caloDigi.waveform();
           //size_t index = &caloDigi - &caloDigis.front();
@@ -185,7 +183,7 @@ namespace mu2e {
           x.clear();y.clear();
           for (unsigned int i=0;i<waveform.size();++i)
           {
-              x.push_back(t0 + (i+0.5)*digiSampling_); // add 0.5 to be in middle of bin
+              x.push_back(t0 + (i+0.5)*CaloConst::_digitizationPeriod); // add 0.5 to be in middle of bin
               y.push_back(waveform.at(i));
           }
 
