@@ -12,7 +12,6 @@ CaloCosmicCombAna :
             RawProcessor        : { @table::CaloReco.RawProcessor }
             TemplateProcessor   : { @table::CaloReco.TemplateProcessor }
             processorStrategy   : "TemplateFit"
-            digiSampling        : @local::HitMakerDigiSampling
             ProtonBunchTimeTag  : "EWMProducer"
             maxChi2Cut          : 2.0
             diagLevel           : 0
