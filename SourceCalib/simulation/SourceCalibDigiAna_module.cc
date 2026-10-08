@@ -174,7 +174,7 @@ namespace mu2e {
       for (const auto& caloDigi : caloDigis)
       {
           int    SiPMID   = caloDigi.SiPMID();
-          double t0       = caloDigi.t0();
+          double t0       = caloDigi.t0()*CaloConst::_digitizationPeriod; // CaloDigi t0 is in digitizer clock ticks
           time.push_back(t0);
           const std::vector<int>& waveform = caloDigi.waveform();
           //size_t index = &caloDigi - &caloDigis.front();
