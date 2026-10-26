@@ -10,8 +10,6 @@ OR time needed to calibrate each crystal given the number of calibration
 gammas per crystal, respectively).
 """
 
-import matplotlib.pyplot as plt
-import numpy as np
 import math
 
 # =============================================================================

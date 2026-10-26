@@ -13,14 +13,19 @@ using namespace CaloSourceCalib;
 TString filepath = "/pnfs/mu2e/scratch/users/hjafree/fixedgeom_both_disks.root";//change file here
 
 
-std::pair<TH1F*, TFile*> get_data_histogram(int cryNum, bool isSiPMRun) {
-    TString histPath = isSiPMRun ? "SourceAna/sipm_ADC/sipm_" : "SourceAna/crystals_ADC/cry_";
-    //uncomment line below and comment the one above if cut and count needs to be applied to the mc truth histograms
-    //histPath = isSiPMRun ? "SourceAna/crystals_edep_truth/cry_" : "SourceAna/crystals_ADC/cry_";
+std::pair<TH1F*, TFile*> get_data_histogram(int cryNum, bool isSiPMRun, bool isMC = false) {
+    TString histPath;
+    if (isMC)           histPath = "SourceAna/crystals_edep_truth/cry_";  // MC truth, MeV, per crystal
+    else if (isSiPMRun) histPath = "SourceAna/sipm_ADC/sipm_";
+    else                histPath = "SourceAna/crystals_ADC/cry_";
 
     TFile *f = new TFile(filepath);
     TString crystalNumber = to_string(cryNum);
     TH1F* hist = (TH1F*)f->Get(histPath + crystalNumber);
+    if (!hist) {
+        std::cerr << "[WARNING] " << histPath + crystalNumber << " not found in " << filepath << ", skipping\n";
+        return std::make_pair(hist, f);
+    }
 		hist->SetDirectory(0);
     return std::make_pair(hist, f);
 }
@@ -50,8 +55,8 @@ std::pair<double, double> ComputeHistogramStats(TH1F* hist) {
 int main(int argc, char* argv[]) {
     std::cout << "========== Welcome to the Mu2e Source Calibration Analysis ==========" << std::endl;
     std::vector<TString> allowedParams = {
-    	"peak" , "alpha", "n_full" , "n_1st", "n_2nd","beta"
-    }; 
+    	"peak" , "n_full" , "n_1st", "n_2nd", "n_bkg"
+    };
     auto isInvalid = [&](TString input){
     	input.ToLower();
     	for (const auto& p : allowedParams) {
@@ -59,6 +64,15 @@ int main(int argc, char* argv[]) {
     	}
     	return true;
     };
+
+    for (int i = 1; i < argc; i++) {
+        TString a = argv[i]; a.ToLower();
+        if (a == "help" || a == "-h" || a == "--help") {
+            std::cout << "Usage: " << argv[0] << " <start_cry> <end_cry> <alg> <disk> <readout: sipm|crystal> [flags: overlay, contour, mc, singlesided]\n";
+            std::cout << "Example: " << argv[0] << " 0 10 chi2 0 sipm overlay\n";
+            return 0;
+        }
+    }
 
     if (argc < 6) {
         std::cerr << "[ERROR] Missing arguments.\n";
@@ -70,6 +84,11 @@ int main(int argc, char* argv[]) {
     int anacrys_start = std::atoi(argv[1]);
     int anacrys_end   = std::atoi(argv[2]);
     TString alg       = argv[3];
+    alg.ToLower();
+    if (alg != "chi2" && alg != "nll") {
+        std::cerr << "[ERROR] Invalid alg '" << argv[3] << "' - must be 'chi2' or 'nll'\n";
+        return 1;
+    }
     int disk          = std::atoi(argv[4]);
 
     TString readout = argv[5];
@@ -84,7 +103,7 @@ int main(int argc, char* argv[]) {
     bool doOverlay = false;
     bool contour   = false;
     TString xSelect = "Peak"; 
-    TString ySelect = "Width"; 
+    TString ySelect = "n_full";
     bool isMC      = false;
     for (int i = 6; i < argc; i++) {
         TString arg = argv[i];
@@ -105,18 +124,12 @@ int main(int argc, char* argv[]) {
         			}
         		i += 2;
         	} else {
-        		std::cerr<< "[ERROR] contour flag requires two variables (eg Peak, Width, Alpha, N_Full, N_1st, N_2nd)"<<std::endl;
+        		std::cerr<< "[ERROR] contour flag requires two variables (eg Peak, N_Full, N_1st, N_2nd, N_Bkg)"<<std::endl;
         		}
         }
         
         if (arg.Contains("mc"))      isMC      = true;  
         if(arg.Contains("singlesided")) SourceFitter::singlesided = true;
-        if (arg.Contains("help")) {
-            std::cout << "Usage: " << argv[0] << " <start_cry> <end_cry> <alg> <disk> <readout: sipm|crystal> [flags: overlay, contour, mc, singlesided]\n";
-            std::cout << "Example: " << argv[0] << " 0 10 fit 0 sipm overlay\n";
-            return 0;
-        }
-         	
     }
 //------------------
 //Caphri crystals
@@ -181,7 +194,7 @@ if (isMC) {
     truthfit->Branch("ndof",       &truth_ndof,     "truth_ndof/I");
 
     for (int cryNum = anacrys_start; cryNum < anacrys_end; cryNum++) {
-        auto [hist, file] = get_data_histogram(cryNum, isSiPMRun);
+        auto [hist, file] = get_data_histogram(cryNum, isSiPMRun, isMC);
         if (!hist) {
             if (file) { file->Close(); delete file; }
             continue;
@@ -232,15 +245,14 @@ if (isMC) {
   Int_t nEvents, convergencestatus;
   Float_t fpeak, peakerrorhigh,peakerrorlo,redpeak,fsigma, chiSq, fstpeak,
   scdpeak,fcbalphaparam,fcbndegparam,fcbalphaRparam,fcbndegRparam,comCnstparam,combetaparam,frFullparam,frFrstparam,
-  frScndparam,crystalNoparam,frBKGparam,frcomptonparam1,frcomptonparam2,frcomptonparam3,
-  pval,h_means,h_stddevs,unreducedchi2,fval,mparam,etaparam,widtherrorhigh,
-  widtherrorlo,errbarhigh,errbarlo,evtfullerrorhigh,evtfullerrorlo,
-  Esparam,Aparam,Aperr,Bparam,Berr,Cparam,Cerr;
+  frScndparam,crystalNoparam,frBKGparam,pval,h_means,h_stddevs,unreducedchi2,
+  fval,mparam,etaparam,widtherrorhigh,errbarhigh,errbarlo,
+  evtfullerrorhigh,evtfullerrorlo,Esparam,Aparam,Aperr;
   Int_t ndof;
 
   // MC Truth reference branches (for comparison diagnostics)
   Float_t truth_peak_mev_ref, truth_fr_full_ref, truth_fr_1st_ref, truth_fr_2nd_ref;
-  Float_t recon_peak_mev;  // Reconstructed peak converted to MeV
+  Float_t recon_peak_mev = -1.0;  // Reconstructed peak converted to MeV
   Int_t has_truth_match;   // Flag: was MC truth data found for this crystal
 
   TTree *covar = new TTree("covar","Covariance Plot");
@@ -251,7 +263,6 @@ if (isMC) {
   covar->Branch("CompositePeak", &redpeak,"redpeak/F");
   covar->Branch("Width", &fsigma,"fsigma/F");
   covar->Branch("WidthErrHigh", &widtherrorhigh,"widtherrorhigh/F");
-  covar->Branch("WidthErrLo", &widtherrorlo,"widtherrorlo/F");
   covar->Branch("ChiSq", &chiSq,"chiSq/F");
   covar->Branch("1stPeak", &fstpeak,"fstpeak/F");
   covar->Branch("2ndPeak", &scdpeak,"scdpeak/F");
@@ -265,9 +276,6 @@ if (isMC) {
   covar->Branch("frFrst", &frFrstparam,"frFrstparam/F");
   covar->Branch("frScnd", &frScndparam,"frScndparam/F");
   covar->Branch("frBKG", &frBKGparam,"frBKGparam/F");
-  covar->Branch("frcompton1", &frcomptonparam1,"frcomptonparam1/F");
-  covar->Branch("frcompton2", &frcomptonparam2,"frcomptonparam2/F");
-  covar->Branch("frcompton3", &frcomptonparam3,"frcomptonparam3/F");
   covar->Branch("crystalNo", &crystalNoparam,"crystalNoparam/F");
   covar->Branch("convgstatus", &convergencestatus,"convergencestatus/I");
   covar->Branch("pval", &pval,"pval/F");
@@ -285,10 +293,6 @@ if (isMC) {
   covar->Branch("Esparam", &Esparam,"Esparam/I");
   covar->Branch("A",    &Aparam, "Aparam/F");
   covar->Branch("AErr", &Aperr,  "Aperr/F");
-  covar->Branch("B",    &Bparam, "Bparam/F");
-  covar->Branch("BErr", &Berr,   "Berr/F");
-  covar->Branch("C",    &Cparam, "Cparam/F");
-  covar->Branch("CErr", &Cerr,   "Cerr/F");
 
   // MC Truth reference branches (diagnostics for peak misattribution)
   covar->Branch("truth_peak_mev",     &truth_peak_mev_ref,    "truth_peak_mev_ref/F");
@@ -330,6 +334,11 @@ if (isMC) {
   auto start_bin = high_resolution_clock::now();
   for(int cryNum=anacrys_start; cryNum<anacrys_end; cryNum++){
     auto [hSum, file] = get_data_histogram(cryNum, isSiPMRun);
+    if (!hSum) {
+        file->Close();
+        delete file;
+        continue;
+    }
     auto [mean, stddev] = ComputeHistogramStats(hSum);
 		h_means   = mean;
 		h_stddevs = stddev;
@@ -342,34 +351,41 @@ if (isMC) {
 		if(std::find(lysoCrystals.begin(), lysoCrystals.end(), cryNum) != lysoCrystals.end()) islyso = true; 
 	}
 	
-    SourceFitter *fit = new SourceFitter();
-    fit->FitCrystal(hSum, alg, cryNum, covar, nEvents,convergencestatus, fpeak, peakerrorhigh,peakerrorlo, redpeak,
-                    fsigma,widtherrorhigh,widtherrorlo, chiSq, fstpeak, scdpeak,
-                    fcbalphaparam, fcbndegparam, comCnstparam, combetaparam,
-                    frFullparam, frFrstparam, frScndparam, crystalNoparam, frBKGparam,
-                    frcomptonparam1,frcomptonparam2,frcomptonparam3,pval,h_means,
-                    h_stddevs,unreducedchi2,
-                    fval,mparam,etaparam,ndof,contour,xSelect,ySelect,errbarhigh,
-                    errbarlo, evtfullerrorhigh,evtfullerrorlo,Esparam,Aparam,Aperr,Bparam,Berr,Cparam,Cerr,fcbalphaRparam,fcbndegRparam,islyso);
-    file->Close();
-    delete file;
-
-    // --- MC Truth Comparison (if available) ---
+    // --- MC Truth lookup (if available) ---
+    // Must be set before FitCrystal: covar->Fill() runs inside FitCrystal
     has_truth_match = 0;
     truth_peak_mev_ref = -1.0;
     truth_fr_full_ref = -1.0;
     truth_fr_1st_ref = -1.0;
     truth_fr_2nd_ref = -1.0;
-    recon_peak_mev = -1.0;
 
-    if (truth_data_map.count(cryNum)) {
+    // truth is stored per crystal; each crystal is read out by SiPMs 2*i and 2*i+1
+    int truthCry = isSiPMRun ? cryNum / 2 : cryNum;
+    if (truth_data_map.count(truthCry)) {
         has_truth_match = 1;
-        auto [t_peak, t_ff, t_f1, t_f2] = truth_data_map[cryNum];
+        auto [t_peak, t_ff, t_f1, t_f2] = truth_data_map[truthCry];
         truth_peak_mev_ref = t_peak;
         truth_fr_full_ref = t_ff;
         truth_fr_1st_ref = t_f1;
         truth_fr_2nd_ref = t_f2;
+    }
 
+    SourceFitter *fit = new SourceFitter();
+    fit->FitCrystal(hSum, alg, cryNum, covar, nEvents,convergencestatus, fpeak, peakerrorhigh,peakerrorlo, redpeak,
+                    fsigma,widtherrorhigh, chiSq, fstpeak, scdpeak,
+                    fcbalphaparam, fcbndegparam, comCnstparam, combetaparam,
+                    frFullparam, frFrstparam, frScndparam, crystalNoparam, frBKGparam,
+                    pval,h_means,h_stddevs,unreducedchi2,
+                    fval,mparam,etaparam,ndof,contour,xSelect,ySelect,errbarhigh,
+                    errbarlo,evtfullerrorhigh,evtfullerrorlo,
+                    Esparam,Aparam,Aperr,fcbalphaRparam,fcbndegRparam,islyso);
+    file->Close();
+    delete file;
+
+    // --- MC Truth Comparison (needs the fit result) ---
+    // recon_peak_mev is set after covar->Fill(), so the tree holds the previous crystal's value
+    recon_peak_mev = -1.0;
+    if (has_truth_match) {
         // Convert reconstructed peak to MeV using fitted calibration
         recon_peak_mev = mparam * fpeak;  // mparam is MeV/ADC, fpeak is ADC
 
@@ -392,6 +408,13 @@ if (doOverlay) {
 
     auto [hist_even, file_even] = get_data_histogram(cryNum, isSiPMRun);
     auto [hist_odd, file_odd]  = get_data_histogram(cryNum + 1, isSiPMRun);
+    if (!hist_even || !hist_odd) {
+        delete hist_even;
+        delete hist_odd;
+        file_even->Close(); delete file_even;
+        file_odd->Close();  delete file_odd;
+        continue;
+    }
      hist_even->SetDirectory(0);
      hist_odd->SetDirectory(0);
     hist_even->SetLineColor(kBlue);

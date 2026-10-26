@@ -3,7 +3,7 @@
 // 
 // Implementation of the 2D Contour Plotter for Source Calibration.
 // This function performs a 2D scan of the likelihood (or Chi2) surface
-// between any two selected variables (e.g., Peak vs Width, Alpha vs Peak).
+// between any two selected variables (e.g., Peak vs N_Full, N_Full vs N_Bkg).
 //
 // Key Features:
 // 1. "Switch Board": Selects variables dynamically via string names.
@@ -26,18 +26,14 @@ void CaloSourceCalib::MakeContourPlot(
     TString xName, 
     TString yName,
     // --- Special Variables ---
-    // Manual values passed for complex variables like Peak/Width
+    // Manual values passed for complex variables like Peak
     RooRealVar& varPeak,  double valPeak,  double errLoPeak,  double errHiPeak,
-   // RooRealVar& varWidth, double valWidth, double errLoWidth, double errHiWidth,
     // --- Standard Variables ---
     // Direct references to RooFit variables for other parameters
-    //RooRealVar& varAlpha,
     RooRealVar& varNFull,
     RooRealVar& varN1st,
-    RooRealVar& varN2nd
-    //RooRealVar& varNBkg,
-    //RooRealVar& varConst,
-    //RooRealVar& varBeta
+    RooRealVar& varN2nd,
+    RooRealVar& varNBkg
 ) {
     // ======================================================
     // 1. Internal Switch Board
@@ -61,20 +57,13 @@ void CaloSourceCalib::MakeContourPlot(
             ptr = &varPeak; val = valPeak; eLo = errLoPeak; eHi = errHiPeak;
             return;
         }
-        /*if (lowerName == "width") {
-            ptr = &varWidth; val = valWidth; eLo = errLoWidth; eHi = errHiWidth;
-            return;
-        }*/
 
         // --- CASE B: Standard RooFit Variables ---
         // These map directly to the RooRealVar objects
         if      (lowerName == "n_full") ptr = &varNFull;
-       // else if (lowerName == "alpha")  ptr = &varAlpha;
         else if (lowerName == "n_1st")  ptr = &varN1st;
         else if (lowerName == "n_2nd")  ptr = &varN2nd;
-        //else if (lowerName == "N_Bkg")  ptr = &varNBkg;
-        //else if (lowerName == "Const")  ptr = &varConst;
-        //else if (lowerName == "beta")   ptr = &varBeta;
+        else if (lowerName == "n_bkg")  ptr = &varNBkg;
 
         // Extract values automatically for Case B
         if (ptr) {

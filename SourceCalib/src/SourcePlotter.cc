@@ -11,7 +11,7 @@ using namespace CaloSourceCalib;
 /* function to make global plots of the fit outputs*/
 void SourcePlotter::ParamPlots(TTree* inputTree, TFile *inputFile, TFile *outputFile,int cry_start, int cry_end, bool isSiPMRun) {
     float crystalNo, Peak, ChiSq, PeakErrHigh,PeakErrLo,CompositePeak,h_means,
-    h_stds,frFull,frFrst,frScnd,firstPeak,secondPeak,Width,WidthErrHigh,WidthErrLo,
+    h_stds,frFull,frFrst,frScnd,firstPeak,secondPeak,Width,WidthErrHigh,
     unreducedchi2;
     int nEvents,convgstatus,ndof;    
     inputTree-> SetBranchAddress("crystalNo", &crystalNo);
@@ -30,8 +30,7 @@ void SourcePlotter::ParamPlots(TTree* inputTree, TFile *inputFile, TFile *output
     inputTree-> SetBranchAddress("1stPeak", &firstPeak); 
     inputTree-> SetBranchAddress("2ndPeak", &secondPeak); 
     inputTree-> SetBranchAddress("Width", &Width); 
-    inputTree-> SetBranchAddress("WidthErrHigh", &WidthErrHigh); 
-    inputTree-> SetBranchAddress("WidthErrLo", &WidthErrLo); 
+    inputTree-> SetBranchAddress("WidthErrHigh", &WidthErrHigh);
     inputTree-> SetBranchAddress("unreducedchi2", &unreducedchi2); 
     inputTree-> SetBranchAddress("ndof", &ndof);
     
@@ -64,7 +63,7 @@ firstPeak_vec,secondPeak_vec,Widths,WidthErrHighs,WidthErrLos,unreducedchi2s,ndo
         secondPeak_vec.push_back(secondPeak);
         Widths.push_back(Width);
         WidthErrHighs.push_back(WidthErrHigh);
-        WidthErrLos.push_back(WidthErrLo);
+        WidthErrLos.push_back(WidthErrHigh); // width error is symmetric (from A's Hesse error)
         unreducedchi2s.push_back(unreducedchi2);
         ndofs.push_back(ndof);
 

@@ -60,13 +60,14 @@ static bool suppress_messages = [](){
 
    return true;
 }();
-void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *covar, Int_t &nEvents,Int_t &convergencestatus, Float_t &fpeak, Float_t &peakerrorhigh,Float_t &peakerrorlo,Float_t &redpeak, Float_t &fsigma,Float_t &widtherrorhigh,Float_t &widtherrorlo, Float_t &chiSq, Float_t &fstpeak, Float_t &scdpeak,Float_t &fcbalphaparam,Float_t &fcbndegparam,Float_t &comCnstparam, Float_t &combetaparam, Float_t &fr_fullparam, Float_t &fr_frstparam,Float_t &fr_scndparam,Float_t &crystalNoparam,Float_t &fr_bkgparam,Float_t &fr_comptonparam1,Float_t &fr_comptonparam2,Float_t &fr_comptonparam3, Float_t &pval,Float_t &h_means,Float_t &h_stddevs, Float_t &unreducedchi2,Float_t &fval,Float_t &mparam,Float_t &etaparam,Int_t &ndof,bool contour,TString xVar, TString yVar, Float_t &errbarhigh, Float_t &errbarlo,Float_t &evtfullerrorhigh,Float_t &evtfullerrorlo,Float_t &Esparam,Float_t &Aparam,Float_t &Aperr,Float_t &Bparam,Float_t &Berr,Float_t &Cparam,Float_t &Cerr,Float_t &fcbalphaRparam, Float_t &fcbndegRparam, bool islyso ){
+void SourceFitter::FitCrystal(TH1F* h_spec, TString opt, int crystalNo,  TTree *covar, Int_t &nEvents,Int_t &convergencestatus, Float_t &fpeak, Float_t &peakerrorhigh,Float_t &peakerrorlo,Float_t &redpeak, Float_t &fsigma,Float_t &widtherrorhigh, Float_t &chiSq, Float_t &fstpeak, Float_t &scdpeak,Float_t &fcbalphaparam,Float_t &fcbndegparam,Float_t &comCnstparam, Float_t &combetaparam, Float_t &fr_fullparam, Float_t &fr_frstparam,Float_t &fr_scndparam,Float_t &crystalNoparam,Float_t &fr_bkgparam, Float_t &pval,Float_t &h_means,Float_t &h_stddevs, Float_t &unreducedchi2,Float_t &fval,Float_t &mparam,Float_t &etaparam,Int_t &ndof,bool contour,TString xVar, TString yVar, Float_t &errbarhigh, Float_t &errbarlo,Float_t &evtfullerrorhigh,Float_t &evtfullerrorlo,Float_t &Esparam,Float_t &Aparam,Float_t &Aperr,Float_t &fcbalphaRparam, Float_t &fcbndegRparam, bool islyso ){
 
 std::cout << "**************************************************************\n";
 std::cout << "Fitting crystal " << crystalNo << ".\n";
 std::cout << "**************************************************************\n";
-convergencestatus = -1; 
-bool asymSuccess = false;    
+convergencestatus = -1;
+fval = 0; // only set by the nll fit
+bool asymSuccess = false;
 double currentPeak  = 0.0;
 double currentAlpha = 0.0;
 double currentn= 0.0;
@@ -237,7 +238,7 @@ else{
  RooAbsPdf  *firsErg   = nullptr;
  RooAbsPdf  *secdErg   = nullptr;
 if(singlesided){
- //Single sided crystal ball (RooCBShape) w different width using A/B/C
+ //Single sided crystal ball (RooCBShape) w different width using A
  fcbalpha = new RooRealVar("fcbalpha", "alpha", initAlpha, 0.1, 3.0);
  fcbalpha->setConstant(kFALSE);
  fcbndeg  = new RooRealVar("fcbndeg", "n", initn, 1, 4);
@@ -294,58 +295,55 @@ auto run_one_fit = [&]() -> bool {
     evtsbkg.setVal(currentEvtBkg);
    RooFitResult *fitRes = nullptr;
 
-   if (opt == "chi2") {
-       RooAbsReal* chi2Func = fitFun.createChi2(chSpec,
-                              RooFit::DataError(RooAbsData::Expected),
-                              RooFit::Range(40, 115.2),RooFit::Extended(true));
+   // Objective: chi2 or NLL. Everything after this is shared.
+   RooAbsReal* fitFunc = (opt == "chi2")
+       ? fitFun.createChi2(chSpec, RooFit::DataError(RooAbsData::Expected),
+                           RooFit::Range(40, 115.2), RooFit::Extended(true))
+       : fitFun.createNLL(chSpec, Range(40, 115.2));
 
-       RooMinimizer m(*chi2Func);
-       m.setMinimizerType("Minuit2");
-       m.setPrintLevel(-1);
-       m.setStrategy(1);
-       m.simplex();
+   RooMinimizer m(*fitFunc);
+   m.setMinimizerType("Minuit2");
+   m.setPrintLevel(-1);
+   m.setStrategy(1);
+   m.simplex();
+   m.migrad();
+
+   fitRes = m.save();
+   if (fitRes->status() != 0) {
+       m.setStrategy(2);
        m.migrad();
-      
-       fitRes = m.save();
-       if (fitRes->status() != 0) {
-           m.setStrategy(2);
-           m.migrad();
-           delete fitRes;
-           fitRes = m.save();
-       }
-
-
-       m.hesse();
-       RooArgSet* fitParams = chi2Func->getVariables();
-       RooRealVar* minosTarget = dynamic_cast<RooRealVar*>(fitParams->find("fullPeak"));
-       if (minosTarget) {
-           m.minos(RooArgSet(*minosTarget));
-       }
        delete fitRes;
        fitRes = m.save();
-      
-       for (UInt_t i = 0; i < fitRes->numStatusHistory(); i++) {
-           if (TString(fitRes->statusLabelHistory(i)).Contains("MIGRAD")) {
-               migrad_status = fitRes->statusCodeHistory(i);
+   }
+
+
+   m.hesse();
+   RooArgSet* fitParams = fitFunc->getVariables();
+   RooRealVar* minosTarget = dynamic_cast<RooRealVar*>(fitParams->find("fullPeak"));
+   if (minosTarget) {
+       m.minos(RooArgSet(*minosTarget));
+   }
+   delete fitRes;
+   fitRes = m.save();
+
+   for (UInt_t i = 0; i < fitRes->numStatusHistory(); i++) {
+       if (TString(fitRes->statusLabelHistory(i)).Contains("MIGRAD")) {
+           migrad_status = fitRes->statusCodeHistory(i);
        }
    }
-       unreducedchi2 = chi2Func->getVal();
-       int nBins = chSpec.numEntries();
-       nPars = fitRes->floatParsFinal().getSize();
-       ndof = nBins - nPars;
-       reducedchi2= unreducedchi2/ndof;
-       if (chi2Func) delete chi2Func;
-   }
+   if (opt == "nll") fval = fitFunc->getVal();
 
-
-   else if (opt == "nll") {
-       RooAbsReal *nll = fitFun.createNLL(chSpec, Range(40,115.2));
-       RooMinimizer m(*nll);
-       m.migrad();
-       m.hesse();
-       fitRes = m.save();
-       fval   = nll->getVal();
-   }
+   // Goodness of fit: chi2 at the best-fit point (for nll it is only evaluated, not minimised)
+   RooAbsReal* chi2Func = (opt == "chi2") ? fitFunc
+       : fitFun.createChi2(chSpec, RooFit::DataError(RooAbsData::Expected),
+                           RooFit::Range(40, 115.2), RooFit::Extended(true));
+   unreducedchi2 = chi2Func->getVal();
+   int nBins = chSpec.numEntries();
+   nPars = fitRes->floatParsFinal().getSize();
+   ndof = nBins - nPars;
+   reducedchi2 = unreducedchi2/ndof;
+   if (chi2Func != fitFunc) delete chi2Func;
+   delete fitFunc;
 
 
    if (!fitRes) return false;
@@ -567,11 +565,10 @@ if (!is_perfect){
                fullPeak.removeAsymError();
                
                bool fallback_ok = run_one_fit();
-               if (fallback_ok) {
+               if (fallback_ok && convergencestatus == 0) {
                    if (reducedchi2 <= 1.6) {
                        std::cout << "[DEBUG] Crystal " << cId << " converged on fallback candidate #"
                                  << i << " (chi2=" << reducedchi2 << ")" << std::endl;
-                       convergencestatus = 0;
                        migrad_status = 0;
                        asymSuccess = false;
                        return true;
@@ -604,10 +601,9 @@ if (!is_perfect){
                currentEvtBkg   = best.p["eb"];
                fullPeak.removeAsymError();
                bool final_ok = run_one_fit();
-               if (final_ok) {
+               if (final_ok && convergencestatus == 0) {
                    std::cout << "[DEBUG] Crystal " << cId << " using best available fallback chi2="
                              << reducedchi2 << " (threshold not met, best was candidate #" << bestCandIdx << ")\n";
-                   convergencestatus = 0;
                    migrad_status = 0;
                    asymSuccess = false;
                    return true;
@@ -643,7 +639,7 @@ else {
 }
 
 
-if (migrad_status>0){
+if (migrad_status>0 || convergencestatus != 0){
    SourceFitter::convFailures.push_back({crystalNo, convergencestatus});
 }
 else if (asymSuccess && convergencestatus == 0) {
@@ -680,6 +676,7 @@ else{
  fr_bkgparam = evtsbkg.getVal()/integral_evts;
  crystalNoparam = crystalNo;       
  etaparam = eta.getVal();
+ mparam = m.getVal();
  errbarhigh = mparam*(peakerrorhigh/fpeak);
  errbarlo = mparam*(peakerrorlo/fpeak);
  Esparam = Es.getVal();
@@ -705,7 +702,6 @@ else{
    SourceFitter::crystalswithbadchi2.push_back(crystalNo);
    SourceFitter::badchi2Values[crystalNo] = reducedchi2;
  }
- mparam = m.getVal();
  //delete for real data
  double xLines[] = {98.08, 89.904, 81.728};
  int colors[] = {kOrange-2, kViolet-9, kCyan-9};
@@ -848,8 +844,8 @@ if (contour) {
 
        evtsFull,
        evtsFrst,
-       evtsScnd
-
+       evtsScnd,
+       evtsbkg
    );
 }
 

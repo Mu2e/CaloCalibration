@@ -96,7 +96,13 @@ void CombineSipmToCrystal(const char* inputPath  = "/exp/mu2e/data/users/hjafree
                    << ") will be dropped." << std::endl;
     }
 
-    TFile* fout = new TFile(outPath, "RECREATE");
+    TFile* fout = TFile::Open(outPath, "RECREATE");
+    if (!fout || fout->IsZombie()) {
+        std::cerr << "ERROR: could not create output file " << outPath << std::endl;
+        fin->Close();
+        delete fout;
+        return;
+    }
     TDirectory* topOut = fout->mkdir(topDirName);
     TDirectory* cryDir = topOut->mkdir("crystals_ADC");
 
