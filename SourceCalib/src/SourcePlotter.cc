@@ -640,8 +640,10 @@ std::cout<< "% of sipms with convg status unknown ="<< percx<<std::endl;}
     grconvvschi2.Write("Convstatusvschi2");
     canvas_convvschi2.SaveAs("convstatusvschi2.root");  
    
+// SiPM-pair plots (even/odd SiPMs of the same crystal): only meaningful for SiPM readout
+if (isSiPMRun) {
 // ---- Scatter plot of calib consts of sipm pairs laid agaisnt each other (i.e even on x axis odd on y axis)-----
-//Build SiPM pair maps by crystalNo using crystalNo parity (even/odd logic) 
+//Build SiPM pair maps by crystalNo using crystalNo parity (even/odd logic)
 std::map<int, std::map<int, double>> sipm_peaks_by_crystal;
 
 for (size_t i = 0; i < crystalNos.size(); ++i) {
@@ -1101,6 +1103,7 @@ for (const auto& kv : sipm_frScnd_by_crystal) {
     grFrFrst.Write("SiPM_FrFrst_Scatter");
     grFrScnd.Write("SiPM_FrScnd_Scatter");
     canvasFrac.SaveAs("SiPM_Fractions_Scatter.root");
+} // end SiPM-pair plots
 
 // --- Overlay plot: ADC Peak, 1stPeak, 2ndPeak vs Crystal Number ---
 TGraph grADC(crystalNos.size(), &crystalNos[0], &ADCPeaks[0]);

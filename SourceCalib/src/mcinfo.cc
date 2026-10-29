@@ -531,7 +531,9 @@ void mcinfo::FitMCTruthSpectrum(TH1F* hist_truth_mev, int crystalNo, TTree *trut
     //RooCBShape full_cb("full_cb", "Full peak CB",   energy, peak_full_mev, width_mev, alpha_full, n_deg_full);
     //RooCrystalBall esc1_cb("esc1_cb", "1st escape CB",  energy, peak_1st_mev,  width_mev, alpha_mev, n_deg, alpha_R, n_R);
     //RooCrystalBall esc2_cb("esc2_cb", "2nd escape CB",  energy, peak_2nd_mev,  width_mev, alpha_mev, n_deg, alpha_R, n_R);
-    RooGaussian full_cb("full_cb", "Full peak Gauss",    energy, peak_full_mev, 0.09);
+    RooRealVar sigma_full("sigma_full", "Full peak sigma [MeV]", 0.09);
+    sigma_full.setConstant(kTRUE);
+    RooGaussian full_cb("full_cb", "Full peak Gauss",    energy, peak_full_mev, sigma_full);
     RooGaussian esc1_cb("esc1_cb", "1st escape Gauss",  energy, peak_1st_mev,  0.212);
     RooGaussian esc2_cb("esc2_cb", "2nd escape Gauss",  energy, peak_2nd_mev,  0.166);
 
@@ -624,7 +626,7 @@ RooFormulaVar yield_c3_fv("yield_c3_fv", "@0*@1", RooArgList(flux_for_C3, ratio_
 
     // --- Extract results ---
     truth_peak_mev = peak_full_mev.getVal();
-    truth_width    = width_mev.getVal();
+    truth_width    = sigma_full.getVal();  // full-peak sigma (fixed)
     truth_alpha    = 0;//alpha_mev.getVal();
 
     // Fractions (normalize yields to 1)
@@ -674,8 +676,8 @@ RooFormulaVar yield_c3_fv("yield_c3_fv", "@0*@1", RooArgList(flux_for_C3, ratio_
 	///*/
     delete chi2_var;
 
-    // peak+width+alpha + 3 CB yields + 3 Compton ratios = 9; peak+width+alpha + 3 CB yields + slope + exp yield = 8
-    int nfree = useCompton ? 9 : 8;
+    // number of floating parameters, taken from the fit itself
+    int nfree = fitres_truth ? fitres_truth->floatParsFinal().getSize() : 0;
     truth_ndof = nbins - nfree;
     std::cout << "chi2" << truth_chi2  << "\n";
 
@@ -690,7 +692,7 @@ RooFormulaVar yield_c3_fv("yield_c3_fv", "@0*@1", RooArgList(flux_for_C3, ratio_
         //          << " | r2(C2/1st)=" << ratio_c2.getVal()
          //         << " | r3(C3/2nd)=" << ratio_c3.getVal() << "\n";
     } else {
-        std::cout << "[RESULT] Exp bkg fraction=" << truth_fr_c1
+        std::cout << "[RESULT] Exp bkg fraction=" << truth_fr_ebk
                   << " | slope=" << exp_slope.getVal() << "\n";
     }
     std::cout << "[RESULT] chi2/ndof = " << truth_chi2 << " / " << truth_ndof

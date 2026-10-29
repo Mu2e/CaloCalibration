@@ -68,33 +68,34 @@ int main(int argc, char* argv[]) {
     for (int i = 1; i < argc; i++) {
         TString a = argv[i]; a.ToLower();
         if (a == "help" || a == "-h" || a == "--help") {
-            std::cout << "Usage: " << argv[0] << " <start_cry> <end_cry> <alg> <disk> <readout: sipm|crystal> [flags: overlay, contour, mc, singlesided]\n";
-            std::cout << "Example: " << argv[0] << " 0 10 chi2 0 sipm overlay\n";
+            std::cout << "Usage: " << argv[0] << " <start_cry> <end_cry> <disk> <readout: sipm|crystal> [flags: overlay, contour, mc, singlesided]\n";
+            std::cout << "Example: " << argv[0] << " 0 10 0 sipm overlay\n";
             return 0;
         }
     }
 
-    if (argc < 6) {
+    if (argc < 5) {
         std::cerr << "[ERROR] Missing arguments.\n";
-        std::cerr << "Usage: " << argv[0] << " <start_cry> <end_cry> <alg> <disk> <readout: sipm|crystal> [flags: overlay, contour, mc, singlesided]\n";
+        std::cerr << "Usage: " << argv[0] << " <start_cry> <end_cry> <disk> <readout: sipm|crystal> [flags: overlay, contour, mc, singlesided]\n";
         return 1;
     }
 
     // 2. Parse Fixed Positional Arguments
-    int anacrys_start = std::atoi(argv[1]);
-    int anacrys_end   = std::atoi(argv[2]);
-    TString alg       = argv[3];
-    alg.ToLower();
-    if (alg != "chi2" && alg != "nll") {
-        std::cerr << "[ERROR] Invalid alg '" << argv[3] << "' - must be 'chi2' or 'nll'\n";
+    TString arg3 = argv[3];
+    arg3.ToLower();
+    if (arg3 == "chi2" || arg3 == "nll") {
+        std::cerr << "[ERROR] The <alg> argument has been removed (the fit is always chi2). Drop '" << argv[3] << "' from the command.\n";
         return 1;
     }
-    int disk          = std::atoi(argv[4]);
+    int anacrys_start = std::atoi(argv[1]);
+    int anacrys_end   = std::atoi(argv[2]);
+    TString alg       = "chi2";   // only fit method; also used in output file names
+    int disk          = std::atoi(argv[3]);
 
-    TString readout = argv[5];
+    TString readout = argv[4];
     readout.ToLower();
     if (readout != "sipm" && readout != "crystal") {
-        std::cerr << "[ERROR] Invalid readout '" << argv[5] << "' - must be 'sipm' or 'crystal'\n";
+        std::cerr << "[ERROR] Invalid readout '" << argv[4] << "' - must be 'sipm' or 'crystal'\n";
         return 1;
     }
     bool isSiPMRun = (readout == "sipm");
@@ -105,7 +106,7 @@ int main(int argc, char* argv[]) {
     TString xSelect = "Peak"; 
     TString ySelect = "n_full";
     bool isMC      = false;
-    for (int i = 6; i < argc; i++) {
+    for (int i = 5; i < argc; i++) {
         TString arg = argv[i];
         arg.ToLower(); 
         

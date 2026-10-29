@@ -41,7 +41,8 @@ struct CovarAccumulator {
    double sumPeak = 0.0;
    double sumAlpha = 0.0;
    double sumn = 0.0;
-   double sumAlphaR = 0.0; 
+   double sumAlphaR = 0.0;
+   double sumA = 0.0;
    double sumBeta = 0.0;
    double sumEvtFull = 0.0;
    double sumEvtFst = 0.0;
@@ -66,12 +67,13 @@ std::cout << "**************************************************************\n";
 std::cout << "Fitting crystal " << crystalNo << ".\n";
 std::cout << "**************************************************************\n";
 convergencestatus = -1;
-fval = 0; // only set by the nll fit
+fval = 0; // was the nll value; nll has been removed, so this is always 0
 bool asymSuccess = false;
 double currentPeak  = 0.0;
 double currentAlpha = 0.0;
 double currentn= 0.0;
 double currentAlphaR = 0.0;
+double currentA     = 0.0;
 double currentBeta  = 0.0;
 double currentEvtFull = 0.0;
 double currentEvtFst  = 0.0;
@@ -225,7 +227,9 @@ else{
  RooRealVar fstesc("fstesc", "first peak [MeV]",5.619);
  RooRealVar scdesc("scdesc", "second peak [MeV]",5.108);
  // Stochastic term: sigma = A * sqrt(E), where A [sqrt(MeV)] encodes photon collection efficiency
- RooRealVar A("A", "stochastic term [sqrt(MeV)]", 0.1, 0, 1.0);
+ const double initA = 0.1;
+ RooRealVar A("A", "stochastic term [sqrt(MeV)]", initA, 0, 1.0);
+ currentA = initA;
  RooFormulaVar fullWidth("fullWidth", "Full width [MeV]", "A*std::sqrt(Egamma)", RooArgSet(A, Egamma));
  RooFormulaVar fstwidth ("fstwidth",  "first width [MeV]",  "A*std::sqrt(fstesc)",  RooArgSet(A, fstesc));
  RooFormulaVar scdwidth ("scdwidth",  "second width [MeV]", "A*std::sqrt(scdesc)", RooArgSet(A, scdesc));
@@ -288,6 +292,7 @@ auto run_one_fit = [&]() -> bool {
         fcbalphaR->setVal(currentAlphaR);
 }
      fullPeak.setVal(currentPeak);
+    A.setVal(currentA);
     combeta.setVal(currentBeta);
     evtsFull.setVal(currentEvtFull);
     evtsFrst.setVal(currentEvtFst);
@@ -295,11 +300,9 @@ auto run_one_fit = [&]() -> bool {
     evtsbkg.setVal(currentEvtBkg);
    RooFitResult *fitRes = nullptr;
 
-   // Objective: chi2 or NLL. Everything after this is shared.
-   RooAbsReal* fitFunc = (opt == "chi2")
-       ? fitFun.createChi2(chSpec, RooFit::DataError(RooAbsData::Expected),
-                           RooFit::Range(40, 115.2), RooFit::Extended(true))
-       : fitFun.createNLL(chSpec, Range(40, 115.2));
+   // Chi2 fit (the nll option was removed: each fit took ~100x longer than chi2)
+   RooAbsReal* fitFunc = fitFun.createChi2(chSpec, RooFit::DataError(RooAbsData::Expected),
+                                           RooFit::Range(40, 115.2), RooFit::Extended(true));
 
    RooMinimizer m(*fitFunc);
    m.setMinimizerType("Minuit2");
@@ -331,18 +334,12 @@ auto run_one_fit = [&]() -> bool {
            migrad_status = fitRes->statusCodeHistory(i);
        }
    }
-   if (opt == "nll") fval = fitFunc->getVal();
 
-   // Goodness of fit: chi2 at the best-fit point (for nll it is only evaluated, not minimised)
-   RooAbsReal* chi2Func = (opt == "chi2") ? fitFunc
-       : fitFun.createChi2(chSpec, RooFit::DataError(RooAbsData::Expected),
-                           RooFit::Range(40, 115.2), RooFit::Extended(true));
-   unreducedchi2 = chi2Func->getVal();
+   unreducedchi2 = fitFunc->getVal();
    int nBins = chSpec.numEntries();
    nPars = fitRes->floatParsFinal().getSize();
    ndof = nBins - nPars;
    reducedchi2 = unreducedchi2/ndof;
-   if (chi2Func != fitFunc) delete chi2Func;
    delete fitFunc;
 
 
@@ -381,21 +378,24 @@ auto run_one_fit = [&]() -> bool {
 };
 run_one_fit();
 bool is_perfect = (convergencestatus == 0 && reducedchi2 <= 1.6 && asymSuccess);
+// Accumulate this fit's results for the stage-2 seeds. Read the RooFit variables directly:
+// the output references (fcbndegparam, fr_fullparam, ...) are only filled after all refits.
 if (convergencestatus == 0 && reducedchi2 <= 1.6) {
     if (singlesided){
-        covarAcc.sumAlpha    += fcbalphaparam;
+        covarAcc.sumAlpha    += fcbalpha->getVal();
     }
     else{
-        covarAcc.sumAlphaR    += fcbalphaRparam;
+        covarAcc.sumAlphaR    += fcbalphaR->getVal();
     }
 covarAcc.count++;
 covarAcc.sumPeak     += fpeak;
-covarAcc.sumn    += fcbndegparam;
-covarAcc.sumBeta     += combetaparam;
-covarAcc.sumEvtFull  += fr_fullparam*nEvents;
-covarAcc.sumEvtFst   += fr_frstparam*nEvents;
-covarAcc.sumEvtScd   += fr_scndparam*nEvents;
-covarAcc.sumEvtBkg   += fr_bkgparam*nEvents;
+covarAcc.sumn    += fcbndeg->getVal();
+covarAcc.sumA        += A.getVal();
+covarAcc.sumBeta     += combeta.getVal();
+covarAcc.sumEvtFull  += evtsFull.getVal();
+covarAcc.sumEvtFst   += evtsFrst.getVal();
+covarAcc.sumEvtScd   += evtsScnd.getVal();
+covarAcc.sumEvtBkg   += evtsbkg.getVal();
 }
 
 if (!is_perfect){
@@ -406,34 +406,41 @@ if (!is_perfect){
 
    SourceFitter::nSecondFits++;
    SourceFitter::crystalsSecondFit.push_back(crystalNo);
-   double newPeakGuess     = covarAcc.sumPeak     / covarAcc.count;
-   double newnGuess    = covarAcc.sumn    / covarAcc.count;
-   double newCombetaGuess  = covarAcc.sumBeta     / covarAcc.count;
-   double newevtsFullGuess = covarAcc.sumEvtFull  / covarAcc.count;
-   double newevtsFstGuess  = covarAcc.sumEvtFst   / covarAcc.count;
-   double newevtsScdGuess  = covarAcc.sumEvtScd   / covarAcc.count;
-   double newevtsBkgGuess  = covarAcc.sumEvtBkg   / covarAcc.count;
-   if (singlesided){
-        currentAlpha  = covarAcc.sumAlpha  / covarAcc.count;
+
+   // Stage 2 seeds from the mean of earlier good fits; skip it until there is at least one
+   bool second_ok = false;
+   if (covarAcc.count > 0) {
+      double newPeakGuess     = covarAcc.sumPeak     / covarAcc.count;
+      double newnGuess    = covarAcc.sumn    / covarAcc.count;
+      double newCombetaGuess  = covarAcc.sumBeta     / covarAcc.count;
+      double newevtsFullGuess = covarAcc.sumEvtFull  / covarAcc.count;
+      double newevtsFstGuess  = covarAcc.sumEvtFst   / covarAcc.count;
+      double newevtsScdGuess  = covarAcc.sumEvtScd   / covarAcc.count;
+      double newevtsBkgGuess  = covarAcc.sumEvtBkg   / covarAcc.count;
+      if (singlesided){
+           currentAlpha  = covarAcc.sumAlpha  / covarAcc.count;
+      }
+      else{
+           currentAlphaR = covarAcc.sumAlphaR / covarAcc.count;
+      }
+
+
+      currentPeak   = newPeakGuess;
+      currentn  = newnGuess;
+      currentA      = covarAcc.sumA / covarAcc.count;
+      currentBeta   = newCombetaGuess;
+      currentEvtFull = newevtsFullGuess;
+      currentEvtFst  = newevtsFstGuess;
+      currentEvtScd  = newevtsScdGuess;
+      currentEvtBkg  = newevtsBkgGuess;
+
+
+      run_one_fit();
+      second_ok = (convergencestatus == 0 && reducedchi2 <= 1.6 && asymSuccess);
    }
-   else{
-        currentAlphaR = covarAcc.sumAlphaR / covarAcc.count;
-   }
 
 
-   currentPeak   = newPeakGuess;
-   currentn  = newnGuess;
-   currentBeta   = newCombetaGuess;
-   currentEvtFull = newevtsFullGuess;
-   currentEvtFst  = newevtsFstGuess;
-   currentEvtScd  = newevtsScdGuess;
-   currentEvtBkg  = newevtsBkgGuess;
-
-
-   run_one_fit();
-
-
-   if(convergencestatus == 0 && reducedchi2 <= 1.6 && asymSuccess){
+   if(second_ok){
        SourceFitter::nSecondFitConverged++;
        SourceFitter::crystalsSecondFitConverged.push_back(crystalNo);
        std::cout << "[SourceFitter] Second fit SUCCESS for crystal " << crystalNo << "\n";
@@ -452,6 +459,7 @@ if (!is_perfect){
             }
            currentPeak    = initPeak;
            currentn   = initn;
+           currentA       = initA;
            currentBeta    = initBeta;
            currentEvtFull = initEvtFull;
            currentEvtFst  = initEvtFst;
@@ -474,6 +482,7 @@ if (!is_perfect){
             currentn      = randomDouble(5.0, 20.0); 
            }
            currentPeak    = randomDouble(91.0, 108.0);
+           currentA       = randomDouble(0.05, 0.5);
            currentBeta    = randomDouble(-1.0, -0.001);
            currentEvtFull = randomDouble(0.05 * integral_evts, integral_evts);
            currentEvtFst  = randomDouble(0.2 * integral_evts, integral_evts);
@@ -498,7 +507,7 @@ if (!is_perfect){
 
 
                if (run_one_fit()) {
-                   if (convergencestatus == 0 &&reducedchi2 <= 6 && asymSuccess) {
+                   if (convergencestatus == 0 &&reducedchi2 <= 1.6 && asymSuccess) {
                        SourceFitter::thirdFitRetryCount[cId] = tries;
                        return true;
                    }
@@ -513,8 +522,9 @@ if (!is_perfect){
                         cand.p["alR"] = currentAlphaR; 
                        }
                        cand.chi2 = reducedchi2;
-                       cand.p["pk"] = currentPeak;  
+                       cand.p["pk"] = currentPeak;
                        cand.p["n"] = currentn;
+                       cand.p["A"] = currentA;
                        cand.p["bt"] = currentBeta;
                        cand.p["ef"] = currentEvtFull;
                        cand.p["e1"] = currentEvtFst;
@@ -557,6 +567,7 @@ if (!is_perfect){
                }
                currentPeak     = cand.p["pk"];
                currentn        = cand.p["n"];
+               currentA        = cand.p["A"];
                currentBeta     = cand.p["bt"];
                currentEvtFull  = cand.p["ef"];
                currentEvtFst   = cand.p["e1"];
@@ -594,6 +605,7 @@ if (!is_perfect){
                }
                currentPeak     = best.p["pk"];
                currentn        = best.p["n"];
+               currentA        = best.p["A"];
                currentBeta     = best.p["bt"];
                currentEvtFull  = best.p["ef"];
                currentEvtFst   = best.p["e1"];
@@ -791,13 +803,14 @@ else{
 
 double xMin = 40.0;
 double xMax = 115.0;
-int nBins   = h_spec->FindBin(xMax) - h_spec->FindBin(xMin) + 1;
+// Residuals for the data bins inside [xMin, xMax), using the data's own bin edges
 int startBin = h_spec->FindBin(xMin);
-int endBin = h_spec->FindBin(xMax);
+int endBin = h_spec->FindBin(xMax) - 1;
+int nBins   = endBin - startBin + 1;
 double totalYield = h_spec->Integral(startBin,endBin);
-TH1F* hresidual = new TH1F("hresidual","", nBins, xMin, xMax);
+TH1F* hresidual = new TH1F("hresidual","", nBins, h_spec->GetBinLowEdge(startBin), h_spec->GetBinLowEdge(endBin+1));
 
-for (int i = startBin; i <= h_spec->GetNbinsX(); ++i) {
+for (int i = startBin; i <= endBin; ++i) {
    double x     = h_spec->GetBinCenter(i);
    double yData = h_spec->GetBinContent(i);
    double yErr  = h_spec->GetBinError(i);
